@@ -98,41 +98,40 @@ async function write(path, data) {
   });
 }
 
+/* a directory listing only ever needs the records under its own prefix, so
+   this walks a bounded IndexedDB key range instead of pulling every key AND
+   every value (images, video vault keys, note bodies, everything) out of
+   the whole store on every single call -- that full-store round trip is
+   what made opening folders, `tree`, and any add/delete feel so heavy. */
 async function list(dir) {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
-    // Get all entries to rebuild a tree for the requested dir
-    const req = tx.objectStore(STORE_NAME).getAll();
-    const reqKeys = tx.objectStore(STORE_NAME).getAllKeys();
-    
-    reqKeys.onsuccess = () => {
-      const keys = reqKeys.result;
-      const values = req.result;
-      
-      const prefix = dir.endsWith('/') ? dir : dir + '/';
-      const results = new Map();
-      
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        if (key.startsWith(prefix) && key !== prefix) {
-          const rest = key.substring(prefix.length);
-          const parts = rest.split('/');
-          const name = parts[0];
-          const isDir = parts.length > 1;
-          
-          if (!results.has(name)) {
-            if (isDir) {
-              results.set(name, { name, type: 'folder' });
-            } else {
-              results.set(name, { name, type: values[i].type || 'file', app: values[i].app });
-            }
-          }
+    const store = tx.objectStore(STORE_NAME);
+    const prefix = dir.endsWith('/') ? dir : dir + '/';
+    const range = IDBKeyRange.bound(prefix, prefix + '\uFFFF', true, false);
+    const results = new Map();
+
+    const req = store.openCursor(range);
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) { resolve(Array.from(results.values())); return; }
+      const key = cursor.key;
+      const rest = key.substring(prefix.length);
+      const parts = rest.split('/');
+      const name = parts[0];
+      const isDir = parts.length > 1;
+
+      if (!results.has(name)) {
+        if (isDir) {
+          results.set(name, { name, type: 'folder' });
+        } else {
+          results.set(name, { name, type: cursor.value.type || 'file', app: cursor.value.app });
         }
       }
-      resolve(Array.from(results.values()));
+      cursor.continue();
     };
-    reqKeys.onerror = () => reject(reqKeys.error);
+    req.onerror = () => reject(req.error);
   });
 }
 
@@ -141,35 +140,34 @@ async function remove(path) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    
-    // Check if it's a directory by seeing if it has children
     const prefix = path.endsWith('/') ? path : path + '/';
-    const reqKeys = store.getAllKeys();
-    
-    reqKeys.onsuccess = () => {
-      const keys = reqKeys.result;
-      let count = 0;
-      let foundExact = false;
-      
-      for (const key of keys) {
-        if (key === path) {
-          store.delete(key);
-          count++;
-          foundExact = true;
-        } else if (key.startsWith(prefix)) {
-          store.delete(key);
-          count++;
+    let count = 0;
+
+    // the path itself (a file) plus everything under it (a folder's
+    // children), found through bounded key ranges instead of a full
+    // getAllKeys() scan of the entire VFS on every delete
+    const getReq = store.get(path);
+    getReq.onsuccess = () => {
+      if (getReq.result !== undefined) { store.delete(path); count++; }
+
+      const range = IDBKeyRange.bound(prefix, prefix + '\uFFFF', true, false);
+      const cursorReq = store.openCursor(range);
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result;
+        if (!cursor) {
+          if (count > 0 && typeof Style !== 'undefined') {
+            Style.hit({ name: path.split('/').pop() }, count);
+          }
+          resolve(count);
+          return;
         }
-      }
-      
-      // If we found something to delete, trigger style meter
-      if (count > 0 && typeof Style !== 'undefined') {
-        Style.hit({ name: path.split('/').pop() }, count);
-      }
-      
-      resolve(count);
+        cursor.delete();
+        count++;
+        cursor.continue();
+      };
+      cursorReq.onerror = () => reject(cursorReq.error);
     };
-    reqKeys.onerror = () => reject(reqKeys.error);
+    getReq.onerror = () => reject(getReq.error);
   });
 }
 
