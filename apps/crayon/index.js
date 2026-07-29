@@ -312,6 +312,15 @@ export default {
     if (now - scratchT > 55) { scratchT = now; Snd.scratch(speed); }
   });
   window.addEventListener('mouseup', () => { drawing = false; });
+  window.addEventListener('keydown', ev => {
+    if (!document.body.contains(cv)) return;
+    if (document.activeElement && /input|textarea/i.test(document.activeElement.tagName)) return;
+    if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z') {
+      ev.preventDefault();
+      Snd.click();
+      doUndo();
+    }
+  });
 
   /* ---- saving ------------------------------------------------------------ */
   function thumb() {
