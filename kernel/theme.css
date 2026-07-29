@@ -704,37 +704,43 @@ textarea.editor {
 .srcbtn { color: #000000; }
 .editor.ddsrc { color: #FFFF55; }
 
-/* ---- app windows -------------------------------------------------------- */
+/* ---- app windows --------------------------------------------------------
+   The chrome every app shares -- the button bar, its buttons, the status
+   line, and the pane a game's canvas sits in -- follows the equipped
+   scheme, the same as the terminal and the ledger do. The canvas content
+   itself (a game's own art, a photo, a video frame) is each app's own and
+   is never touched by a theme. */
 .appbar {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 3px 4px;
-  background: #000000;
-  border-top: 1px solid #555555;
+  background: var(--sch-bg, #000000);
+  border-top: 1px solid var(--sch-dim, #555555);
   position: sticky;
   bottom: 0;
 }
 .appbtn {
   font: inherit;
   font-size: 16px;
-  background: #AAAAAA;
-  color: #000000;
-  border: 1px solid var(--phos, #FFFFFF);
+  background: var(--sch-dim, #AAAAAA);
+  color: var(--sch-bg, #000000);
+  border: 1px solid var(--sch-fg, #FFFFFF);
   padding: 0 8px;
   cursor: pointer;
 }
-.appbtn:hover { background: #FFFFFF; }
-.godword { color: #55FF55; padding-left: 4px; white-space: nowrap; overflow: hidden; }
+.appbtn:hover { background: var(--sch-fg, #FFFFFF); }
+.appbtn.on { background: var(--sch-hi, #FFFF55); color: var(--sch-bg, #000000); border-color: var(--sch-hi, #FFFF55); }
+.godword { color: var(--sch-ok, #55FF55); padding-left: 4px; white-space: nowrap; overflow: hidden; }
 .godpane, .vidpane, .gamepane {
   display: flex; align-items: center; justify-content: center;
-  background: #000000; padding: 4px; min-height: 60%;
+  background: var(--sch-bg, #000000); padding: 4px; min-height: 60%;
 }
 .godcv, .vidcv, .gamecv {
   image-rendering: pixelated;
   max-width: 100%;
   max-height: 100%;
-  background: #000000;
+  background: var(--sch-bg, #000000);
 }
 .gamecv { outline: 0; cursor: crosshair; }
 /* Bekkedal draws 480x300 and is presented at 150% — a whole-number-ish blow-up
