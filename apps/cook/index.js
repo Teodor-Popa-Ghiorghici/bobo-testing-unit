@@ -66,6 +66,38 @@ export default {
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
       let alive = true;
 
+      /* ---- wall décor -----------------------------------------------------
+         Three empty frames hang in every story scene. Drop an image named
+         Frame1, Frame2 or Frame3 into ::/TheCook (Folder.exe handles new
+         folders and uploads fine now) and it shows up taped to the wall,
+         semi-transparent, next time this reloads them. */
+      const WALL_DIR = '::/TheCook';
+      const WALL_NAMES = ['Frame1', 'Frame2', 'Frame3'];
+      const wallImg = [null, null, null];
+      async function ensureWallFolder() {
+        const keep = await vfs.read(WALL_DIR + '/.keep').catch(() => null);
+        if (!keep) await vfs.write(WALL_DIR + '/.keep', { type: 'text', content: '' }).catch(() => {});
+      }
+      async function loadWallFrames() {
+        for (let i = 0; i < WALL_NAMES.length; i++) {
+          const rec = await vfs.read(WALL_DIR + '/' + WALL_NAMES[i]).catch(() => null);
+          if (rec && rec.type === 'image' && rec.src) {
+            const img = new Image();
+            img.src = rec.src;
+            wallImg[i] = img;
+          } else {
+            wallImg[i] = null;
+          }
+        }
+      }
+      ensureWallFolder().then(loadWallFrames);
+      const wallHandler = ev => {
+        if (!alive) return;
+        const dir = ev.detail && ev.detail.dir;
+        if (!dir || dir === '::' || dir === WALL_DIR) loadWallFrames();
+      };
+      window.addEventListener('vfs-changed', wallHandler);
+
       /* ---- 33.6 paint --------------------------------------------------- */
       const C = i => { const p = VGA16[i] || VGA16[7]; return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; };
       const R = (x, y, w, h, c) => {
@@ -723,6 +755,31 @@ export default {
             S2(x, y, 7, 9, 11); S2(x, y, 7, 2, 15);
           }
         }
+        drawWallFrames();
+      }
+
+      function drawWallFrames() {
+        const FW = 108, FH = 34, gap = 10, y = 8;
+        for (let i = 0; i < 3; i++) {
+          const x = 14 + i * (FW + gap);
+          const img = wallImg[i];
+          if (img && img.complete && img.naturalWidth) {
+            R(x, y, FW, FH, 0);
+            g.save();
+            g.beginPath(); g.rect(x, y, FW, FH); g.clip();
+            g.globalAlpha = 0.4;
+            const s = Math.max(FW / img.naturalWidth, FH / img.naturalHeight);
+            const iw = img.naturalWidth * s, ih = img.naturalHeight * s;
+            g.drawImage(img, x + (FW - iw) / 2, y + (FH - ih) / 2, iw, ih);
+            g.globalAlpha = 1;
+            g.restore();
+          } else {
+            R(x, y, FW, FH, 0);
+            R(x + FW / 2 - 4, y + FH / 2 - 1, 8, 2, 8);
+          }
+          R(x - 2, y - 2, FW + 4, 2, 15); R(x - 2, y + FH, FW + 4, 2, 8);
+          R(x - 2, y - 2, 2, FH + 4, 15); R(x + FW, y - 2, 2, FH + 4, 8);
+        }
       }
 
       function drawStory(t) {
@@ -1005,7 +1062,11 @@ export default {
       /* ---- 33.16 the loop --------------------------------------------------- */
       let raf = null, last = 0, acc = 0;
       function frame(ts) {
-        if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); save(); return; }
+        if (!alive || !document.body.contains(cv)) {
+          alive = false; Song.stop(); save();
+          window.removeEventListener('vfs-changed', wallHandler);
+          return;
+        }
         raf = requestAnimationFrame(frame);
         if (!last) last = ts;
         let dt = (ts - last) / 1000; last = ts;
