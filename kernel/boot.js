@@ -8,6 +8,20 @@ import { wireKonami } from './desktop.js';
 import { initHardware, CRT } from './hardware.js';
 import "./snd.js";
 import "./economy.js";
+import "./vault.js";
+import { Music } from './music.js';
+import { SunUI } from './economy.js';
+import { panic } from './panic.js';
+window.Music = Music;
+
+/* window.onerror is the closest a browser gets to a machine check */
+window.addEventListener('error', e => {
+  if (!e || !e.error) return;
+  try { panic(e.error, 'ring 0'); } catch (x) {}
+});
+window.addEventListener('unhandledrejection', e => {
+  try { panic(e.reason || new Error('rejected promise'), 'async fault'); } catch (x) {}
+});
 
 const PALETTE = ['#FFFF55','#55FF55','#55FFFF','#FF55FF','#FF5555','#FFFFFF','#5555FF'];
 
@@ -100,10 +114,13 @@ function dismissSplash() {
   if (desktopBuilt) return;
   desktopBuilt = true;
   initDesktop();
+  try { SunUI.mount(); } catch(e) {}
   try { Hold.apply(); } catch(e) {}
   try { Saver.watch(); } catch(e) {}
   try { wireKonami(); } catch(e) {}
 }
+
+window._bootAt = Date.now();
 
 document.addEventListener('DOMContentLoaded', () => {
   initHardware();

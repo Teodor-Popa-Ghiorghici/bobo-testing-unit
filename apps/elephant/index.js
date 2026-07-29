@@ -2,6 +2,9 @@ import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { ELE_HELLO, ELE_QUOTES, ELE_PLACES, ELE_HZ, ELE_SONGS } from './quotes.js';
+import { phosLevel, CRT, Vol, musGain } from '../../kernel/hardware.js';
+import { VGA16 } from '../../kernel/god.js';
 
 export default {
   open() {

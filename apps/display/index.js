@@ -1,7 +1,6 @@
-import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
+import { createWindow } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
-import { Cos } from '../../kernel/cos.js';
-import { fs as vfs } from '../../kernel/vfs.js';
+import { DISP, applyDisplay } from '../../kernel/hardware.js';
 
 export default {
   open() {

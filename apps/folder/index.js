@@ -1,12 +1,20 @@
 
 import { SPRITES } from '../../kernel/sprites.js';
+import { wireDrop } from '../../kernel/desktop.js';
 
-function spriteFor(type) {
+const APP_SPRITES = {
+  hifi: 'disc', notes: 'notes', bottle: 'bottle', elephant: 'elephant',
+  magen: 'magen', cook: 'flask', garden: 'garden', sweeper: 'sweeper',
+  solitaire: 'solitaire', crayon: 'crayon', shop: 'shop', drawings: 'drawings',
+  account: 'account'
+};
+
+function spriteFor(type, app) {
   if (type === 'folder')   return SPRITES.folder;
   if (type === 'image')    return SPRITES.image;
   if (type === 'video')    return SPRITES.video;
   if (type === 'terminal') return SPRITES.terminal;
-  if (type === 'app')      return SPRITES.app;
+  if (type === 'app')      return SPRITES[APP_SPRITES[app]] || SPRITES.app;
   if (type === 'doc')      return SPRITES.doc;
   if (type === 'code')     return SPRITES.code;
   return SPRITES.text;
@@ -41,7 +49,7 @@ export default {
     list.forEach(item => {
       const el = document.createElement('div');
       el.className = 'icon';
-      el.innerHTML = spriteFor(item.type);
+      el.innerHTML = spriteFor(item.type, item.app);
       
       const lbl = document.createElement('div');
       const span = document.createElement('span');
@@ -65,16 +73,23 @@ export default {
           ctx.openWindow('folder', { path: p });
         } else if (item.type === 'terminal') {
           ctx.openWindow('terminal');
+        } else if (item.type === 'app') {
+          if (item.app) ctx.openWindow(item.app);
         } else {
           const app = ['code','doc','text'].includes(item.type) ? 'editor' : 'viewer';
           ctx.openWindow(app, { path: p, type: item.type });
         }
       });
       
+      if (item.type === 'folder') {
+        wireDrop(el, () => path + (path.endsWith('/') ? '' : '/') + item.name);
+      }
+
       body.appendChild(el);
     });
-    
-    
+
+    wireDrop(body, () => path);
+
     body.addEventListener('click', () => {
       body.querySelectorAll('.icon.sel').forEach(n => n.classList.remove('sel'));
     });

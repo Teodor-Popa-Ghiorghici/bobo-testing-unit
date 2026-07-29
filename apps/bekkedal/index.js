@@ -1,5 +1,18 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { VGA16 } from '../../kernel/god.js';
+import { CRT, Vol, musGain } from '../../kernel/hardware.js';
+import { BEK_T, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
+         BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
+         BEK_TALK, BEK_QUESTS, BEK_HOUSE } from './data.js';
+
+let BEK_LANG = 'bi';                       /* 'bi' bilingual · 'en' english  */
+const T = s => {
+  if (s == null) return '';
+  if (typeof s === 'string') return s;
+  const v = BEK_LANG === 'en' ? (s.en != null ? s.en : s.no) : (s.no != null ? s.no : s.en);
+  return v == null ? '' : v;
+};
 
 export default {
   id: 'bekkedal',

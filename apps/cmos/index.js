@@ -18,7 +18,7 @@ export default {
   title: 'CMOS SETUP UTILITY',
   width: 520,
   height: 320,
-  resizable: false,
+  resizable: true,
   mount(root, ctx) {
     const p = document.createElement('div');
     p.className = 'cmos';

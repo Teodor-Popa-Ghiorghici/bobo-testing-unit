@@ -2,6 +2,7 @@ import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { lampDip } from '../../kernel/hardware.js';
 
 
 const SWP_KEY = 'templeos.sweeper';
@@ -11,6 +12,7 @@ const SWEEP_LV = [
   { id: 'h', name: 'THE DEEP',  c: 30, r: 16, m: 99, pay: 200, par: 600 }
 ];
 const SWEEP_NUM = ['', '#7fb8ff', '#8fe8b0', '#ffffff', '#c3a6ff', '#ffc35c', '#ff9040', '#ff4d5e', '#b0202e'];
+const TILE = 26, HEAD = 44;
 
 const Sweeper = {
   st: null,

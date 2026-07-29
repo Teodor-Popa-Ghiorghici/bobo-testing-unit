@@ -1,4 +1,40 @@
 import { ddRender } from '../../kernel/doldoc.js';
+import { createWindow } from '../../kernel/wm.js';
+import { hcLex, hcParse, hcRun } from '../../kernel/holyc.js';
+
+/* a macro button in a document has nowhere to print, so it gets a window */
+function runHolyCToast(cmd, ctx) {
+  const rows = [];
+  let ok = true;
+  try {
+    hcRun(hcParse(hcLex(cmd)), line => rows.push(line), null, {
+      godDoodle: () => ctx.openWindow('goddoodle').catch(console.error),
+      dirNames: () => []
+    });
+  } catch (e) {
+    ok = false;
+    rows.push(e && e.holyc ? 'HolyC: ' + e.message : 'FAULT: ' + (e && e.message));
+  }
+  if (window.Snd) { if (ok) window.Snd.holy(); else window.Snd.err(); }
+  if (!rows.length) return;
+  createWindow({
+    kind: 'terminal', title: 'HolyC JIT', w: 420, h: 220,
+    build: body => {
+      const t = document.createElement('div');
+      t.className = 'term';
+      const o = document.createElement('div');
+      o.className = 'termout';
+      rows.forEach(r => {
+        const d = document.createElement('div');
+        d.className = ok ? 'l-holyc' : 'l-err';
+        d.textContent = r;
+        o.appendChild(d);
+      });
+      t.appendChild(o);
+      body.appendChild(t);
+    }
+  });
+}
 
 export default {
   id: 'editor',
@@ -20,6 +56,7 @@ export default {
     if (path) {
       const file = await ctx.fs.read(path);
       if (file) val = file.content || '';
+      window._lastTextPath = path;
     }
     
     const isDoc = path.toUpperCase().endsWith('.DD') || path.toUpperCase().endsWith('.HC') || args?.type === 'doc' || args?.type === 'code';
@@ -41,9 +78,8 @@ export default {
         ctx.openWindow('editor', { path: targetPath }).catch(console.error);
         if (window.Snd) window.Snd.open();
       },
-      (cmd) => { // onMacro
-        if (window.Snd) window.Snd.ok();
-        ctx.openWindow('terminal', { cmd }).catch(console.error);
+      (cmd) => { // onMacro: a button in a document has nowhere to print, so it gets a window
+        runHolyCToast(cmd, ctx);
       }
     );
 

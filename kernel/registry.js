@@ -26,6 +26,7 @@ export const registry = {
   bekkedal: () => import('../apps/bekkedal/index.js'),
   bottle: () => import('../apps/bottle/index.js'),
   notes: () => import('../apps/notes/index.js'),
+  neofetch: () => import('../apps/neofetch/index.js'),
 
 
 };

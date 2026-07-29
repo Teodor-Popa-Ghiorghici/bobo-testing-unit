@@ -1632,14 +1632,3 @@ textarea.editor {
   display: block;
 }
 
-#shell { transition: transform 0.1s; }
-.vhold-roll { animation: vhold-roll var(--vhold-speed, 1s) linear infinite; }
-@keyframes vhold-roll {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-50%); opacity:0; filter: blur(4px); }
-}
-.hhold-skew { animation: hhold-skew var(--hhold-speed, 0.1s) linear infinite alternate; }
-@keyframes hhold-skew {
-  0% { transform: skewX(-5deg) translateX(-10px); filter: blur(2px); }
-  100% { transform: skewX(5deg) translateX(10px); filter: blur(2px); }
-}

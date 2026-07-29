@@ -206,5 +206,7 @@ const Cos = {
   }
 };
 
+Cos.COS_CATS = COS_CATS;
+
 export { Cos };
 window.Cos = Cos;

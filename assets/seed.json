@@ -27,73 +27,85 @@
     "path": "::/TheStack",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "hifi"
   },
   {
     "path": "::/Notes",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "notes"
   },
   {
     "path": "::/Jaeger",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "bottle"
   },
   {
     "path": "::/Elephant",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "elephant"
   },
   {
     "path": "::/Magen",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "magen"
   },
   {
     "path": "::/TheCook",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "cook"
   },
   {
     "path": "::/Garden",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "garden"
   },
   {
     "path": "::/Sweeper",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "sweeper"
   },
   {
     "path": "::/Solitaire",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "solitaire"
   },
   {
     "path": "::/Crayon",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "crayon"
   },
   {
     "path": "::/Dave",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "shop"
   },
   {
     "path": "::/MyDrawings",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "drawings"
   },
   {
     "path": "::/TheBibel.TXT",
@@ -105,43 +117,50 @@
     "path": "::/Demo/AfterEgypt",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "aftere"
   },
   {
     "path": "::/Demo/GodDoodle",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "goddoodle"
   },
   {
     "path": "::/Demo/Defrag",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "defrag"
   },
   {
     "path": "::/Demo/Tasks",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "tasks"
   },
   {
     "path": "::/Demo/Neofetch",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "neofetch"
   },
   {
     "path": "::/Demo/Account",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "account"
   },
   {
     "path": "::/Demo/Bekkedal",
     "content": "",
     "src": "",
-    "type": "app"
+    "type": "app",
+    "app": "bekkedal"
   },
   {
     "path": "::/Demo/Graphics/Temple.BMP",
