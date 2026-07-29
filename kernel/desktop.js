@@ -103,7 +103,8 @@ export async function initDesktop() {
           openWindow('garden').catch(console.error);
         } else {
           // generic open
-          const app = item.type === 'folder' ? 'folder' : ['code','doc','text'].includes(item.type) ? 'editor' : 'viewer'; openWindow(app, { path: `::/${item.name}`, type: item.type }).catch(console.error);
+          const app = item.type === 'folder' ? 'folder' : ['code','doc','text'].includes(item.type) ? 'editor' : 'viewer';
+          openWindow(app, { path: `::/${item.name}`, type: item.type }).catch(console.error);
         }
       });
       
