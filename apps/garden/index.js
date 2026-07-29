@@ -429,26 +429,6 @@ const W = 700, H = 436;
     const my = (ev.clientY - r.top) * (H / r.height);
     const now = Date.now();
 
-    /* a token in front of a pot is the first thing a click can mean */
-    for (let i = 0; i < GARD_POTS; i++) {
-      const p = Garden.st.pots[i];
-      if (!p || !p.tok) continue;
-      const q = potAt(i);
-      for (let k = 0; k < p.tok; k++) {
-        const tx = q.x + 4 + k * 9, ty = q.y + q.h + 4;
-        if (mx >= tx - 3 && mx <= tx + 12 && my >= ty - 3 && my <= ty + 12) {
-          const sp = speciesById(p.sp);
-          const n = sp ? Math.round(sp.yield * p.tok * potBuff().yield) : p.tok;
-          p.tok = 0;
-          window.Economy.earn(n, 'GARDEN: ' + (sp ? sp.name : '?'));
-          window.Snd.coin();
-          pops.push({ x: tx, y: ty, t: 0, n: n });
-          Garden.save();
-          return;
-        }
-      }
-    }
-
     for (let i = 0; i < GARD_POTS; i++) {
       const q = potAt(i);
       if (mx < q.x - 6 || mx > q.x + q.w + 6 || my < q.y - 60 || my > q.y + q.h + 6) continue;
@@ -485,9 +465,19 @@ const W = 700, H = 436;
         Garden.save();
         return;
       }
-      /* poking a plant is the whole point of the app */
+      /* clicking the plant is the harvest -- the tokens beside the pot are
+         just a running tally of what's waiting, not a separate target */
       const sp = speciesById(p.sp);
       p.wig = 1;
+      if (p.tok) {
+        const n = sp ? Math.round(sp.yield * p.tok * potBuff().yield) : p.tok;
+        p.tok = 0;
+        window.Economy.earn(n, 'GARDEN: ' + (sp ? sp.name : '?'));
+        window.Snd.coin();
+        pops.push({ x: q.cx, y: q.y, t: 0, n: n });
+        Garden.save();
+        return;
+      }
       if (sp) window.Snd.pluck(PENTA[sp.note] * (Garden.stage(p) === 3 ? 1 : 2));
       return;
     }
