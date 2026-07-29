@@ -31,8 +31,8 @@ async function initVFS() {
         const tx2 = db.transaction(STORE_NAME, 'readwrite');
         const store2 = tx2.objectStore(STORE_NAME);
         for (const item of seed) {
-          // store as object: { type, content, src }
-          store2.put({ type: item.type, content: item.content, src: item.src }, item.path);
+          // store as object: { type, content, src, app }
+          store2.put({ type: item.type, content: item.content, src: item.src, app: item.app }, item.path);
         }
         await new Promise(r => { tx2.oncomplete = r; tx2.onerror = r; });
       }
@@ -89,7 +89,7 @@ async function list(dir) {
             if (isDir) {
               results.set(name, { name, type: 'folder' });
             } else {
-              results.set(name, { name, type: values[i].type || 'file' });
+              results.set(name, { name, type: values[i].type || 'file', app: values[i].app });
             }
           }
         }

@@ -9,6 +9,7 @@ import { initHardware, CRT } from './hardware.js';
 import "./snd.js";
 import "./economy.js";
 import { Music } from './music.js';
+import { SunUI } from './economy.js';
 window.Music = Music;
 
 const PALETTE = ['#FFFF55','#55FF55','#55FFFF','#FF55FF','#FF5555','#FFFFFF','#5555FF'];
@@ -102,10 +103,13 @@ function dismissSplash() {
   if (desktopBuilt) return;
   desktopBuilt = true;
   initDesktop();
+  try { SunUI.mount(); } catch(e) {}
   try { Hold.apply(); } catch(e) {}
   try { Saver.watch(); } catch(e) {}
   try { wireKonami(); } catch(e) {}
 }
+
+window._bootAt = Date.now();
 
 document.addEventListener('DOMContentLoaded', () => {
   initHardware();

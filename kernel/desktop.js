@@ -3,7 +3,20 @@ import { fs as vfs } from './vfs.js';
 import { openWindow, createWindow, toast } from './wm.js';
 import { SPRITES } from './sprites.js';
 
-let desktopIcons = [];
+const ICON_POS_KEY = 'templeos.icons.v1';
+const WALL_KEY = 'templeos.wallpaper.v1';
+const ICON_W = 84, ICON_H = 78;
+
+let iconPos = {};
+let wallpaper = null;             /* { src, mode } */
+
+function loadIconPos() {
+  try { iconPos = JSON.parse(localStorage.getItem(ICON_POS_KEY)) || {}; }
+  catch (e) { iconPos = {}; }
+}
+function saveIconPos() {
+  try { localStorage.setItem(ICON_POS_KEY, JSON.stringify(iconPos)); } catch (e) {}
+}
 
 function spriteFor(type) {
   if (type === 'folder')   return SPRITES.folder;
@@ -16,13 +29,31 @@ function spriteFor(type) {
   return SPRITES.text;
 }
 
+function iconSlot(i) {
+  const desk = document.getElementById('desktop');
+  const h = (desk && (desk.clientHeight || desk.offsetHeight)) || 600;
+  const rows = Math.max(1, Math.floor((h - 12) / ICON_H));
+  return { x: 8 + Math.floor(i / rows) * ICON_W, y: 8 + (i % rows) * ICON_H };
+}
+
 export async function initDesktop() {
   const desk = document.getElementById('desktop');
-  desk.addEventListener('click', () => {
-    document.querySelectorAll('.icon.sel').forEach(n => n.classList.remove('sel'));
-  });
+  loadIconPos();
+  desk.addEventListener('click', () => clearIconSel());
   wireMenu();
+  wireMarquee(desk);
+  applyWallpaper();
   await refreshIcons();
+}
+
+function deskIcons() {
+  return Array.prototype.slice.call(document.querySelectorAll('#icons .icon'));
+}
+function clearIconSel() {
+  deskIcons().forEach(n => n.classList.remove('sel'));
+}
+function selectedIcons() {
+  return deskIcons().filter(n => n.classList.contains('sel'));
 }
 
 async function refreshIcons() {
@@ -34,94 +65,230 @@ async function refreshIcons() {
 
   try {
     const list = await vfs.list('::');
-    
-    // Add built-in terminal icon
+
+    // the terminal is a kernel primitive, not a VFS node
     list.push({ name: 'TERMINAL', type: 'terminal' });
-    list.push({ name: 'GARDEN', type: 'app' });
-    list.push({ name: 'SHOP', type: 'app' });
-    list.push({ name: 'BOTTLE', type: 'app' });
-    list.push({ name: 'NOTES', type: 'app' });
-    list.push({ name: 'TASKS', type: 'app' });
-    list.push({ name: 'BEKKEDAL', type: 'app' });
-    
+
     list.forEach((item, i) => {
       const el = document.createElement('div');
       el.className = 'icon';
       el.innerHTML = spriteFor(item.type);
-      
+      el.dataset.name = item.name;
+
       const lbl = document.createElement('div');
       const span = document.createElement('span');
       span.className = 'lbl';
       span.textContent = item.name;
       lbl.appendChild(span);
       el.appendChild(lbl);
-      
-      // Compute simple grid position if no icon slot system is ported
-      // 80x80 slots, grid starts at (10, 10)
-      const col = Math.floor(i / 5);
-      const row = i % 5;
-      el.style.left = (20 + col * 80) + 'px';
-      el.style.top = (20 + row * 80) + 'px';
-      
-      el.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        if (window.Snd) window.Snd.select();
-        document.querySelectorAll('.icon.sel').forEach(n => n.classList.remove('sel'));
-        el.classList.add('sel');
-      });
-      
+
+      const pos = iconPos[item.name] || iconSlot(i);
+      el.style.left = pos.x + 'px';
+      el.style.top = pos.y + 'px';
+      iconPos[item.name] = pos;
+
+      const openThis = () => {
+        if (item.type === 'terminal') {
+          openWindow('terminal').catch(console.error);
+        } else if (item.type === 'folder') {
+          openWindow('folder', { path: `::/${item.name}` }).catch(console.error);
+        } else if (item.type === 'app') {
+          if (item.app) openWindow(item.app).catch(console.error);
+          else toast('NO SUCH APP: ' + item.name);
+        } else {
+          const app = ['code', 'doc', 'text'].includes(item.type) ? 'editor' : 'viewer';
+          openWindow(app, { path: `::/${item.name}`, type: item.type }).catch(console.error);
+        }
+      };
+
       el.addEventListener('dblclick', (ev) => {
         ev.stopPropagation();
         if (window.Snd) window.Snd.open();
-        if (item.type === 'terminal') {
-          openWindow('terminal').catch(console.error);
-        } else if (item.name === 'SHOP') {
-          openWindow('shop').catch(console.error);
-        } else if (item.name === 'BOTTLE') {
-          openWindow('bottle').catch(console.error);
-        } else if (item.name === 'NOTES') {
-          openWindow('notes').catch(console.error);
-        } else if (item.name === 'TASKS') {
-          openWindow('tasks').catch(console.error);} else if (item.name === 'HIFI') {
-          openWindow('hifi').catch(console.error);
-        } else if (item.name === 'MINESWEEPER') {
-          openWindow('sweeper').catch(console.error);
-        } else if (item.name === 'SOLITAIRE') {
-          openWindow('solitaire').catch(console.error);
-        } else if (item.name === 'CRAYON') {
-          openWindow('crayon').catch(console.error);
-        } else if (item.name === 'DRAWINGS') {
-          openWindow('drawings').catch(console.error);
-        } else if (item.name === 'ELEPHANT') {
-          openWindow('elephant').catch(console.error);
-        } else if (item.name === 'MAGEN') {
-          openWindow('magen').catch(console.error);
-        } else if (item.name === 'COOK') {
-          openWindow('cook').catch(console.error);
-        } else if (item.name === 'DISPLAY SETTINGS') {
-          openWindow('display').catch(console.error);
-        } else if (item.name === 'ABOUT') {
-          openWindow('about').catch(console.error);
-
-
-        } else if (item.name === 'BEKKEDAL') {
-          openWindow('bekkedal').catch(console.error);
-
-        } else if (item.name === 'GARDEN') {
-          openWindow('garden').catch(console.error);
-        } else {
-          // generic open
-          const app = item.type === 'folder' ? 'folder' : ['code','doc','text'].includes(item.type) ? 'editor' : 'viewer';
-          openWindow(app, { path: `::/${item.name}`, type: item.type }).catch(console.error);
-        }
+        openThis();
       });
-      
+
+      el.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        clearIconSel();
+        el.classList.add('sel');
+        openIconContextMenu(ev, item);
+      });
+
+      wireDeskIcon(el, item, openThis);
+
       iconsContainer.appendChild(el);
     });
+
+    saveIconPos();
 
   } catch(e) {
     console.error("Failed to load desktop icons", e);
   }
+}
+
+/* drag to move (alone or as part of a multi-selection), click to select,
+   ctrl/shift-click to add to the selection */
+function wireDeskIcon(el, item, openThis) {
+  el.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return;
+    ev.stopPropagation();
+    const add = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+    if (add) {
+      el.classList.toggle('sel');
+      if (window.Snd) window.Snd.select();
+    } else if (!el.classList.contains('sel')) {
+      clearIconSel();
+      el.classList.add('sel');
+      if (window.Snd) window.Snd.select();
+    }
+
+    const desk = document.getElementById('desktop');
+    const sx = ev.clientX, sy = ev.clientY;
+    const group = selectedIcons().map(n => ({ n, x: n.offsetLeft, y: n.offsetTop }));
+    let moved = false;
+
+    const move = e2 => {
+      const dx = e2.clientX - sx, dy = e2.clientY - sy;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      if (!moved) {
+        moved = true;
+        if (window.Snd) window.Snd.grab();
+        group.forEach(s => s.n.classList.add('dragging'));
+      }
+      group.forEach(s => {
+        s.n.style.left = Math.max(0, Math.min(s.x + dx, desk.clientWidth - s.n.offsetWidth)) + 'px';
+        s.n.style.top = Math.max(0, Math.min(s.y + dy, desk.clientHeight - s.n.offsetHeight)) + 'px';
+      });
+    };
+
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (!moved) return;
+      group.forEach(s => {
+        s.n.classList.remove('dragging');
+        iconPos[s.n.dataset.name] = { x: s.n.offsetLeft, y: s.n.offsetTop };
+      });
+      saveIconPos();
+      if (window.Snd) window.Snd.drop();
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+}
+
+/* rubber-band select on bare desktop */
+function wireMarquee(desk) {
+  const box = document.getElementById('marquee');
+  desk.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return;
+    if (ev.target.closest && (ev.target.closest('.icon') || ev.target.closest('.win'))) return;
+    const add = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+    if (!add) clearIconSel();
+
+    const r = desk.getBoundingClientRect();
+    const ox = ev.clientX - r.left, oy = ev.clientY - r.top;
+    let live = false;
+
+    const move = e2 => {
+      const cx = e2.clientX - r.left, cy = e2.clientY - r.top;
+      if (!live && Math.abs(cx - ox) + Math.abs(cy - oy) < 4) return;
+      live = true;
+      if (box) {
+        box.style.display = 'block';
+        box.style.left = Math.min(ox, cx) + 'px';
+        box.style.top = Math.min(oy, cy) + 'px';
+        box.style.width = Math.abs(cx - ox) + 'px';
+        box.style.height = Math.abs(cy - oy) + 'px';
+      }
+      const mx0 = Math.min(ox, cx), mx1 = Math.max(ox, cx);
+      const my0 = Math.min(oy, cy), my1 = Math.max(oy, cy);
+      deskIcons().forEach(n => {
+        const hit = n.offsetLeft < mx1 && n.offsetLeft + n.offsetWidth > mx0 &&
+                    n.offsetTop < my1 && n.offsetTop + n.offsetHeight > my0;
+        n.classList.toggle('sel', hit);
+      });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (box) box.style.display = 'none';
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+}
+
+/* ---- right-click: open / upload / background / delete / compile -------- */
+function openIconContextMenu(ev, item) {
+  const items = [];
+  if (item.type === 'folder') {
+    items.push({ label: 'UPLOAD IMAGES HERE...', run: () => {
+      uploadTarget = `::/${item.name}`;
+      document.getElementById('pickimg').click();
+    }});
+  }
+  if (item.type === 'image') {
+    items.push({ label: 'SET AS BACKGROUND', run: () => setWallpaperFrom(item, 'fill') });
+    items.push({ label: 'TILE AS BACKGROUND', run: () => setWallpaperFrom(item, 'tile') });
+  }
+  if (item.type === 'video') {
+    items.push({ label: 'SET AS BACKGROUND', run: () => setWallpaperFrom(item, 'fill') });
+  }
+  if (['text', 'code', 'doc'].includes(item.type)) {
+    items.push({ label: 'COMPILE', run: () => {
+      window._lastTextPath = `::/${item.name}`;
+      openCompile();
+    }});
+  }
+  if (item.type !== 'terminal') {
+    items.push({ sep: true });
+    items.push({ label: 'DELETE', run: () => deleteIcon(item) });
+  }
+  if (!items.length) items.push({ label: 'NOTHING TO DO HERE', off: true });
+  showMenu(document.getElementById('ctxmenu'), ev.clientX, ev.clientY, items);
+}
+
+async function deleteIcon(item) {
+  await vfs.remove(`::/${item.name}`);
+  delete iconPos[item.name];
+  saveIconPos();
+  toast(item.name + ' DELETED.');
+  refreshIcons();
+}
+
+async function setWallpaperFrom(item, mode) {
+  const file = await vfs.read(`::/${item.name}`);
+  if (!file || !file.src) { toast('COULD NOT READ THAT FILE.'); return; }
+  wallpaper = { src: file.src, mode };
+  applyWallpaper();
+  try { localStorage.setItem(WALL_KEY, JSON.stringify(wallpaper)); } catch (e) {}
+  toast('BACKGROUND SET.');
+}
+
+function clearWallpaper() {
+  wallpaper = null;
+  applyWallpaper();
+  try { localStorage.removeItem(WALL_KEY); } catch (e) {}
+  toast('BACKGROUND CLEARED.');
+}
+
+function applyWallpaper() {
+  const desk = document.getElementById('desktop');
+  if (!desk) return;
+  try {
+    const raw = localStorage.getItem(WALL_KEY);
+    if (raw && !wallpaper) wallpaper = JSON.parse(raw);
+  } catch (e) {}
+  if (!wallpaper) {
+    desk.style.backgroundImage = '';
+    return;
+  }
+  desk.style.backgroundImage = 'url("' + wallpaper.src + '")';
+  desk.style.backgroundRepeat = wallpaper.mode === 'tile' ? 'repeat' : 'no-repeat';
+  desk.style.backgroundSize = wallpaper.mode === 'tile' ? 'auto' : 'cover';
 }
 
 /* menu labels are decorative; File, Compile, Tools and Help do something.
@@ -166,20 +333,24 @@ function hideMenus() {
   if (cm) cm.style.display = 'none';
 }
 
+let uploadTarget = '::';
+
 function openFileMenu(anchor) {
   const r = anchor.getBoundingClientRect();
-  showMenu(document.getElementById('filemenu'), r.left, r.bottom, [
-    { label: 'UPLOAD IMAGES / VIDEO -> ::/', run: () => document.getElementById('pickimg').click() },
-    { label: 'UPLOAD TEXT FILES...  -> ::/', run: () => document.getElementById('picktxt').click() },
+  const items = [
+    { label: 'UPLOAD IMAGES / VIDEO -> ::/', run: () => { uploadTarget = '::'; document.getElementById('pickimg').click(); } },
+    { label: 'UPLOAD TEXT FILES...  -> ::/', run: () => { uploadTarget = '::'; document.getElementById('picktxt').click(); } },
     { sep: true },
     { label: 'NEW FOLDER...', run: () => newFolderPrompt() }
-  ]);
+  ];
+  if (wallpaper) items.push({ label: 'CLEAR BACKGROUND', run: () => clearWallpaper() });
+  showMenu(document.getElementById('filemenu'), r.left, r.bottom, items);
 }
 
 function newFolderPrompt() {
   const name = window.prompt('NEW FOLDER NAME:', 'New Folder');
   if (!name) return;
-  vfs.write(`::/${name}/`, { type: 'folder' }).then(() => {
+  vfs.write(`::/${name}/.keep`, { type: 'text', content: '' }).then(() => {
     toast('FOLDER CREATED: ' + name);
     refreshIcons();
   }).catch(() => toast('COULD NOT CREATE THE FOLDER.'));
@@ -205,15 +376,16 @@ function readAsText(file) {
 async function importFiles(fileList, kind) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
+  const dir = uploadTarget || '::';
   for (const f of files) {
     try {
       if (kind === 'media') {
         const src = await readAsDataURL(f);
         const type = f.type.startsWith('video') ? 'video' : 'image';
-        await vfs.write(`::/${f.name}`, { type, src });
+        await vfs.write(`${dir}/${f.name}`, { type, src });
       } else {
         const content = await readAsText(f);
-        await vfs.write(`::/${f.name}`, { type: 'text', content });
+        await vfs.write(`${dir}/${f.name}`, { type: 'text', content });
       }
     } catch (e) { console.error(e); }
   }
@@ -325,7 +497,6 @@ function wireMenu() {
   });
 }
 
-// Call wireMenu in initDesktop
 const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
                 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 let konamiAt = 0;

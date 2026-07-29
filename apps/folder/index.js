@@ -65,6 +65,8 @@ export default {
           ctx.openWindow('folder', { path: p });
         } else if (item.type === 'terminal') {
           ctx.openWindow('terminal');
+        } else if (item.type === 'app') {
+          if (item.app) ctx.openWindow(item.app);
         } else {
           const app = ['code','doc','text'].includes(item.type) ? 'editor' : 'viewer';
           ctx.openWindow(app, { path: p, type: item.type });
