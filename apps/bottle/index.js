@@ -167,22 +167,32 @@ export default {
         T('56 KRÄUTER · 35%', bx + bw / 2, ly + lhh - 7, C.ink, 6, 'center');
         g.restore();
 
-        /* ---- the stream ---- */
+        /* ---- the glass ---- (declared here so the stream below can aim at it) */
+        const gx = 190, gy = 222, gw = 64, gh = 70;
+
+        /* ---- the stream ----
+           Has to leave from the mouth of the bottle, not a fixed point --
+           so it's the neck's own position, rotated by the same tilt the
+           bottle itself just rotated by around the same pivot, landing on
+           the glass's rim rather than a fixed offset that only lined up
+           by coincidence at one particular tilt. */
         if (S.phase === 'pour') {
-          const k = Math.min(1, S.t / 1.2);
-          const sx = bx + bw / 2 + 50, sy = by + bh - 44;
+          const pivotX = bx + bw / 2, pivotY = by + bh;
+          const mouthX0 = bx + 42, mouthY0 = by - 30;
+          const dx0 = mouthX0 - pivotX, dy0 = mouthY0 - pivotY;
+          const mx = pivotX + dx0 * Math.cos(tilt) - dy0 * Math.sin(tilt);
+          const my = pivotY + dx0 * Math.sin(tilt) + dy0 * Math.cos(tilt);
+          const tx = gx + gw / 2, ty = gy + 4;
           for (let i = 0; i < 26; i++) {
             const p = i / 26;
-            const px = sx + p * 44 + Math.sin(ts * 9 + i) * 1.2;
-            const py = sy + p * p * 96 + 8;
-            if (py > 284) break;
+            const px = mx + (tx - mx) * p + Math.sin(ts * 9 + i) * 1.2;
+            const py = my + (ty - my) * p + p * p * 30;
+            if (py > ty + 4) break;
             R(px, py, 3, 5, i % 4 === 0 ? C.liquidHi : C.liquid);
           }
-          if (Math.floor(ts * 20) % 2) R(sx + 42, 280, 4, 3, C.liquidHi);
+          if (Math.floor(ts * 20) % 2) R(tx, ty, 4, 3, C.liquidHi);
         }
 
-        /* ---- the glass ---- */
-        const gx = 190, gy = 222, gw = 64, gh = 70;
         const fill = S.glass;                              /* 0..1 */
         R(gx - 8, gy + gh + 4, gw + 16, 5, '#1a1008');     /* its shadow */
         /* an empty glass has to look empty: the bar behind it is nearly the
@@ -279,6 +289,7 @@ export default {
           if (S.t >= 0.95) {
             S.phase = 'idle'; S.glass = 0; S.drunk++;
             save();
+            if (window.Drunk) window.Drunk.add(0.16);
             say(JAG_LINES[Math.min(JAG_LINES.length - 1, Math.floor(S.drunk / 3))]);
           }
         } else S.tilt += (0 - S.tilt) * Math.min(1, dt * 8);

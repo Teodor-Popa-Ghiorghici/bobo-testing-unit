@@ -9,6 +9,7 @@ import { initHardware, CRT } from './hardware.js';
 import "./snd.js";
 import "./economy.js";
 import "./vault.js";
+import "./drunk.js";
 import { Music } from './music.js';
 import { SunUI } from './economy.js';
 import { panic } from './panic.js';
