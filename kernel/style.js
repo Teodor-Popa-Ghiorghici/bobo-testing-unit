@@ -1,5 +1,5 @@
 import { Snd } from "./snd.js";
-import { CRT } from "./hardware.js";
+import { CRT, Vol, musGain } from "./hardware.js";
 /* ==========================================================================
    11.3d THE STYLE METER
    Deleting a file is not housekeeping, it is a performance, and the machine

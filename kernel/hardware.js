@@ -5,12 +5,36 @@ export const CRT = {
   phos: 0,
   burn: false,
   dgauss: false,
-  on: false
+  on: false,
+  mus: 0,
+  sfx: 0,
+  lobby: false,
+  vhold: 5,
+  hhold: 5
 };
+
+/* Vol is CRT under another name: every knob that touches sound or hold
+   lives on the same object, but music.js/style.js/hold.js were written
+   against a "Vol" import, so keep both names pointing at it. */
+export const Vol = CRT;
+window.CRT = CRT;
 
 const LENS_NAME = ['FLAT', 'SOFT', 'FULL'];
 const PHOS_NAME = ['P1', 'P4', 'P7'];
 const LENS_BOW = [0.0, 0.08, 0.22];
+const PHOS_GLOW = [0.75, 0.40, 0.20];
+
+export function phosLevel() {
+  return PHOS_GLOW[CRT.phos || 0];
+}
+
+export function splashGone() {
+  const sp = document.getElementById('splash');
+  return !!sp && sp.style.display === 'none';
+}
+
+export function sfxGain() { return Math.pow(CRT.sfx / 10, 1.6) * 1.25; }
+export function musGain() { return Math.pow(CRT.mus / 10, 1.6) * 0.85; }
 
 export function initHardware() {
   loadCRT();
@@ -190,15 +214,50 @@ function paintGlass() {
   g.restore();
 }
 
+function setLobby(on) {
+  CRT.lobby = !!on;
+  const sw = document.getElementById('lobby');
+  if (sw) {
+    sw.classList.toggle('on', CRT.lobby);
+    sw.setAttribute('aria-checked', CRT.lobby ? 'true' : 'false');
+  }
+  saveCRT();
+  if (window.Music && window.Music.sync) window.Music.sync();
+  Rage.sync();
+  if (window.Snd) {
+    if (CRT.lobby && window.Snd.clackOn) window.Snd.clackOn();
+    else if (!CRT.lobby && window.Snd.clackOff) window.Snd.clackOff();
+  }
+}
+
 function wireChin() {
 
-  wirePot('pot-mus', 'lbl-mus', 'MUS', v => { CRT.mus = v; saveCRT(); Rage.sync(); });
+  wirePot('pot-mus', 'lbl-mus', 'MUS', v => {
+    CRT.mus = v; saveCRT();
+    if (window.Music && window.Music.sync) window.Music.sync();
+    Rage.sync();
+  });
   wirePot('pot-sfx', 'lbl-sfx', 'SFX', v => { CRT.sfx = v; saveCRT(); });
   wirePot('pot-vhold', 'lbl-vhold', 'VHLD', v => { CRT.vhold = v; saveCRT(); applyHold(); });
   wirePot('pot-hhold', 'lbl-hhold', 'HHLD', v => { CRT.hhold = v; saveCRT(); applyHold(); });
 
   const getEl = id => document.getElementById(id);
-  
+
+  const lobbySw = getEl('lobby');
+  if (lobbySw) {
+    lobbySw.classList.toggle('on', CRT.lobby);
+    lobbySw.setAttribute('aria-checked', CRT.lobby ? 'true' : 'false');
+    lobbySw.addEventListener('pointerdown', ev => {
+      ev.preventDefault();
+      if (window.Snd && window.Snd.wake) window.Snd.wake();
+      lobbySw.focus();
+      setLobby(!CRT.lobby);
+    });
+    lobbySw.addEventListener('keydown', ev => {
+      if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); setLobby(!CRT.lobby); }
+    });
+  }
+
   if (getEl('k-lens')) getEl('k-lens').addEventListener('click', () => {
     CRT.lens = (CRT.lens + 1) % 3;
     labelKnobs();
