@@ -1,5 +1,6 @@
 import { Snd } from './snd.js';
 import { HZ, HYMN } from './music_data.js';
+import { CRT, Vol, musGain } from './hardware.js';
 
 export const Music = {
   on: false,

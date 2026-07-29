@@ -1,6 +1,4 @@
-import { godDoodle } from '../apps/god_funcs2.js';
-import { godRand } from '../apps/god_funcs.js';
-import { VGA16 } from './cos_data.js';
+import { godDoodle, godRand, VGA16 } from './god.js';
 import { CRT, phosLevel, splashGone } from './hardware.js';
 
 export const Saver = {
