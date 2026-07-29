@@ -5,7 +5,7 @@ import { SPRITES } from './sprites.js';
 import { hcLex, hcParse, hcRun } from './holyc.js';
 import { panic } from './panic.js';
 import { Vault, VaultURL } from './vault.js';
-import { crushImage, UP } from './imaging.js';
+import { crushImage, ditherVGA, UP } from './imaging.js';
 
 const ICON_POS_KEY = 'templeos.icons.v1';
 const WALL_KEY = 'templeos.wallpaper.v1';
@@ -455,27 +455,70 @@ function clearWallpaper() {
   toast('BACKGROUND CLEARED.');
 }
 
-function stopDeskVideo() {
-  const v = document.getElementById('deskvid');
-  if (v) v.remove();
-}
+/* the desktop's video wallpaper is drawn onto a canvas, crushed to the same
+   sixteen-colour palette every still image gets -- not a real <video>
+   element sitting behind the icons, which would both look too HD next to
+   everything else and hand the browser's own picture-in-picture/context
+   menu to something that is supposed to be inert wallpaper */
+const DeskVid = {
+  raf: null, video: null, cv: null, last: 0,
+  start(src, mode) {
+    this.stop();
+    const desk = document.getElementById('desktop');
+    if (!desk) return;
+    const cv = document.createElement('canvas');
+    cv.id = 'deskvid';
+    cv.style.position = 'absolute';
+    cv.style.left = '0'; cv.style.top = '0';
+    cv.style.width = '100%'; cv.style.height = '100%';
+    cv.style.objectFit = mode === 'tile' ? 'none' : 'cover';
+    cv.style.zIndex = '0';
+    desk.insertBefore(cv, desk.firstChild);
 
-function startDeskVideo(src, mode) {
-  const desk = document.getElementById('desktop');
-  stopDeskVideo();
-  const v = document.createElement('video');
-  v.id = 'deskvid';
-  v.src = src; v.loop = true; v.muted = true; v.playsInline = true;
-  v.autoplay = true;
-  v.style.position = 'absolute';
-  v.style.left = '0'; v.style.top = '0';
-  v.style.width = '100%'; v.style.height = '100%';
-  v.style.objectFit = mode === 'tile' ? 'none' : 'cover';
-  v.style.zIndex = '0';
-  v.addEventListener('error', () => { toast('THAT VIDEO WILL NOT DECODE.'); stopDeskVideo(); });
-  desk.insertBefore(v, desk.firstChild);
-  v.play().catch(() => {});
-}
+    const v = document.createElement('video');
+    v.src = src; v.loop = true; v.muted = true; v.playsInline = true;
+    v.setAttribute('playsinline', '');
+    this.cv = cv; this.video = v;
+
+    let sized = false;
+    const size = () => {
+      const W = v.videoWidth || 320, H = v.videoHeight || 240;
+      const s = Math.min(1, 220 / Math.max(W, H));
+      cv.width = Math.max(2, Math.round(W * s));
+      cv.height = Math.max(2, Math.round(H * s));
+      sized = true;
+    };
+    v.addEventListener('loadedmetadata', () => { size(); v.play().catch(() => {}); });
+    v.addEventListener('error', () => { toast('THAT VIDEO WILL NOT DECODE.'); this.stop(); });
+
+    const loop = ts => {
+      if (!this.cv || !document.body.contains(this.cv)) { this.stop(); return; }
+      this.raf = requestAnimationFrame(loop);
+      if (!sized && v.videoWidth) size();
+      if (!sized || v.readyState < 2) return;
+      if (ts - this.last < 100) return;    /* ten frames a second */
+      this.last = ts;
+      const o = cv.getContext('2d');
+      if (!o) return;
+      try {
+        o.imageSmoothingEnabled = false;
+        o.drawImage(v, 0, 0, cv.width, cv.height);
+        if (UP.vga) ditherVGA(o, cv.width, cv.height);
+      } catch (e) { /* a frame the crush choked on isn't worth stopping over */ }
+    };
+    this.raf = requestAnimationFrame(loop);
+  },
+  stop() {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = null;
+    if (this.cv && this.cv.parentNode) this.cv.parentNode.removeChild(this.cv);
+    if (this.video) { try { this.video.pause(); this.video.src = ''; } catch (e) {} }
+    this.cv = this.video = null;
+  }
+};
+
+function stopDeskVideo() { DeskVid.stop(); }
+function startDeskVideo(src, mode) { DeskVid.start(src, mode); }
 
 async function applyWallpaper() {
   const desk = document.getElementById('desktop');
