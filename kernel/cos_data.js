@@ -281,12 +281,28 @@ export const SCHEMES = [
   { id: 'uv',     name: 'ULTRAVIOLET',  price: 300, blurb: 'Everything here is slightly radioactive.',
     v: { bg: '#0a0016', fg: '#E8D0FF', ok: '#C060FF', hi: '#FFFF80', err: '#FF60C0', dim: '#5A2A8A', acc: '#A0A0FF' } }
 ];
+/* buff is a set of multipliers the equipped pot lends to every plant in the
+   garden: grow speeds up how fast a plant reaches its next stage, yield
+   scales the SUN paid per token, water stretches how long a watering lasts
+   before the soil dries out. terra is the free, unbuffed starter; every pot
+   after it costs a great deal more and is a straightforward upgrade over
+   the one before, never a sidegrade. */
 export const POTS = [
-  { id: 'terra', name: 'TERRACOTTA POT', price: 0,   blurb: 'Fired clay. Slightly chipped.',      c: ['#a35a34', '#c4784c', '#7a3d20'] },
-  { id: 'glaze', name: 'GLAZED BLUE POT',price: 150, blurb: 'Someone was showing off.',           c: ['#2f5f86', '#4a86b8', '#1e3f5c'] },
-  { id: 'iron',  name: 'IRON POT',       price: 220, blurb: 'Heavy. Cold. Will outlive the plant.', c: ['#4a4a52', '#6b6b76', '#2c2c33'] },
-  { id: 'bone',  name: 'BONE POT',       price: 300, blurb: 'Not bone. Looks like bone.',         c: ['#cfc4a8', '#e8e0c8', '#9a8f74'] },
-  { id: 'stump', name: 'HOLLOW STUMP',   price: 380, blurb: 'A pot in the sense that it holds soil.', c: ['#5c3d22', '#7a5230', '#3a2614'] }
+  { id: 'terra', name: 'TERRACOTTA POT', price: 0,
+    blurb: 'Fired clay. Slightly chipped. No buff -- what a garden starts with.',
+    c: ['#a35a34', '#c4784c', '#7a3d20'], buff: { grow: 1, yield: 1, water: 1 } },
+  { id: 'glaze', name: 'GLAZED BLUE POT',price: 450,
+    blurb: 'Kiln-fired glaze holds the day’s heat. +15% growth speed.',
+    c: ['#2f5f86', '#4a86b8', '#1e3f5c'], buff: { grow: 1.15, yield: 1, water: 1 } },
+  { id: 'iron',  name: 'IRON POT',       price: 900,
+    blurb: 'Heavy. Cold. Will outlive the plant. +15% growth, +20% SUN per token.',
+    c: ['#4a4a52', '#6b6b76', '#2c2c33'], buff: { grow: 1.15, yield: 1.2, water: 1 } },
+  { id: 'bone',  name: 'BONE POT',       price: 1500,
+    blurb: 'Not bone. Looks like bone. +25% growth, +30% SUN, holds water 25% longer.',
+    c: ['#cfc4a8', '#e8e0c8', '#9a8f74'], buff: { grow: 1.25, yield: 1.3, water: 1.25 } },
+  { id: 'stump', name: 'HOLLOW STUMP',   price: 2400,
+    blurb: 'A pot in the sense that it holds soil. +40% growth, +50% SUN, holds water 50% longer.',
+    c: ['#5c3d22', '#7a5230', '#3a2614'], buff: { grow: 1.4, yield: 1.5, water: 1.5 } }
 ];
 export const SPECIES = [
   { id: 'sunshoot', name: 'SUNSHOOT',  price: 0,   yield: 2,  grow: 40,  drop: 55, note: 0, hue: ['#c8d84a', '#8fae2c', '#e8f07a'],
