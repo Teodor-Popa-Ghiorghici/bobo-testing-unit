@@ -3,13 +3,14 @@ import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { HIFI_DISCS, HFN, HFP, hifiPress, hifiTags } from './discs.js';
+import { Vault } from '../../kernel/vault.js';
 
 export default {
   id: 'hifi',
   title: 'HIFI',
   width: 320,
   height: 520,
-  resizable: false,
+  resizable: true,
   mount(root, _ctx) {
   const body = root;
       const wrap = document.createElement('div');

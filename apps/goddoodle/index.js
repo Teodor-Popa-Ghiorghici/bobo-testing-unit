@@ -6,7 +6,7 @@ export default {
   title: 'GodDoodle',
   width: 380,
   height: 320,
-  resizable: false,
+  resizable: true,
   mount(root, ctx) {
     let cv = null;
     const pane = document.createElement('div');

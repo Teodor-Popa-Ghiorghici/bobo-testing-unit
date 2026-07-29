@@ -262,7 +262,7 @@ export default {
   title: 'CRAZY DAVE\'S  --  EVERYTHING MUST GO SOMEWHERE',
   width: 640,
   height: 480,
-  resizable: false,
+  resizable: true,
   mount(root, ctx) {
     let cat = 'frame';
     let bubbleEl = null, gridEl = null, footEl = null, daveCv = null;

@@ -6,6 +6,32 @@ import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { CK_SAVE, CK_W, CK_H, CK_T, CK_LV, CK_STORY, CK_END, CK_KID, CK_ACH, CK_HZ, CK_SONGS } from './data.js';
 import { VGA16 } from '../../kernel/god.js';
 
+/* ---- the rules -----------------------------------------------------------
+   The same functions the solver ran, so what the game allows and what was
+   proved solvable cannot drift apart. */
+function ckCell(L, x, y) {
+  if (x < 0 || y < 0 || x >= CK_W || y >= CK_H) return '#';
+  return L.grid[y][x];
+}
+function ckBlocked(c, temp) {
+  if (c === '#') return true;
+  if (c === '*') return temp < 2;      /* wax melts only when hot */
+  if (c === '~') return temp > 0;      /* frost holds only when cold */
+  return false;
+}
+function ckGate(c, sx, sy) {
+  if (c === '<') return sx === -1;
+  if (c === '>') return sx === 1;
+  if (c === '^') return sy === -1;
+  if (c === 'v') return sy === 1;
+  return true;
+}
+function ckVec(r, temp) {
+  if (r.dt && temp === 2) return r.dt;
+  if (r.dc && temp === 0) return r.dc;
+  return r.d;
+}
+
 export default {
   open() {
   createWindow({

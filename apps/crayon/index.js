@@ -3,6 +3,7 @@ import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { lampDip } from '../../kernel/hardware.js';
+import { Vault } from '../../kernel/vault.js';
 
 
 const DRAW_KEY = 'templeos.draw';

@@ -57,6 +57,9 @@ export function initHardware() {
   wireChin();
   paintGlass();
   applyBand();
+  applyPhosphor();
+  applyBurn();
+  applyLensShape();
   window.addEventListener("resize", () => { clearTimeout(window._crtT); window._crtT = setTimeout(paintGlass, 100); });
 }
 

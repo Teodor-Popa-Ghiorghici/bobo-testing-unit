@@ -13,6 +13,12 @@ function getDB() {
   });
 }
 
+/* bump this whenever assets/seed.json's shape changes (new fields, new
+   apps) so a browser that already seeded an older shape gets patched
+   instead of silently keeping stale records forever */
+const SEED_VERSION = 2;
+const SEED_VERSION_KEY = 'templeos.vfs.seedVersion';
+
 async function initVFS() {
   const db = await getDB();
   const tx = db.transaction(STORE_NAME, 'readonly');
@@ -22,7 +28,10 @@ async function initVFS() {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
-  
+
+  let seenVersion = 0;
+  try { seenVersion = parseInt(localStorage.getItem(SEED_VERSION_KEY), 10) || 0; } catch (e) {}
+
   if (count === 0) {
     try {
       const res = await fetch('assets/seed.json');
@@ -31,7 +40,6 @@ async function initVFS() {
         const tx2 = db.transaction(STORE_NAME, 'readwrite');
         const store2 = tx2.objectStore(STORE_NAME);
         for (const item of seed) {
-          // store as object: { type, content, src, app }
           store2.put({ type: item.type, content: item.content, src: item.src, app: item.app }, item.path);
         }
         await new Promise(r => { tx2.oncomplete = r; tx2.onerror = r; });
@@ -39,7 +47,35 @@ async function initVFS() {
     } catch (e) {
       console.error(e);
     }
+  } else if (seenVersion < SEED_VERSION) {
+    /* the tree already exists from an older seed shape. Only patch 'app'
+       markers (they hold no user data, just which registry id to open) and
+       add any brand-new seeded paths — never touch a path the user could
+       have edited or uploaded over. */
+    try {
+      const res = await fetch('assets/seed.json');
+      if (res.ok) {
+        const seed = await res.json();
+        const keysStore = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
+        const existingKeys = new Set(await new Promise((resolve, reject) => {
+          const req = keysStore.getAllKeys();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        }));
+        const tx2 = db.transaction(STORE_NAME, 'readwrite');
+        const store2 = tx2.objectStore(STORE_NAME);
+        for (const item of seed) {
+          if (item.type === 'app' || !existingKeys.has(item.path)) {
+            store2.put({ type: item.type, content: item.content, src: item.src, app: item.app }, item.path);
+          }
+        }
+        await new Promise(r => { tx2.oncomplete = r; tx2.onerror = r; });
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
+  try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)); } catch (e) {}
 }
 
 async function read(path) {

@@ -4,6 +4,8 @@ import { openWindow, createWindow, toast } from './wm.js';
 import { SPRITES } from './sprites.js';
 import { hcLex, hcParse, hcRun } from './holyc.js';
 import { panic } from './panic.js';
+import { Vault, VaultURL } from './vault.js';
+import { crushImage, UP } from './imaging.js';
 
 const ICON_POS_KEY = 'templeos.icons.v1';
 const WALL_KEY = 'templeos.wallpaper.v1';
@@ -20,12 +22,19 @@ function saveIconPos() {
   try { localStorage.setItem(ICON_POS_KEY, JSON.stringify(iconPos)); } catch (e) {}
 }
 
-function spriteFor(type) {
+const APP_SPRITES = {
+  hifi: 'disc', notes: 'notes', bottle: 'bottle', elephant: 'elephant',
+  magen: 'magen', cook: 'flask', garden: 'garden', sweeper: 'sweeper',
+  solitaire: 'solitaire', crayon: 'crayon', shop: 'shop', drawings: 'drawings',
+  account: 'account'
+};
+
+function spriteFor(type, app) {
   if (type === 'folder')   return SPRITES.folder;
   if (type === 'image')    return SPRITES.image;
   if (type === 'video')    return SPRITES.video;
   if (type === 'terminal') return SPRITES.terminal;
-  if (type === 'app')      return SPRITES.app;
+  if (type === 'app')      return SPRITES[APP_SPRITES[app]] || SPRITES.app;
   if (type === 'doc')      return SPRITES.doc;
   if (type === 'code')     return SPRITES.code;
   return SPRITES.text;
@@ -38,15 +47,99 @@ function iconSlot(i) {
   return { x: 8 + Math.floor(i / rows) * ICON_W, y: 8 + (i % rows) * ICON_H };
 }
 
+/* the grid an icon actually lives on: whole cells from the same (8, 8)
+   origin every layout function uses, so nothing can end up between them */
+function cellOf(x, y) {
+  return { c: Math.round((x - 8) / ICON_W), r: Math.round((y - 8) / ICON_H) };
+}
+function cellPos(c, r) {
+  return { x: 8 + c * ICON_W, y: 8 + r * ICON_H };
+}
+
+/* find the nearest free cell to where an icon wants to land, spiralling
+   outward until one is clear of every OTHER icon on the desk */
+function freeCell(wantX, wantY, excludeNames) {
+  const desk = document.getElementById('desktop');
+  const dw = (desk && desk.clientWidth) || 640, dh = (desk && desk.clientHeight) || 480;
+  const cols = Math.max(1, Math.floor((dw - 8) / ICON_W));
+  const rows = Math.max(1, Math.floor((dh - 8) / ICON_H));
+  const taken = new Set();
+  Object.keys(iconPos).forEach(name => {
+    if (excludeNames.has(name)) return;
+    const p = iconPos[name];
+    const cell = cellOf(p.x, p.y);
+    taken.add(cell.c + ',' + cell.r);
+  });
+  const want = cellOf(wantX, wantY);
+  const c0 = Math.max(0, Math.min(cols - 1, want.c));
+  const r0 = Math.max(0, Math.min(rows - 1, want.r));
+  for (let ring = 0; ring < cols + rows; ring++) {
+    for (let dc = -ring; dc <= ring; dc++) {
+      for (let dr = -ring; dr <= ring; dr++) {
+        if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring) continue;
+        const c = c0 + dc, r = r0 + dr;
+        if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
+        if (taken.has(c + ',' + r)) continue;
+        return cellPos(c, r);
+      }
+    }
+  }
+  return cellPos(c0, r0);
+}
+
 export async function initDesktop() {
   const desk = document.getElementById('desktop');
   loadIconPos();
-  desk.addEventListener('click', () => clearIconSel());
   wireMenu();
   wireMarquee(desk);
   wireDrop(desk, () => '::');
+  wireDeskContextMenu(desk);
+  wireDeskKeys(desk);
   applyWallpaper();
   await refreshIcons();
+}
+
+/* right-click on bare desktop, not on an icon */
+function wireDeskContextMenu(desk) {
+  desk.addEventListener('contextmenu', ev => {
+    if (ev.target.closest && ev.target.closest('.icon')) return;
+    ev.preventDefault();
+    const items = [
+      { label: 'NEW FOLDER...', run: () => newFolderPrompt() },
+      { label: 'UPLOAD IMAGES / VIDEO...', run: () => { uploadTarget = '::'; document.getElementById('pickimg').click(); } },
+      { label: 'UPLOAD TEXT FILES...', run: () => { uploadTarget = '::'; document.getElementById('picktxt').click(); } },
+      { sep: true },
+      { label: 'ARRANGE ICONS', run: () => arrangeIcons() }
+    ];
+    if (wallpaper) items.push({ label: 'CLEAR BACKGROUND', run: () => clearWallpaper() });
+    showMenu(document.getElementById('ctxmenu'), ev.clientX, ev.clientY, items);
+  });
+}
+
+/* put every icon back on the grid, left edge first, top to bottom */
+function arrangeIcons() {
+  iconPos = {};
+  deskIcons().forEach((el, i) => {
+    const p = iconSlot(i);
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    iconPos[el.dataset.name] = p;
+  });
+  saveIconPos();
+  if (window.Snd) window.Snd.save();
+  toast('ICONS ARRANGED.');
+}
+
+/* Delete/Backspace on the desktop removes the whole current selection */
+function wireDeskKeys(desk) {
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Delete' && ev.key !== 'Backspace') return;
+    if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
+    const sel = selectedIcons();
+    if (!sel.length) return;
+    ev.preventDefault();
+    deleteIcons(sel.map(el => el.dataset.name));
+  });
 }
 
 /* a folder (or the bare desktop) accepts a file dropped straight from the
@@ -100,10 +193,15 @@ async function refreshIcons() {
     // the terminal is a kernel primitive, not a VFS node
     list.push({ name: 'TERMINAL', type: 'terminal' });
 
+    // forget icons for anything that no longer exists, so their old cells
+    // don't stay "taken" forever
+    const liveNames = new Set(list.map(it => it.name));
+    Object.keys(iconPos).forEach(name => { if (!liveNames.has(name)) delete iconPos[name]; });
+
     list.forEach((item, i) => {
       const el = document.createElement('div');
       el.className = 'icon';
-      el.innerHTML = spriteFor(item.type);
+      el.innerHTML = spriteFor(item.type, item.app);
       el.dataset.name = item.name;
 
       const lbl = document.createElement('div');
@@ -113,7 +211,8 @@ async function refreshIcons() {
       lbl.appendChild(span);
       el.appendChild(lbl);
 
-      const pos = iconPos[item.name] || iconSlot(i);
+      const want = iconPos[item.name] || iconSlot(i);
+      const pos = freeCell(want.x, want.y, new Set([item.name]));
       el.style.left = pos.x + 'px';
       el.style.top = pos.y + 'px';
       iconPos[item.name] = pos;
@@ -141,8 +240,10 @@ async function refreshIcons() {
       el.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        clearIconSel();
-        el.classList.add('sel');
+        if (!el.classList.contains('sel')) {
+          clearIconSel();
+          el.classList.add('sel');
+        }
         openIconContextMenu(ev, item);
       });
 
@@ -198,9 +299,14 @@ function wireDeskIcon(el, item, openThis) {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (!moved) return;
+      const groupNames = new Set(group.map(s => s.n.dataset.name));
       group.forEach(s => {
         s.n.classList.remove('dragging');
-        iconPos[s.n.dataset.name] = { x: s.n.offsetLeft, y: s.n.offsetTop };
+        const p = freeCell(s.n.offsetLeft, s.n.offsetTop, groupNames);
+        s.n.style.left = p.x + 'px';
+        s.n.style.top = p.y + 'px';
+        iconPos[s.n.dataset.name] = p;
+        groupNames.delete(s.n.dataset.name);   /* this one has landed; the rest must avoid it too */
       });
       saveIconPos();
       if (window.Snd) window.Snd.drop();
@@ -280,24 +386,38 @@ function openIconContextMenu(ev, item) {
   }
   if (item.type !== 'terminal') {
     items.push({ sep: true });
-    items.push({ label: 'DELETE', run: () => deleteIcon(item) });
+    const sel = selectedIcons().map(el => el.dataset.name);
+    const bulk = sel.length > 1 && sel.includes(item.name);
+    items.push({
+      label: bulk ? 'DELETE ' + sel.length + ' ITEMS' : 'DELETE',
+      run: () => deleteIcons(bulk ? sel : [item.name])
+    });
   }
   if (!items.length) items.push({ label: 'NOTHING TO DO HERE', off: true });
   showMenu(document.getElementById('ctxmenu'), ev.clientX, ev.clientY, items);
 }
 
-async function deleteIcon(item) {
-  await vfs.remove(`::/${item.name}`);
-  delete iconPos[item.name];
+async function deleteIcons(names) {
+  for (const name of names) {
+    await vfs.remove(`::/${name}`);
+    delete iconPos[name];
+  }
   saveIconPos();
-  toast(item.name + ' DELETED.');
+  toast(names.length > 1 ? names.length + ' ITEMS DELETED.' : names[0] + ' DELETED.');
   refreshIcons();
 }
 
 async function setWallpaperFrom(item, mode) {
   const file = await vfs.read(`::/${item.name}`);
-  if (!file || !file.src) { toast('COULD NOT READ THAT FILE.'); return; }
-  wallpaper = { src: file.src, mode, kind: file.type === 'video' ? 'video' : 'image' };
+  if (!file) { toast('COULD NOT READ THAT FILE.'); return; }
+  const isVideo = file.type === 'video';
+  const src = isVideo ? (file.vault ? await VaultURL.url(file.vault) : file.src) : file.src;
+  if (!src) { toast('COULD NOT READ THAT FILE.'); return; }
+  /* the wallpaper is stored by name + vault key, not the resolved blob URL,
+     which would not survive a reload */
+  wallpaper = isVideo
+    ? { vault: file.vault, src: file.src, mode, kind: 'video' }
+    : { src, mode, kind: 'image' };
   applyWallpaper();
   try { localStorage.setItem(WALL_KEY, JSON.stringify(wallpaper)); } catch (e) {}
   toast('BACKGROUND SET.');
@@ -332,7 +452,7 @@ function startDeskVideo(src, mode) {
   v.play().catch(() => {});
 }
 
-function applyWallpaper() {
+async function applyWallpaper() {
   const desk = document.getElementById('desktop');
   if (!desk) return;
   try {
@@ -346,7 +466,11 @@ function applyWallpaper() {
   }
   if (wallpaper.kind === 'video') {
     desk.style.backgroundImage = '';
-    startDeskVideo(wallpaper.src, wallpaper.mode);
+    /* a vault key means the blob URL from last session is stale; mint a
+       fresh one rather than trusting the one we saved */
+    const src = wallpaper.vault ? await VaultURL.url(wallpaper.vault) : wallpaper.src;
+    if (!src) { stopDeskVideo(); return; }
+    startDeskVideo(src, wallpaper.mode);
     return;
   }
   stopDeskVideo();
@@ -405,7 +529,13 @@ function openFileMenu(anchor) {
     { label: 'UPLOAD IMAGES / VIDEO -> ::/', run: () => { uploadTarget = '::'; document.getElementById('pickimg').click(); } },
     { label: 'UPLOAD TEXT FILES...  -> ::/', run: () => { uploadTarget = '::'; document.getElementById('picktxt').click(); } },
     { sep: true },
-    { label: 'NEW FOLDER...', run: () => newFolderPrompt() }
+    { label: 'NEW FOLDER...', run: () => newFolderPrompt() },
+    { sep: true },
+    { label: 'VGA 16-COLOR IMPORT: ' + (UP.vga ? 'ON' : 'OFF'), run: () => {
+        UP.vga = !UP.vga;
+        toast('VGA 16-COLOR IMPORT ' + (UP.vga ? 'ON' : 'OFF') + '. AFFECTS NEW UPLOADS.');
+      } },
+    { label: 'ARRANGE ICONS', run: () => arrangeIcons() }
   ];
   if (wallpaper) items.push({ label: 'CLEAR BACKGROUND', run: () => clearWallpaper() });
   showMenu(document.getElementById('filemenu'), r.left, r.bottom, items);
@@ -437,17 +567,45 @@ function readAsText(file) {
   });
 }
 
+/* crushed to the sixteen-colour palette and no bigger than 384px on the
+   long edge, the same way every other import on this machine is: a
+   full-quality photo would break the illusion the rest of the OS keeps */
+function importImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      try {
+        const cv = crushImage(img, img.naturalWidth, img.naturalHeight);
+        resolve(cv.toDataURL('image/png'));
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('NOT AN IMAGE')); };
+    img.src = url;
+  });
+}
+
+/* video keeps its own bytes in the Vault (a blob, not a base64 string
+   several times its own size) and the VFS record only carries the key */
+async function importVideo(path, file) {
+  const key = await Vault.put(file);
+  await vfs.write(path, { type: 'video', vault: key, mime: file.type || 'video/mp4' });
+}
+
 async function importFiles(fileList, kind, dir) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
   dir = dir || uploadTarget || '::';
   for (const f of files) {
     try {
-      const isMedia = kind === 'media' || (!kind && /^(image|video)\//.test(f.type));
-      if (isMedia) {
-        const src = await readAsDataURL(f);
-        const type = f.type.startsWith('video') ? 'video' : 'image';
-        await vfs.write(`${dir}/${f.name}`, { type, src });
+      const isVideo = kind === 'media' ? f.type.startsWith('video') : /^video\//.test(f.type);
+      const isImage = kind === 'media' ? !isVideo : /^image\//.test(f.type);
+      if (isVideo) {
+        await importVideo(`${dir}/${f.name}`, f);
+      } else if (isImage) {
+        const src = await importImage(f);
+        await vfs.write(`${dir}/${f.name}`, { type: 'image', src });
       } else {
         const content = await readAsText(f);
         await vfs.write(`${dir}/${f.name}`, { type: 'text', content });

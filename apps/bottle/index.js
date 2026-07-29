@@ -15,7 +15,7 @@ export default {
   title: 'THE BOTTLE',
   width: 320,
   height: 440,
-  resizable: false,
+  resizable: true,
   mount(root, ctx) {
   const body = root;
       const wrap = document.createElement('div');

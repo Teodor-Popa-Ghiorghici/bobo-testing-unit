@@ -1,5 +1,5 @@
 import { createWindow } from '../../kernel/wm.js';
-import { lampDip } from '../../kernel/hardware.js';
+import { lampDip, CRT, Vol } from '../../kernel/hardware.js';
 import { SPECIES } from '../../kernel/cos_data.js';
 
 const BAYER4 = [
