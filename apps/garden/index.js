@@ -26,10 +26,17 @@ export default {
         : null; 
     }
     
-    function potSkin() { 
+    function potSkin() {
       return (window.Cos && window.Cos.COS_CATS && window.Cos.COS_CATS.pot)
         ? window.Cos.find('pot', window.Cos.live('pot')) || window.Cos.COS_CATS.pot.list[0]
         : { c: ['#aa6644', '#884422'] };
+    }
+    /* the pot equipped in the shop lends every plant in the garden its buff --
+       there is one rack of pots on screen, all of the same kind, so one buff
+       applies to the whole garden rather than pot-by-pot */
+    function potBuff() {
+      const skin = potSkin();
+      return (skin && skin.buff) || { grow: 1, yield: 1, water: 1 };
     }
 
     function gardenIsNight(now) { return gardenLight(now) < 0.34; }
@@ -213,14 +220,16 @@ function gardenSky(W, H, light) {
       save() { ctx.save('st', this.st); },
       step(now, dt, rate) {
         const night = gardenIsNight(now);
+        const buff = potBuff();
+        const waterMs = WATER_MS * buff.water;
         let tokens = this.tokens();
         this.st.pots.forEach(p => {
           if (!p) return;
           const sp = speciesById(p.sp);
           if (!sp) return;
-          const wet = Math.max(0, Math.min(dt, (p.watered + WATER_MS) - (now - dt)));
+          const wet = Math.max(0, Math.min(dt, (p.watered + waterMs) - (now - dt)));
           if (wet <= 0) return;
-          const credit = wet * rate;
+          const credit = wet * rate * buff.grow;
           const need = sp.grow * 1000;
           if (p.grown < need * 3) p.grown = Math.min(need * 3, p.grown + credit);
           if (p.grown < need * 3) return;
@@ -261,7 +270,14 @@ function gardenSky(W, H, light) {
         if (p.grown >= need) return 1;
         return 0;
       },
-      isWet(p, now) { return p && (p.watered + WATER_MS) > now; }
+      isWet(p, now) { return p && (p.watered + WATER_MS * potBuff().water) > now; },
+      /* pulling a plant clears its pot, no confirmation asked here -- the
+         caller (a deliberate PULL-tool click) is the confirmation */
+      pull(i) {
+        if (!this.st.pots[i]) return;
+        this.st.pots[i] = null;
+        this.save();
+      }
     };
     Garden.catchUp();
 const GardenAir = {
@@ -323,8 +339,8 @@ const GardenAir = {
 };
 this._GardenAir = GardenAir;
 const W = 700, H = 436;
-  let cv = null, g = null, info = null, seedBtn = null, canBtn = null;
-  let canning = false, seedIx = 0;
+  let cv = null, g = null, info = null, seedBtn = null, canBtn = null, pullBtn = null;
+  let canning = false, pulling = false, seedIx = 0;
   let raf = null, t0 = performance.now(), tsec = 0;
   const motes = [];
   const flies = [];
@@ -348,17 +364,21 @@ const W = 700, H = 436;
       canBtn.textContent = 'WATER';
       seedBtn = document.createElement('button');
       seedBtn.className = 'appbtn';
+      pullBtn = document.createElement('button');
+      pullBtn.className = 'appbtn';
+      pullBtn.textContent = 'PULL UP';
       const shopBtn = document.createElement('button');
       shopBtn.className = 'appbtn';
       shopBtn.textContent = 'DAVE';
       info = document.createElement('span');
       info.className = 'godword gbar';
-      bar.appendChild(canBtn); bar.appendChild(seedBtn); bar.appendChild(shopBtn); bar.appendChild(info);
+      bar.appendChild(canBtn); bar.appendChild(seedBtn); bar.appendChild(pullBtn); bar.appendChild(shopBtn); bar.appendChild(info);
       root.appendChild(pane); root.appendChild(bar);
 
       canBtn.addEventListener('mousedown', ev => {
         ev.stopPropagation();
         canning = !canning;
+        if (canning) { pulling = false; pullBtn.classList.remove('on'); pullBtn.textContent = 'PULL UP'; }
         canBtn.classList.toggle('on', canning);
         canBtn.textContent = canning ? 'CAN IN HAND' : 'WATER';
         cv.classList.toggle('canning', canning);
@@ -370,6 +390,14 @@ const W = 700, H = 436;
         seedIx = (seedIx + 1) % own.length;
         window.Snd.click();
         refreshSeed();
+      });
+      pullBtn.addEventListener('mousedown', ev => {
+        ev.stopPropagation();
+        pulling = !pulling;
+        if (pulling) { canning = false; canBtn.classList.remove('on'); canBtn.textContent = 'WATER'; cv.classList.remove('canning'); }
+        pullBtn.classList.toggle('on', pulling);
+        pullBtn.textContent = pulling ? 'PULLING' : 'PULL UP';
+        window.Snd.click();
       });
       shopBtn.addEventListener('mousedown', ev => { ev.stopPropagation(); ctx.openWindow('shop'); });
   })(root);
@@ -410,7 +438,7 @@ const W = 700, H = 436;
         const tx = q.x + 4 + k * 9, ty = q.y + q.h + 4;
         if (mx >= tx - 3 && mx <= tx + 12 && my >= ty - 3 && my <= ty + 12) {
           const sp = speciesById(p.sp);
-          const n = sp ? sp.yield * p.tok : p.tok;
+          const n = sp ? Math.round(sp.yield * p.tok * potBuff().yield) : p.tok;
           p.tok = 0;
           window.Economy.earn(n, 'GARDEN: ' + (sp ? sp.name : '?'));
           window.Snd.coin();
@@ -425,6 +453,22 @@ const W = 700, H = 436;
       const q = potAt(i);
       if (mx < q.x - 6 || mx > q.x + q.w + 6 || my < q.y - 60 || my > q.y + q.h + 6) continue;
       const p = Garden.st.pots[i];
+
+      if (pulling) {
+        if (!p) return;
+        /* pulling it up still pays out whatever SUN was waiting -- the
+           tool is for clearing a pot, not for punishing a full one */
+        if (p.tok) {
+          const sp = speciesById(p.sp);
+          const n = sp ? Math.round(sp.yield * p.tok * potBuff().yield) : p.tok;
+          window.Economy.earn(n, 'GARDEN: ' + (sp ? sp.name : '?'));
+          window.Snd.coin();
+        }
+        Garden.pull(i);
+        window.Snd.dig();
+        return;
+      }
+
       if (!p) {
         const sp = ownedSeeds()[seedIx % ownedSeeds().length];
         Garden.st.pots[i] = { sp: sp.id, planted: now, watered: now, grown: 0, acc: 0, tok: 0, wig: 0 };
@@ -601,6 +645,8 @@ const W = 700, H = 436;
       const clock = Math.floor(((now % DAY_MS) / DAY_MS) * 24);
       info.textContent = canning
         ? 'CLICK A POT TO WATER IT'
+        : pulling
+        ? 'CLICK A PLANTED POT TO PULL IT UP'
         : (night ? 'NIGHT ' : 'DAY ') + String(clock).padStart(2, '0') + ':00  ' +
           tk + '/' + TOKEN_CAP + ' SUN  ' + (dry ? dry + ' DRY' : 'WATERED');
     }
