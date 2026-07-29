@@ -427,6 +427,7 @@ async function deleteIcons(names) {
       blocked.length + ' APP(S) CANNOT BE DELETED.');
   }
   refreshIcons();
+  notifyVfsChanged('::');
 }
 
 async function setWallpaperFrom(item, mode) {
@@ -591,13 +592,28 @@ function hideMenus() {
 
 let uploadTarget = '::';
 
+/* any window (the desktop, an open folder) that shows a directory listing
+   can ask to be told when the VFS under it changes, instead of each caller
+   having to know every place that might be showing that data */
+function notifyVfsChanged(dir) {
+  window.dispatchEvent(new CustomEvent('vfs-changed', { detail: { dir: dir || '::' } }));
+}
+
+/* used by the folder app so "upload here" / "new folder here" target
+   whatever directory that window is actually looking at, not always :: */
+export function pickUpload(dir, kind) {
+  uploadTarget = dir || '::';
+  const el = document.getElementById(kind === 'text' ? 'picktxt' : 'pickimg');
+  if (el) el.click();
+}
+
 function openFileMenu(anchor) {
   const r = anchor.getBoundingClientRect();
   const items = [
-    { label: 'UPLOAD IMAGES / VIDEO -> ::/', run: () => { uploadTarget = '::'; document.getElementById('pickimg').click(); } },
-    { label: 'UPLOAD TEXT FILES...  -> ::/', run: () => { uploadTarget = '::'; document.getElementById('picktxt').click(); } },
+    { label: 'UPLOAD IMAGES / VIDEO -> ::/', run: () => pickUpload('::', 'media') },
+    { label: 'UPLOAD TEXT FILES...  -> ::/', run: () => pickUpload('::', 'text') },
     { sep: true },
-    { label: 'NEW FOLDER...', run: () => newFolderPrompt() },
+    { label: 'NEW FOLDER...', run: () => newFolderPrompt('::') },
     { sep: true },
     { label: 'VGA 16-COLOR IMPORT: ' + (UP.vga ? 'ON' : 'OFF'), run: () => {
         UP.vga = !UP.vga;
@@ -609,13 +625,15 @@ function openFileMenu(anchor) {
   showMenu(document.getElementById('filemenu'), r.left, r.bottom, items);
 }
 
-function newFolderPrompt() {
+export function newFolderPrompt(dir) {
+  dir = dir || '::';
   askName('NEW FOLDER', 'New Folder', name => {
     name = (name || '').trim();
     if (!name) return;
-    vfs.write(`::/${name}/.keep`, { type: 'text', content: '' }).then(() => {
+    vfs.write(`${dir}/${name}/.keep`, { type: 'text', content: '' }).then(() => {
       toast('FOLDER CREATED: ' + name);
       refreshIcons();
+      notifyVfsChanged(dir);
     }).catch(() => toast('COULD NOT CREATE THE FOLDER.'));
   });
 }
@@ -684,6 +702,7 @@ async function importFiles(fileList, kind, dir) {
   }
   toast(files.length + ' FILE(S) IMPORTED.');
   refreshIcons();
+  notifyVfsChanged(dir);
 }
 
 function commas(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
