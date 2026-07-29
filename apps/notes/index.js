@@ -1,5 +1,14 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 
+const NOTE_KEY = 'templeos.notes.v1';
+const NOTE_SEED = [
+  { t: 'Index', b: 'THE INDEX\n\nEverything starts here.\n\nThis machine keeps notes the way a good notebook does: one page at a time, and every page allowed to point at any other.\n\nWrite [[Two Brackets]] around a name and it becomes a door. If nothing is on the other side yet the door is red, and clicking it builds the room.\n\nStart with [[Bekkedal]], or [[The Stack]], or [[Things To Do]].\n\nPress the GRAPH button to see the shape of all of it at once.' },
+  { t: 'Two Brackets', b: 'TWO BRACKETS\n\nThis is what a link looks like from the inside.\n\nA note knows nothing about which notes point at it — but the vault does, and it will tell you. Look at the BACKLINKS strip under this text: [[Index]] points here, and now so does anything else you write.\n\nA link to a note that does not exist is not an error. It is a promise.' },
+  { t: 'Things To Do', b: 'THINGS TO DO\n\n- [ ] Fix the thing in [[Bekkedal]]\n- [x] Put the discs on [[The Stack]]\n- [ ] Ask [[Two Brackets]] how it works\n- [ ] Drink less Hirschgeist\n\nA line beginning with a dash is a list. A pair of brackets with an x in it is done.' },
+  { t: 'Bekkedal', b: 'BEKKEDAL\n\nA small life in Norway. Nine places, nine people, and a bear who sweeps.\n\nThe mine is at the end of the valley. Lars stands in the alcove beside the adit, not on the adit, which took two goes to get right.\n\nSee also [[Things To Do]].' },
+  { t: 'The Stack', b: 'THE STACK\n\nThree units on one rail: transport, amplifier, analyser.\n\nThe knobs are BiquadFilterNodes. The meters read an AnalyserNode. Nothing on that faceplate is a picture of a thing — it is the thing.\n\nSee also [[Index]].' }
+];
+
 export default {
   id: 'notes',
   title: 'NOTES',

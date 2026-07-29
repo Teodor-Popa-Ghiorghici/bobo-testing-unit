@@ -1,5 +1,15 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 
+const JAG_KEY = 'templeos.bottle.v1';
+const JAG_FULL = 700, JAG_SHOT = 40;
+const JAG_LINES = [
+  'GOOD.', 'STILL GOOD.', 'THAT IS THE ONE THAT WORKS.',
+  'YOU ARE HAVING A LOVELY TIME.', 'THE ROOM IS SLIGHTLY WIDER NOW.',
+  'YOU HAVE OPINIONS ABOUT THE MENUBAR.', 'YOU TELL THE MACHINE YOU LOVE IT.',
+  'THE MACHINE SAYS NOTHING BACK.', 'PERHAPS SOME WATER.',
+  'DRINK SOME WATER. THIS IS NOT A SUGGESTION.'
+];
+
 export default {
   id: 'bottle',
   title: 'THE BOTTLE',

@@ -20,6 +20,7 @@ export default {
     if (path) {
       const file = await ctx.fs.read(path);
       if (file) val = file.content || '';
+      window._lastTextPath = path;
     }
     
     const isDoc = path.toUpperCase().endsWith('.DD') || path.toUpperCase().endsWith('.HC') || args?.type === 'doc' || args?.type === 'code';

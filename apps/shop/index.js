@@ -1,6 +1,6 @@
 import { createWindow, raise } from '../../kernel/wm.js';
-import { Cos } from '../../kernel/cos.js';
-import { COS_CATS, LOGOS, POTS, SCHEMES } from '../../kernel/cos_data.js';
+import { Cos, COS_CATS } from '../../kernel/cos.js';
+import { LOGOS, POTS, SCHEMES } from '../../kernel/cos_data.js';
 
 const DAVE_LINES = [
   'CRAAAZY DAVE! THAT\'S ME! THAT\'S WHAT THEY PUT ON THE FORM!',

@@ -1,3 +1,12 @@
+import { createWindow } from '../../kernel/wm.js';
+import { lampDip } from '../../kernel/hardware.js';
+import { SPECIES } from '../../kernel/cos_data.js';
+
+const BAYER4 = [
+  [0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]
+];
+const SkyCache = { step: -1, cv: null };
+
 export default {
   id: 'garden',
   title: 'Garden',

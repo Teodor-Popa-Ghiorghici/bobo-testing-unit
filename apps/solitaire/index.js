@@ -2,9 +2,19 @@ import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { lampDip } from '../../kernel/hardware.js';
 
 
 const SOL_KEY = 'templeos.solitaire';
+const LANES = [
+  { id: 0, name: 'MID',     red: true,  c: '#c8283c', c2: '#8b1020', ink: '#ffd8dc', champ: 'ZED' },
+  { id: 1, name: 'BOT',     red: true,  c: '#e0622a', c2: '#96380e', ink: '#ffe2cc', champ: 'TALON' },
+  { id: 2, name: 'TOP',     red: false, c: '#3f6a9e', c2: '#20364f', ink: '#d6e6f8', champ: 'LEE SIN' },
+  { id: 3, name: 'SUPPORT', red: false, c: '#4a3060', c2: '#241635', ink: '#e0d4f0', champ: 'JAX' }
+];
+const RANK_TXT = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const CW = 80, CH = 112;
+const SOL_BACKS = ['HEXTECH', 'SILK', 'RUNE'];
 const Solitaire = {
   st: null,
   boot() {

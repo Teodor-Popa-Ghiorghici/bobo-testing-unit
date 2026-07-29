@@ -1,5 +1,7 @@
 import { fs } from './vfs.js';
 import { registry } from './registry.js';
+import { Snd } from './snd.js';
+import { lampDip } from './hardware.js';
 
 let zTop = 100;
 let cascadeN = 0;
@@ -15,8 +17,6 @@ const TITLE_COLORS = {
   terminal: { bar: '#AAAAAA', border: '#FFFFFF' }
 };
 
-// Dummy Snd for Phase 2 kernel skeleton. It gets overwritten or we just keep it dummy until apps port.
-const Snd = { min:()=>{}, open:()=>{}, select:()=>{}, close:()=>{}, grab:()=>{}, drop:()=>{} };
 let taskSeq = 0;
 function nextTaskId() { return ++taskSeq; }
 
@@ -235,6 +235,17 @@ export async function openWindow(appId, args = {}) {
   xclone.addEventListener('mousedown', ev => { ev.stopPropagation(); made.close(); });
   
   app.mount(made.body, ctx, args);
+}
+
+let toastTimer = null;
+export function toast(msg) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  Snd.blip();
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3200);
 }
 
 export function sysDialog(title, msg, opts) {

@@ -8,6 +8,8 @@ import { wireKonami } from './desktop.js';
 import { initHardware, CRT } from './hardware.js';
 import "./snd.js";
 import "./economy.js";
+import { Music } from './music.js';
+window.Music = Music;
 
 const PALETTE = ['#FFFF55','#55FF55','#55FFFF','#FF55FF','#FF5555','#FFFFFF','#5555FF'];
 

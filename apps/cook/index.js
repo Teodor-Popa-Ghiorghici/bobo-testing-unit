@@ -2,6 +2,9 @@ import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { CRT, Vol, musGain } from '../../kernel/hardware.js';
+import { CK_SAVE, CK_W, CK_H, CK_T, CK_LV, CK_STORY, CK_END, CK_KID, CK_ACH, CK_HZ, CK_SONGS } from './data.js';
+import { VGA16 } from '../../kernel/god.js';
 
 export default {
   open() {

@@ -2,6 +2,7 @@ import { createWindow, raise } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { HIFI_DISCS, HFN, HFP, hifiPress, hifiTags } from './discs.js';
 
 export default {
   id: 'hifi',

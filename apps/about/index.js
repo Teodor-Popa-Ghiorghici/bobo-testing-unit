@@ -1,6 +1,7 @@
 import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
-import { Cos } from '../../kernel/cos.js';
+import { Cos, COS_CATS } from '../../kernel/cos.js';
+import { FRAMES, CURSORS, SCHEMES, LOGOS } from '../../kernel/cos_data.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 
 export default {
@@ -16,8 +17,10 @@ export default {
     'CASE      ' + f.name + '\nPOINTER   ' + c.name + '\nPHOSPHOR  ' + s.name + '\nBOOT LOGO ' + l.name + '\n\n' +
     'SUN ON HAND   ' + window.Economy.balance() + '\nSUN EVER      ' + window.Economy.totals().earned + '\n' +
     'CATALOGUE     ' + owned + ' OF ' + tot + ' OWNED\n' +
-    'PLANTED       ' + (window.Garden.st.planted || 0) + ' SEED(S)\n' +
-    'BOARDS CLEARED ' + Sweeper.st.won + '\nDEALS WON     ' + Solitaire.st.won + '\nSHEETS DRAWN  ' + Crayon.st.items.length +
+    'PLANTED       ' + ((window.Garden && window.Garden.st.planted) || 0) + ' SEED(S)\n' +
+    'BOARDS CLEARED ' + ((window.Sweeper && window.Sweeper.st.won) || 0) +
+    '\nDEALS WON     ' + ((window.Solitaire && window.Solitaire.st.won) || 0) +
+    '\nSHEETS DRAWN  ' + ((window.Crayon && window.Crayon.st.items.length) || 0) +
     '\n\nRING 0. NO USER MODE. NO NETWORK.', { w: 440, h: 470 });
   }
 };

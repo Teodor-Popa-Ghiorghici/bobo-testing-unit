@@ -1,11 +1,53 @@
-import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
+import { createWindow, raise, sysDialog, toast } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { lampDip } from '../../kernel/hardware.js';
 
 
 const DRAW_KEY = 'templeos.draw';
 const DRAW_CAP = 120;
+const CRAYON_PAL = [
+  { n: 'PAPER',  c: '#e8e2d4' },
+  { n: 'BONE',   c: '#c9bfa8' },
+  { n: 'ASH',    c: '#6b6357' },
+  { n: 'CHAR',   c: '#1a1a1a' },
+  { n: 'BLOOD',  c: '#8b1a1a' },
+  { n: 'RUST',   c: '#b23a2a' },
+  { n: 'BRUISE', c: '#4a2c3d' }
+];
+const PAPER = '#e8e2d4';
+const DRAW_W = 672, DRAW_H = 448;
+
+let paperCv = null;
+function makePaper() {
+  if (paperCv) return paperCv;
+  paperCv = document.createElement('canvas');
+  paperCv.width = DRAW_W; paperCv.height = DRAW_H;
+  const g = paperCv.getContext('2d');
+  g.fillStyle = PAPER;
+  g.fillRect(0, 0, DRAW_W, DRAW_H);
+  const img = g.getImageData(0, 0, DRAW_W, DRAW_H);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() * 14 - 7) | 0;
+    d[i] += n; d[i + 1] += n; d[i + 2] += n - 1;
+  }
+  g.putImageData(img, 0, 0);
+  /* fibres: short pale and dark hairs lying in the sheet */
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * DRAW_W, y = Math.random() * DRAW_H;
+    const a = Math.random() * Math.PI, l = 2 + Math.random() * 7;
+    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.30)' : 'rgba(120,110,90,0.16)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+  return paperCv;
+}
+
 const Crayon = {
   st: null,
   boot() {

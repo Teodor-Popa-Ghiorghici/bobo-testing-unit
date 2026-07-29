@@ -19,6 +19,9 @@ export const CRT = {
 export const Vol = CRT;
 window.CRT = CRT;
 
+export const DISP = { scan: true, band: true, vig: true };
+window.DISP = DISP;
+
 const LENS_NAME = ['FLAT', 'SOFT', 'FULL'];
 const PHOS_NAME = ['P1', 'P4', 'P7'];
 const LENS_BOW = [0.0, 0.08, 0.22];
@@ -36,12 +39,52 @@ export function splashGone() {
 export function sfxGain() { return Math.pow(CRT.sfx / 10, 1.6) * 1.25; }
 export function musGain() { return Math.pow(CRT.mus / 10, 1.6) * 0.85; }
 
+/* the lamp browns out for a fifth of a second whenever an app takes power */
+let lampT = null;
+export function lampDip() {
+  const l = document.getElementById('lamp');
+  if (!l) return;
+  l.classList.add('dip');
+  clearTimeout(lampT);
+  lampT = setTimeout(() => l.classList.remove('dip'), 200);
+}
+
 export function initHardware() {
   loadCRT();
+  loadDisp();
   labelKnobs();
   wireChin();
   paintGlass();
+  applyBand();
   window.addEventListener("resize", () => { clearTimeout(window._crtT); window._crtT = setTimeout(paintGlass, 100); });
+}
+
+function loadDisp() {
+  try {
+    const raw = localStorage.getItem('templeos.display.v1');
+    if (raw) Object.assign(DISP, JSON.parse(raw));
+  } catch (e) {}
+}
+
+/* the refresh band: one pale bar crawling down the tube every twelve
+   seconds, the way a phone camera sees a CRT it is not synced to */
+function applyBand() {
+  const scr = document.getElementById('screen');
+  if (!scr) return;
+  let b = document.getElementById('refband');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'refband';
+    b.setAttribute('aria-hidden', 'true');
+    scr.appendChild(b);
+  }
+  b.style.display = DISP.band ? 'block' : 'none';
+}
+
+export function applyDisplay() {
+  applyBand();
+  paintGlass();
+  try { localStorage.setItem('templeos.display.v1', JSON.stringify(DISP)); } catch (e) {}
 }
 
 function labelKnobs() {
@@ -96,23 +139,7 @@ function applyPhosphor() {
   }
 }
 function applyHold() {
-  const shell = document.getElementById('shell');
-  if (!shell) return;
-  if (CRT.vhold !== 5) {
-    shell.classList.add('vhold-roll');
-    const diff = Math.abs(CRT.vhold - 5);
-    shell.style.setProperty('--vhold-speed', (1.1 - diff * 0.2) + 's');
-  } else {
-    shell.classList.remove('vhold-roll');
-  }
-  
-  if (CRT.hhold !== 5) {
-    shell.classList.add('hhold-skew');
-    const diff = Math.abs(CRT.hhold - 5);
-    shell.style.setProperty('--hhold-speed', (0.3 - diff * 0.05) + 's');
-  } else {
-    shell.classList.remove('hhold-skew');
-  }
+  if (window.Hold) window.Hold.apply();
 }
 
 function applyBurn() {
@@ -165,15 +192,17 @@ function paintGlass() {
   g.lineWidth = 1;
   g.strokeStyle = 'rgba(0,0,0,0.34)';
   const steps = 34;
-  for (let y = 0; y < H; y += CRT.scan + 1) {
-    const v = (y / H) * 2 - 1;
-    g.beginPath();
-    for (let s = 0; s <= steps; s++) {
-      const u = (s / steps) * 2 - 1;
-      const p = toScreen(u, v);
-      if (s === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]);
+  if (DISP.scan) {
+    for (let y = 0; y < H; y += CRT.scan + 1) {
+      const v = (y / H) * 2 - 1;
+      g.beginPath();
+      for (let s = 0; s <= steps; s++) {
+        const u = (s / steps) * 2 - 1;
+        const p = toScreen(u, v);
+        if (s === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]);
+      }
+      g.stroke();
     }
-    g.stroke();
   }
 
   g.globalAlpha = 0.055;
@@ -191,13 +220,15 @@ function paintGlass() {
   g.fillStyle = fringe;
   g.fillRect(0, 0, W, H);
 
-  const vig = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.28,
-                                     W / 2, H / 2, Math.max(W, H) * 0.78);
-  vig.addColorStop(0,    'rgba(0,0,0,0)');
-  vig.addColorStop(0.62, 'rgba(0,0,0,0.16)');
-  vig.addColorStop(1,    'rgba(0,0,0,0.82)');
-  g.fillStyle = vig;
-  g.fillRect(0, 0, W, H);
+  if (DISP.vig) {
+    const vig = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.28,
+                                       W / 2, H / 2, Math.max(W, H) * 0.78);
+    vig.addColorStop(0,    'rgba(0,0,0,0)');
+    vig.addColorStop(0.62, 'rgba(0,0,0,0.16)');
+    vig.addColorStop(1,    'rgba(0,0,0,0.82)');
+    g.fillStyle = vig;
+    g.fillRect(0, 0, W, H);
+  }
 
   g.save();
   g.translate(W * 0.30, H * 0.20);

@@ -1,7 +1,8 @@
-import { createWindow, raise, sysDialog } from '../../kernel/wm.js';
+import { createWindow, raise, sysDialog, toast } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
+import { lampDip } from '../../kernel/hardware.js';
 
 let drawerWin = null;
 window.addEventListener('crayon-saved', () => {
