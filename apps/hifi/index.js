@@ -8,8 +8,8 @@ import { Vault } from '../../kernel/vault.js';
 export default {
   id: 'hifi',
   title: 'HIFI',
-  width: 320,
-  height: 520,
+  width: 812,
+  height: 706,
   resizable: true,
   mount(root, _ctx) {
   const body = root;

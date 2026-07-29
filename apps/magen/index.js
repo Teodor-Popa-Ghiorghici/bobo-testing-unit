@@ -693,15 +693,23 @@ export default {
           this.when += len;
           this.timer = setTimeout(() => this.tick(), Math.max(300, len * 1000 - 500));
         },
-        /* the heat changed mid-bar: cut the queue short and lay down the next
-           one now, so the extra layer arrives while you can still feel why */
+        /* the heat changed mid-bar: duck under the old layer and swell back
+           up into the new one, so a chain landing sounds like the band
+           leaning into it, not a splice to a different recording */
         recue() {
           if (!this.on || !Snd.ctx || this.swap) return;
           const now = Snd.ctx.currentTime;
           if (this.when - now < 1.2) return;
           clearTimeout(this.timer);
-          this.voices.forEach(o => { try { o.stop(now + 0.9); } catch (e) {} });
-          this.when = now + 0.9;
+          const F = 0.35, dip = F * 0.5;
+          const gn = this.bus.gain, target = Math.max(0.0002, musGain() * 0.8);
+          gn.cancelScheduledValues(now);
+          gn.setValueAtTime(Math.max(0.0001, gn.value), now);
+          gn.exponentialRampToValueAtTime(0.0001, now + dip);
+          gn.exponentialRampToValueAtTime(target, now + F);
+          this.g0 = target;
+          this.voices.forEach(o => { try { o.stop(now + dip + 0.02); } catch (e) {} });
+          this.when = now + dip;
           this.tick();
         },
         stop() {

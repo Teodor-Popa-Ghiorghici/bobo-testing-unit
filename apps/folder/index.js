@@ -23,8 +23,8 @@ function spriteFor(type, app) {
 export default {
   id: 'folder',
   title: 'FOLDER',
-  width: 380,
-  height: 240,
+  width: 460,
+  height: 300,
   resizable: true,
 
   async mount(root, ctx, args) {

@@ -36,9 +36,11 @@ export const Hold = {
     if (this.phase > H) this.phase -= H * 2;
     if (this.phase < -H) this.phase += H * 2;
 
-    /* horizontal hold slipping is a steady offset plus a little shear */
+    /* horizontal hold slipping is a steady offset plus a little shear --
+       fixed to the knob position, not an idle wobble that runs forever
+       on its own and reads as the picture drifting for no reason */
     const hx = h * 46;
-    const shear = h * 3.2 + Math.sin(performance.now() / 90) * Math.abs(h) * 1.1;
+    const shear = h * 3.2;
     shell.style.transform =
       'translate(' + hx.toFixed(1) + 'px,' + this.phase.toFixed(1) + 'px) skewX(' + shear.toFixed(2) + 'deg)';
 

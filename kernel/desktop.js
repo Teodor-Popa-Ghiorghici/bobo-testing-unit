@@ -1,11 +1,11 @@
 import { Style } from './style.js';
 import { fs as vfs } from './vfs.js';
-import { openWindow, createWindow, toast } from './wm.js';
+import { openWindow, createWindow, toast, askName } from './wm.js';
 import { SPRITES } from './sprites.js';
 import { hcLex, hcParse, hcRun } from './holyc.js';
 import { panic } from './panic.js';
 import { Vault, VaultURL } from './vault.js';
-import { crushImage, UP } from './imaging.js';
+import { crushImage, ditherVGA, UP } from './imaging.js';
 
 const ICON_POS_KEY = 'templeos.icons.v1';
 const WALL_KEY = 'templeos.wallpaper.v1';
@@ -13,6 +13,7 @@ const ICON_W = 84, ICON_H = 78;
 
 let iconPos = {};
 let wallpaper = null;             /* { src, mode } */
+let lastList = [];                /* the most recent desktop item list, name -> type lookups */
 
 function loadIconPos() {
   try { iconPos = JSON.parse(localStorage.getItem(ICON_POS_KEY)) || {}; }
@@ -112,6 +113,10 @@ function wireDeskContextMenu(desk) {
       { label: 'ARRANGE ICONS', run: () => arrangeIcons() }
     ];
     if (wallpaper) items.push({ label: 'CLEAR BACKGROUND', run: () => clearWallpaper() });
+    items.push({ sep: true });
+    items.push({ label: 'DISPLAY SETTINGS...', run: () => openWindow('display') });
+    items.push({ label: "CRAZY DAVE'S SHOP...", run: () => openWindow('shop') });
+    items.push({ label: 'ABOUT THIS MACHINE', run: () => openWindow('about') });
     showMenu(document.getElementById('ctxmenu'), ev.clientX, ev.clientY, items);
   });
 }
@@ -192,6 +197,7 @@ async function refreshIcons() {
 
     // the terminal is a kernel primitive, not a VFS node
     list.push({ name: 'TERMINAL', type: 'terminal' });
+    lastList = list;
 
     // forget icons for anything that no longer exists, so their old cells
     // don't stay "taken" forever
@@ -384,9 +390,9 @@ function openIconContextMenu(ev, item) {
   if (item.type === 'code') {
     items.push({ label: 'RUN IT', run: () => runFileHolyC(`::/${item.name}`) });
   }
-  if (item.type !== 'terminal') {
+  if (item.type !== 'terminal' && item.type !== 'app') {
     items.push({ sep: true });
-    const sel = selectedIcons().map(el => el.dataset.name);
+    const sel = selectedIcons().map(el => el.dataset.name).filter(n => !isProtected(n));
     const bulk = sel.length > 1 && sel.includes(item.name);
     items.push({
       label: bulk ? 'DELETE ' + sel.length + ' ITEMS' : 'DELETE',
@@ -397,13 +403,29 @@ function openIconContextMenu(ev, item) {
   showMenu(document.getElementById('ctxmenu'), ev.clientX, ev.clientY, items);
 }
 
+/* apps and the terminal are shortcuts into the machine, not files on it --
+   they never go in the trash, even when they're caught up in a bulk
+   selection of things that ARE deletable */
+function isProtected(name) {
+  const item = lastList.find(it => it.name === name);
+  return !!item && (item.type === 'app' || item.type === 'terminal');
+}
+
 async function deleteIcons(names) {
-  for (const name of names) {
+  const blocked = names.filter(isProtected);
+  const goners = names.filter(n => !isProtected(n));
+  for (const name of goners) {
     await vfs.remove(`::/${name}`);
     delete iconPos[name];
   }
   saveIconPos();
-  toast(names.length > 1 ? names.length + ' ITEMS DELETED.' : names[0] + ' DELETED.');
+  if (goners.length) {
+    toast(goners.length > 1 ? goners.length + ' ITEMS DELETED.' : goners[0] + ' DELETED.');
+  }
+  if (blocked.length) {
+    toast((goners.length ? goners.length + ' ITEM(S) DELETED. ' : '') +
+      blocked.length + ' APP(S) CANNOT BE DELETED.');
+  }
   refreshIcons();
 }
 
@@ -425,32 +447,78 @@ async function setWallpaperFrom(item, mode) {
 
 function clearWallpaper() {
   wallpaper = null;
-  applyWallpaper();
+  /* the key has to be gone before applyWallpaper runs, or its localStorage
+     fallback (for rehydrating on load) just reads the old value straight
+     back in and undoes the clear */
   try { localStorage.removeItem(WALL_KEY); } catch (e) {}
+  applyWallpaper();
   toast('BACKGROUND CLEARED.');
 }
 
-function stopDeskVideo() {
-  const v = document.getElementById('deskvid');
-  if (v) v.remove();
-}
+/* the desktop's video wallpaper is drawn onto a canvas, crushed to the same
+   sixteen-colour palette every still image gets -- not a real <video>
+   element sitting behind the icons, which would both look too HD next to
+   everything else and hand the browser's own picture-in-picture/context
+   menu to something that is supposed to be inert wallpaper */
+const DeskVid = {
+  raf: null, video: null, cv: null, last: 0,
+  start(src, mode) {
+    this.stop();
+    const desk = document.getElementById('desktop');
+    if (!desk) return;
+    const cv = document.createElement('canvas');
+    cv.id = 'deskvid';
+    cv.style.position = 'absolute';
+    cv.style.left = '0'; cv.style.top = '0';
+    cv.style.width = '100%'; cv.style.height = '100%';
+    cv.style.objectFit = mode === 'tile' ? 'none' : 'cover';
+    cv.style.zIndex = '0';
+    desk.insertBefore(cv, desk.firstChild);
 
-function startDeskVideo(src, mode) {
-  const desk = document.getElementById('desktop');
-  stopDeskVideo();
-  const v = document.createElement('video');
-  v.id = 'deskvid';
-  v.src = src; v.loop = true; v.muted = true; v.playsInline = true;
-  v.autoplay = true;
-  v.style.position = 'absolute';
-  v.style.left = '0'; v.style.top = '0';
-  v.style.width = '100%'; v.style.height = '100%';
-  v.style.objectFit = mode === 'tile' ? 'none' : 'cover';
-  v.style.zIndex = '0';
-  v.addEventListener('error', () => { toast('THAT VIDEO WILL NOT DECODE.'); stopDeskVideo(); });
-  desk.insertBefore(v, desk.firstChild);
-  v.play().catch(() => {});
-}
+    const v = document.createElement('video');
+    v.src = src; v.loop = true; v.muted = true; v.playsInline = true;
+    v.setAttribute('playsinline', '');
+    this.cv = cv; this.video = v;
+
+    let sized = false;
+    const size = () => {
+      const W = v.videoWidth || 320, H = v.videoHeight || 240;
+      const s = Math.min(1, 220 / Math.max(W, H));
+      cv.width = Math.max(2, Math.round(W * s));
+      cv.height = Math.max(2, Math.round(H * s));
+      sized = true;
+    };
+    v.addEventListener('loadedmetadata', () => { size(); v.play().catch(() => {}); });
+    v.addEventListener('error', () => { toast('THAT VIDEO WILL NOT DECODE.'); this.stop(); });
+
+    const loop = ts => {
+      if (!this.cv || !document.body.contains(this.cv)) { this.stop(); return; }
+      this.raf = requestAnimationFrame(loop);
+      if (!sized && v.videoWidth) size();
+      if (!sized || v.readyState < 2) return;
+      if (ts - this.last < 100) return;    /* ten frames a second */
+      this.last = ts;
+      const o = cv.getContext('2d');
+      if (!o) return;
+      try {
+        o.imageSmoothingEnabled = false;
+        o.drawImage(v, 0, 0, cv.width, cv.height);
+        if (UP.vga) ditherVGA(o, cv.width, cv.height);
+      } catch (e) { /* a frame the crush choked on isn't worth stopping over */ }
+    };
+    this.raf = requestAnimationFrame(loop);
+  },
+  stop() {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = null;
+    if (this.cv && this.cv.parentNode) this.cv.parentNode.removeChild(this.cv);
+    if (this.video) { try { this.video.pause(); this.video.src = ''; } catch (e) {} }
+    this.cv = this.video = null;
+  }
+};
+
+function stopDeskVideo() { DeskVid.stop(); }
+function startDeskVideo(src, mode) { DeskVid.start(src, mode); }
 
 async function applyWallpaper() {
   const desk = document.getElementById('desktop');
@@ -481,7 +549,7 @@ async function applyWallpaper() {
 
 /* menu labels are decorative; File, Compile, Tools and Help do something.
    Edit and Debug are left as decoration in the original too. */
-function showMenu(el, x, y, items) {
+export function showMenu(el, x, y, items) {
   if (!el) return;
   el.innerHTML = '';
   items.forEach(it => {
@@ -542,12 +610,14 @@ function openFileMenu(anchor) {
 }
 
 function newFolderPrompt() {
-  const name = window.prompt('NEW FOLDER NAME:', 'New Folder');
-  if (!name) return;
-  vfs.write(`::/${name}/.keep`, { type: 'text', content: '' }).then(() => {
-    toast('FOLDER CREATED: ' + name);
-    refreshIcons();
-  }).catch(() => toast('COULD NOT CREATE THE FOLDER.'));
+  askName('NEW FOLDER', 'New Folder', name => {
+    name = (name || '').trim();
+    if (!name) return;
+    vfs.write(`::/${name}/.keep`, { type: 'text', content: '' }).then(() => {
+      toast('FOLDER CREATED: ' + name);
+      refreshIcons();
+    }).catch(() => toast('COULD NOT CREATE THE FOLDER.'));
+  });
 }
 
 function readAsDataURL(file) {

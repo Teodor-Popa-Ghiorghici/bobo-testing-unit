@@ -1,4 +1,3 @@
-import { createWindow } from '../../kernel/wm.js';
 import { lampDip, CRT, Vol } from '../../kernel/hardware.js';
 import { SPECIES } from '../../kernel/cos_data.js';
 
@@ -9,9 +8,9 @@ const SkyCache = { step: -1, cv: null };
 
 export default {
   id: 'garden',
-  title: 'Garden',
-  width: 760,
-  height: 436,
+  title: 'GARDEN.EXE',
+  width: 720,
+  height: 520,
   resizable: true,
   async mount(root, ctx) {
     const GARD_POTS = 12;
@@ -335,9 +334,7 @@ const W = 700, H = 436;
   for (let i = 0; i < 26; i++) motes.push({ x: Math.random() * W, y: Math.random() * H, v: 0.1 + Math.random() * 0.25, s: Math.random() * 6 });
   for (let i = 0; i < 14; i++) flies.push({ x: Math.random() * W, y: 120 + Math.random() * 280, p: Math.random() * 6.3, r: 8 + Math.random() * 20 });
 
-  const made = createWindow({
-    kind: 'app', title: 'GARDEN.EXE', w: 720, h: 520,
-    build: body => {
+  (function build(body) {
       const pane = document.createElement('div');
       pane.className = 'gamepane gardenpane';
       cv = document.createElement('canvas');
@@ -375,9 +372,8 @@ const W = 700, H = 436;
         refreshSeed();
       });
       shopBtn.addEventListener('mousedown', ev => { ev.stopPropagation(); ctx.openWindow('shop'); });
-    }
-  });
-  
+  })(root);
+
   g = cv.getContext('2d');
   if (g) g.imageSmoothingEnabled = false;
 
@@ -616,21 +612,11 @@ const W = 700, H = 436;
 
     
     this._stockHandler = () => {
-      // Just a little UI feedback
-      const btn = made.win.querySelector('.titlebar .t');
-      if (btn) btn.textContent = 'Garden [DELIVERY!]';
-      setTimeout(() => {
-        if (btn) btn.textContent = 'Garden';
-      }, 3000);
-    };
-    window.addEventListener('garden-stock-refresh', this._stockHandler);
-
-    
-    this._stockHandler = () => {
-      // Just a little UI feedback
-      if (document.body.contains(root)) {
-        // Find title
-      }
+      const win = root.closest('.win');
+      const btn = win && win.querySelector('.titlebar .t');
+      if (!btn) return;
+      btn.textContent = 'Garden [DELIVERY!]';
+      setTimeout(() => { btn.textContent = 'Garden'; }, 3000);
     };
     window.addEventListener('garden-stock-refresh', this._stockHandler);
 
@@ -639,7 +625,6 @@ const W = 700, H = 436;
   unmount() {
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this._GardenAir) this._GardenAir.stop();
-    window.removeEventListener('garden-stock-refresh', this._stockHandler);
     window.removeEventListener('garden-stock-refresh', this._stockHandler);
   }
 };
