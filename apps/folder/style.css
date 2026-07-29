@@ -1,0 +1,2 @@
+.win-folder { padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; overflow-y: auto; background: #000000; height: 100%; box-sizing: border-box; position: relative; }
+.win-folder .icon { position: relative; }

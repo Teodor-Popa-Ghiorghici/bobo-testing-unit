@@ -1,0 +1,51 @@
+function openAccount() {
+  const draw = body => {
+    const p = document.createElement('div');
+    p.className = 'ledgpane';
+    const head = document.createElement('div');
+    head.className = 'ledghead';
+    const h1 = document.createElement('span'); h1.textContent = 'SOURCE';
+    const h2 = document.createElement('span'); h2.textContent = 'SUN';
+    head.appendChild(h1); head.appendChild(h2);
+    p.appendChild(head);
+
+    const rows = Economy.ledger();
+    if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'ledgrow';
+      e.textContent = 'NO TRANSACTIONS. THE BOOKS ARE CLEAN, WHICH IS ALSO A WAY OF SAYING EMPTY.';
+      p.appendChild(e);
+    }
+    rows.forEach(r => {
+      const d = document.createElement('div');
+      d.className = 'ledgrow ' + (r.n >= 0 ? 'in' : 'out');
+      const t = document.createElement('span');
+      t.className = 't';
+      const dt = new Date(r.t);
+      const pad = n => String(n).padStart(2, '0');
+      t.textContent = pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+      const w = document.createElement('span');
+      w.className = 'w';
+      w.textContent = r.s;
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = (r.n >= 0 ? '+' : '') + r.n;
+      d.appendChild(t); d.appendChild(w); d.appendChild(n);
+      p.appendChild(d);
+    });
+
+    const tot = Economy.totals();
+    const f = document.createElement('div');
+    f.className = 'ledgtot';
+    f.textContent = 'IN ' + tot.earned + '   OUT ' + tot.spent + '   ON HAND ' + Economy.balance();
+    p.appendChild(f);
+    body.appendChild(p);
+  };
+
+  const made = createWindow({ kind: 'terminal', title: 'ACCOUNT.EXE', w: 420, h: 400, build: draw });
+  Economy.onChange(() => {
+    if (!document.body.contains(made.win)) return;
+    made.body.innerHTML = '';
+    draw(made.body);
+  });
+}

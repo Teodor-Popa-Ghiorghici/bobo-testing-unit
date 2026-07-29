@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TempleOS V5.03</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="kernel/theme.css">
+</head>
+<body>
+
+<!-- ========================= THE PHYSICAL MONITOR ======================== -->
+<div id="room">
+<div id="monitor">
+<div id="bezel">
+<div id="screen" class="off">
+<div id="tube">
+
+<!-- twenty years of the same menubar, and the roll, and the coils -->
+<div id="burn" aria-hidden="true">
+  <div class="bb" style="left:0;right:0;top:0;height:24px"></div>
+  <div class="bb" style="left:0;right:0;bottom:0;height:25px"></div>
+  <div class="bb" style="left:8px;top:34px;width:92px;height:52px;opacity:.6"></div>
+  <div class="bb" style="left:8px;top:112px;width:92px;height:52px;opacity:.6"></div>
+  <div class="bb" style="left:8px;top:190px;width:92px;height:52px;opacity:.45"></div>
+</div>
+<div id="tear" aria-hidden="true"></div>
+<div id="degauss" aria-hidden="true"></div>
+
+<!-- ============================ STYLE METER ============================= -->
+<!-- Built by Style.mount(); the bar cells are generated so this stays short. -->
+<div id="smeter" aria-hidden="true">
+  <div id="sm-grade"><span id="sm-key">D</span></div>
+  <div id="sm-name">DESECRATING</div>
+  <div id="sm-bar"></div>
+  <div id="sm-log"></div>
+</div>
+
+<!-- ============================ BOOT SPLASH ============================= -->
+<div id="splash">
+  <div id="bios"></div>
+  <div id="logo">
+    <!-- Stepped temple: cross, pediment staircase, columns, stepped base.
+         Flat rects only, shape-rendering crispEdges = no anti-aliasing. -->
+    <svg viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+      <rect width="160" height="120" fill="#000000"/>
+      <!-- stars -->
+      <rect x="12" y="10" width="2" height="2" fill="#FFFFFF"/>
+      <rect x="30" y="4"  width="2" height="2" fill="#AAAAAA"/>
+      <rect x="140" y="14" width="2" height="2" fill="#FFFFFF"/>
+      <rect x="120" y="6"  width="2" height="2" fill="#AAAAAA"/>
+      <rect x="20" y="30" width="2" height="2" fill="#FFFFFF"/>
+      <rect x="146" y="40" width="2" height="2" fill="#AAAAAA"/>
+      <!-- cross at the apex -->
+      <rect x="78" y="0" width="4" height="9" fill="#FFFF55"/>
+      <rect x="74" y="2" width="12" height="3" fill="#FFFF55"/>
+      <!-- pediment, drawn as a staircase of rects -->
+      <rect x="70" y="8"  width="20"  height="5" fill="#FFFF55"/>
+      <rect x="60" y="13" width="40"  height="5" fill="#FFFF55"/>
+      <rect x="50" y="18" width="60"  height="5" fill="#FFFF55"/>
+      <rect x="40" y="23" width="80"  height="5" fill="#FFFF55"/>
+      <rect x="30" y="28" width="100" height="5" fill="#FFFF55"/>
+      <!-- architrave -->
+      <rect x="26" y="33" width="108" height="6" fill="#FFFFFF"/>
+      <rect x="26" y="39" width="108" height="2" fill="#555555"/>
+      <!-- inner light behind the colonnade -->
+      <rect x="56" y="41" width="48" height="43" fill="#00AAAA"/>
+      <rect x="66" y="47" width="28" height="37" fill="#55FFFF"/>
+      <!-- columns -->
+      <rect x="30"  y="41" width="12" height="43" fill="#AAAAAA"/>
+      <rect x="30"  y="41" width="3"  height="43" fill="#FFFFFF"/>
+      <rect x="39"  y="41" width="3"  height="43" fill="#555555"/>
+      <rect x="52"  y="41" width="12" height="43" fill="#AAAAAA"/>
+      <rect x="52"  y="41" width="3"  height="43" fill="#FFFFFF"/>
+      <rect x="61"  y="41" width="3"  height="43" fill="#555555"/>
+      <rect x="74"  y="41" width="12" height="43" fill="#AAAAAA"/>
+      <rect x="74"  y="41" width="3"  height="43" fill="#FFFFFF"/>
+      <rect x="83"  y="41" width="3"  height="43" fill="#555555"/>
+      <rect x="96"  y="41" width="12" height="43" fill="#AAAAAA"/>
+      <rect x="96"  y="41" width="3"  height="43" fill="#FFFFFF"/>
+      <rect x="105" y="41" width="3"  height="43" fill="#555555"/>
+      <rect x="118" y="41" width="12" height="43" fill="#AAAAAA"/>
+      <rect x="118" y="41" width="3"  height="43" fill="#FFFFFF"/>
+      <rect x="127" y="41" width="3"  height="43" fill="#555555"/>
+      <!-- stepped base -->
+      <rect x="22" y="84" width="116" height="6" fill="#AAAAAA"/>
+      <rect x="16" y="90" width="128" height="6" fill="#555555"/>
+      <rect x="10" y="96" width="140" height="6" fill="#AAAAAA"/>
+      <rect x="4"  y="102" width="152" height="6" fill="#555555"/>
+    </svg>
+  </div>
+  <div id="wordmark"></div>
+  <div id="bootlines"></div>
+</div>
+
+<!-- ============================== SHELL ================================= -->
+<div id="shell">
+  <div id="menubar">
+    <div class="menuitem" data-menu="File">File</div>
+    <div class="menuitem" data-menu="Edit">Edit</div>
+    <div class="menuitem" data-menu="Compile">Compile</div>
+    <div class="menuitem" data-menu="Debug">Debug</div>
+    <div class="menuitem" data-menu="Tools">Tools</div>
+    <div class="menuitem" data-menu="Help">Help</div>
+    <div class="brand">TempleOS V5.03 &nbsp; Public Domain</div>
+  </div>
+
+  <div id="desktop">
+    <div id="icons"></div>
+    <div id="marquee"></div>
+  </div>
+
+  <div id="taskbar">
+    <div id="tasks" style="flex:1;"></div>
+    <div id="clock" style="margin-left:auto; padding-right:10px;">00:00:00</div>
+  </div>
+
+  <div id="filemenu" class="popmenu"></div>
+  <div id="ctxmenu" class="popmenu"></div>
+  <div id="toast"></div>
+</div>
+
+<!-- hidden pickers driven by the File menu -->
+<input type="file" id="pickimg" accept="image/*,video/*" multiple hidden>
+<input type="file" id="picktxt" accept=".txt,.md,.hc,.c,.h,.json,.csv,.log,text/*" multiple hidden>
+
+</div><!-- /#tube -->
+
+  <canvas id="glass" class="live"></canvas>
+</div><!-- /#screen -->
+</div><!-- /#bezel -->
+
+  <div id="chin">
+    <div id="badge">
+      <svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+        <rect x="7" y="1" width="2" height="13" fill="#6b6353"/>
+        <rect x="4" y="4" width="8" height="2" fill="#6b6353"/>
+        <rect x="2" y="13" width="12" height="2" fill="#6b6353"/>
+      </svg>
+      <span>HOLYTRON&nbsp; DM-640</span>
+    </div>
+    <button class="knob" id="k-lens" title="Tube curvature">LENS: SOFT</button>
+    <button class="knob" id="k-scan" title="Scanline density">SCAN: 2</button>
+    <button class="knob" id="k-dgauss" title="Degauss the tube">DGAUSS</button>
+    <button class="knob" id="k-phos" title="Phosphor persistence">PHOS: P1</button>
+    <button class="knob" id="k-burn" title="Twenty years of the same menubar">BURN: OFF</button>
+
+    <div id="panel">
+      <div class="potbox">
+        <div class="pot" id="pot-mus" tabindex="0" role="slider"
+             aria-label="Music volume" aria-valuemin="0" aria-valuemax="10"
+             aria-valuenow="0"
+             title="Music volume. Drag to turn, scroll, or use the arrow keys.">
+          <svg class="ticks" viewBox="0 0 40 40" aria-hidden="true"></svg>
+          <div class="cap"><i></i></div>
+        </div>
+        <div class="potlbl" id="lbl-mus">MUS 0</div>
+      </div>
+
+      <div class="potbox">
+        <div class="pot" id="pot-sfx" tabindex="0" role="slider"
+             aria-label="Sound effects volume" aria-valuemin="0" aria-valuemax="10"
+             aria-valuenow="0"
+             title="Effects volume. Drag to turn, scroll, or use the arrow keys.">
+          <svg class="ticks" viewBox="0 0 40 40" aria-hidden="true"></svg>
+          <div class="cap"><i></i></div>
+        </div>
+        <div class="potlbl" id="lbl-sfx">SFX 0</div>
+      </div>
+
+      <div class="potbox hold">
+        <div class="pot" id="pot-vhold" tabindex="0" role="slider"
+             aria-label="Vertical hold" aria-valuemin="0" aria-valuemax="10"
+             aria-valuenow="5"
+             title="Vertical hold. 5 is locked. Anything else and the picture rolls.">
+          <svg class="ticks" viewBox="0 0 40 40" aria-hidden="true"></svg>
+          <div class="cap"><i></i></div>
+        </div>
+        <div class="potlbl" id="lbl-vhold">VHLD 5</div>
+      </div>
+
+      <div class="potbox hold">
+        <div class="pot" id="pot-hhold" tabindex="0" role="slider"
+             aria-label="Horizontal hold" aria-valuemin="0" aria-valuemax="10"
+             aria-valuenow="5"
+             title="Horizontal hold. 5 is locked.">
+          <svg class="ticks" viewBox="0 0 40 40" aria-hidden="true"></svg>
+          <div class="cap"><i></i></div>
+        </div>
+        <div class="potlbl" id="lbl-hhold">HHLD 5</div>
+      </div>
+
+      <div class="swbox">
+        <div class="lswitch" id="lobby" tabindex="0" role="switch"
+             aria-checked="false" aria-label="Lobby music"
+             title="Lobby music. Stays on while you use the desktop.">
+          <div class="rocker"><span class="pip"></span></div>
+        </div>
+        <div class="potlbl">LOBBY</div>
+      </div>
+    </div>
+
+    <button class="knob" id="power" title="Power">&#9211;</button>
+    <div id="lamp"></div>
+  </div>
+</div><!-- /#monitor -->
+</div><!-- /#room -->
+
+  <script type="module" src="kernel/boot.js"></script>
+</body>
+</html>

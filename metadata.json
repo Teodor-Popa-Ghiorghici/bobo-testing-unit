@@ -1,0 +1,6 @@
+{
+  "name": "Holytron DM-640 (TempleOS)",
+  "description": "A TempleOS CRT replica in a single HTML application featuring HolyC interpreter, DolDoc parser, apps, games, audio, and custom retro OS functionality.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,301 @@
+function openElephant() {
+  createWindow({
+    kind: 'app', title: 'Elephant', w: 748, h: 546,
+    build: body => {
+      const wrap = document.createElement('div');
+      wrap.className = 'gamepane';
+      const cv = document.createElement('canvas');
+      cv.width = 480; cv.height = 300;
+      cv.className = 'gamecv elecv';
+      cv.tabIndex = 0;
+      wrap.appendChild(cv);
+
+      const bar = document.createElement('div');
+      bar.className = 'appbar';
+      const bTalk  = document.createElement('button'); bTalk.className  = 'appbtn'; bTalk.textContent  = 'TALK';
+      const bPlace = document.createElement('button'); bPlace.className = 'appbtn'; bPlace.textContent = 'PLACE';
+      const info   = document.createElement('span');   info.className   = 'godword';
+      bar.appendChild(bTalk); bar.appendChild(bPlace); bar.appendChild(info);
+      body.appendChild(wrap); body.appendChild(bar);
+
+      const g = cv.getContext('2d');
+      if (!g) { info.textContent = 'NO CANVAS.'; return; }
+
+      /* ---- 31.4 the sixteen, and the only three shapes anything is made of */
+      const C = i => { const p = VGA16[i]; return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; };
+      const R = (x, y, w, h, c) => {
+        if (w <= 0 || h <= 0) return;
+        g.fillStyle = C(c);
+        g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+      };
+      /* A block with its corners knocked off. Two overlapping rectangles is
+         as round as a machine with no anti-aliasing is allowed to get, and
+         every curved thing on this canvas — him, the clouds, the bubble, the
+         sun — is one of these. */
+      const B = (x, y, w, h, c, k) => {
+        k = Math.min(k, Math.floor(w / 2), Math.floor(h / 2));
+        R(x + k, y, w - 2 * k, h, c);
+        R(x, y + k, w, h - 2 * k, c);
+      };
+      /* An ellipse built out of horizontal runs, with a hard black edge and a
+         lit upper left. Two overlapping rectangles will fake a rounded corner
+         but they collapse into a plus sign the moment the radius approaches
+         half the shape, which is exactly the case for every round part of an
+         elephant — so those get built properly, one row at a time.
+
+         The edge and the light are not decoration: at this size two greys
+         meeting with neither of them stop being two shapes and turn into one
+         smudge. lit and shade may both be left out for a flat piece. */
+      function limb(cx, cy, rx, ry, c, lit, shade) {
+        for (let y = -ry; y <= ry; y++) {
+          const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry))));
+          if (w <= 0) continue;
+          R(cx - w - 1, cy + y, w * 2 + 3, 1, 0);
+          R(cx - w, cy + y, w * 2 + 1, 1, c);
+          if (lit != null && y < -ry * 0.3) {
+            R(cx - w + 1, cy + y, Math.max(2, Math.round(w * (0.35 + 0.5 * (-y / ry)))), 1, lit);
+          }
+          if (shade != null && y > ry * 0.34) {
+            const o = Math.round(w * 0.5);
+            R(cx - w + o, cy + y, w * 2 + 1 - o, 1, shade);
+          }
+        }
+      }
+
+      /* Every fade in this app is an ordered dither. An alpha wash would mix
+         two palette colours into a third that is not in the sixteen, and then
+         the whole rule is gone. */
+      const DIT = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+      const patCache = {};
+      function pat(c, s) {
+        const k = c + ':' + s;
+        if (patCache[k]) return patCache[k];
+        const p = document.createElement('canvas'); p.width = 4; p.height = 4;
+        const q = p.getContext('2d'); q.fillStyle = C(c);
+        for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) if (DIT[j][i] < s) q.fillRect(i, j, 1, 1);
+        patCache[k] = g.createPattern(p, 'repeat');
+        return patCache[k];
+      }
+      /* An ellipse out of horizontal runs. Whole pixels, hard edge, no curve
+         primitive anywhere near it — the same way the boot logo is built, and
+         the only round thing on this canvas that isn't made of these is the
+         speech bubble, which is a box. */
+      function oval(cx, cy, rx, ry, c) {
+        for (let y = -ry; y <= ry; y++) {
+          const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry))));
+          if (w > 0) R(cx - w, cy + y, w * 2 + 1, 1, c);
+        }
+      }
+      const disc = (cx, cy, r, c) => oval(cx, cy, r, r, c);
+
+      /* the same dither, poured into an ellipse rather than a box, because a
+         square halo around a round sun is a square halo around a round sun */
+      function washOval(cx, cy, rx, ry, c, s) {
+        const n = Math.max(0, Math.min(16, Math.round(s)));
+        if (n <= 0) return;
+        g.fillStyle = pat(c, n);
+        for (let y = -ry; y <= ry; y++) {
+          const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry))));
+          if (w > 0) g.fillRect(cx - w, cy + y, w * 2 + 1, 1);
+        }
+      }
+
+      const wash = (x, y, w, h, c, s) => {
+        const n = Math.max(0, Math.min(16, Math.round(s)));
+        if (n <= 0 || w <= 0 || h <= 0) return;
+        g.fillStyle = pat(c, n);
+        g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+      };
+
+      /* A gradient, the only way a machine with sixteen colours has ever been
+         able to draw one: the same colour laid down again and again, a little
+         denser each band, over however many steps the sky is tall. */
+      function ramp(y0, y1, c, from, to, steps) {
+        const h = (y1 - y0) / steps;
+        for (let i = 0; i < steps; i++) {
+          wash(0, y0 + i * h, 480, Math.ceil(h) + 1, c, from + (to - from) * (i / (steps - 1)));
+        }
+      }
+
+      /* ---- 31.5 the air --------------------------------------------------
+         The same twenty-two specks in every place, re-coloured: pollen over
+         the field, spray off the water, snow off the peaks, light coming up
+         off the temple steps. Twenty-two is enough to make air look like it
+         is moving and few enough to cost nothing. */
+      const motes = [];
+      for (let i = 0; i < 22; i++) {
+        motes.push({ x: Math.random() * 480, y: Math.random() * 300,
+                     s: 5 + Math.random() * 11, w: Math.random() * 6.28, big: Math.random() < 0.3 });
+      }
+      function stepMotes(dt) {
+        motes.forEach(m => {
+          m.y -= m.s * dt;
+          m.x += Math.sin(m.w) * 0.35;
+          m.w += dt * 0.7;
+          if (m.y < -4) { m.y = 304; m.x = Math.random() * 480; }
+          if (m.x < -4) m.x = 484; else if (m.x > 484) m.x = -4;
+        });
+      }
+      function drawMotes(c) {
+        motes.forEach(m => R(m.x, m.y, m.big ? 2 : 1, m.big ? 2 : 1, c));
+      }
+
+      /* ---- 31.6 the five places ------------------------------------------
+         All of them share a horizon around y=200 and floor at y=272, so he
+         stands in the same spot however the world behind him changes. */
+
+      /* THE SUNFLOWER FIELD. Three ranks of heads on three different clocks,
+         so the field never lines up into a pattern you can see. */
+      function sunRow(t, base, size, gap, phase, amp) {
+        const off = (phase * 17) % gap;
+        for (let x = -gap; x < 500 + gap; x += gap) {
+          const i = Math.round(x / gap);
+          const sw = Math.round(Math.sin(t * 0.55 + i * 0.9 + phase) * amp);
+          const bx = x + off;
+          const hy = base - size * 3;
+          /* the stalk leans further the higher up it gets, so the head is
+             carrying the lean rather than the whole plant sliding sideways */
+          for (let s = 0; s <= 6; s++) {
+            const k = s / 6;
+            R(bx + Math.round(sw * k), base - (base - hy) * k - 4, 3, 9, 2);
+          }
+          const lf = base - (base - hy) * 0.42;
+          R(bx + Math.round(sw * 0.42) - size, lf, size + 3, 3, 10);
+          R(bx + Math.round(sw * 0.42) + 2, lf + size / 3, size + 3, 3, 10);
+          /* eight petals around a brown middle, and the middle is the thing
+             that makes it a sunflower rather than a yellow dot */
+          const hx = bx + sw + 1, hh = hy;
+          B(hx - size - 1, hh - size - 1, size * 2 + 2, size * 2 + 2, 6, Math.max(2, size >> 1));
+          B(hx - size, hh - size, size * 2, size * 2, 14, Math.max(2, size >> 1));
+          if (size > 6) {
+            R(hx - 1, hh - size - 2, 3, 4, 14); R(hx - 1, hh + size - 2, 3, 4, 14);
+            R(hx - size - 2, hh - 1, 4, 3, 14); R(hx + size - 2, hh - 1, 4, 3, 14);
+          }
+          B(hx - (size >> 1), hh - (size >> 1), size, size, 6, Math.max(1, size >> 2));
+          if (size > 6) wash(hx - (size >> 1), hh - (size >> 1), size, size, 0, 5);
+        }
+      }
+      function placeSun(t) {
+        R(0, 0, 480, 300, 11);
+        ramp(0, 130, 15, 7, 0, 7);
+        /* the sun, with a corona that breathes on an eighteen second cycle */
+        const halo = 3 + Math.round((Math.sin(t * 0.35) + 1) * 1.5);
+        washOval(58, 34, 56, 56, 14, Math.max(1, halo - 3));
+        washOval(58, 34, 38, 38, 14, halo);
+        disc(58, 34, 25, 14);
+        disc(58, 34, 15, 15);
+        R(0, 196, 480, 104, 2);                     /* the field floor */
+        wash(0, 196, 480, 34, 10, 6);
+        wash(0, 262, 480, 38, 8, 3);
+        sunRow(t, 212, 5,  30, 0.0, 2);
+        sunRow(t, 250, 8,  48, 1.9, 3);
+        sunRow(t, 332, 15, 82, 3.7, 5);
+      }
+
+      /* THE OASIS. The water is a stack of bright bars sliding past each
+         other, which from a distance is exactly what water is. */
+      /* A palm is a leaning trunk and six fronds that start out going up and
+         end up going down, which is the whole silhouette. Each frond is a run
+         of shrinking blocks along an arc, so it tapers to a point on its own. */
+      function palm(x, base, t, phase, h) {
+        const lean = Math.sin(t * 0.35 + phase) * 5;
+        const segs = Math.round(h / 12);
+        for (let s = 0; s < segs; s++) {
+          const k = s / (segs - 1);
+          const sx = Math.round(x + lean * k * k);
+          R(sx - 5, base - s * 12 - 12, 10, 13, 6);
+          R(sx - 5, base - s * 12 - 12, 3, 13, 14);
+          R(sx - 5, base - s * 12 - 3, 10, 2, 8);
+        }
+        const tx = Math.round(x + lean), ty = base - segs * 12 - 6;
+        for (let f = 0; f < 7; f++) {
+          const a = -2.7 + f * 0.56;
+          const bend = Math.sin(t * 0.45 + phase + f * 0.8) * 0.1;
+          for (let s = 1; s < 15; s++) {
+            const w = Math.max(2, 9 - s * 0.5);
+            const px = tx + Math.round(Math.cos(a + bend) * s * 3.6);
+            const py = ty + Math.round(Math.sin(a + bend) * s * 2.4 + s * s * 0.2);
+            R(px - w / 2, py, w, 4, f % 2 ? 2 : 10);
+          }
+        }
+        R(tx - 6, ty - 4, 13, 8, 6);
+        R(tx - 4, ty - 2, 4, 4, 14);
+      }
+      function placeOasis(t) {
+        R(0, 0, 480, 300, 11);
+        ramp(60, 196, 14, 0, 8, 8);
+        const halo = 3 + Math.round((Math.sin(t * 0.3) + 1) * 1.5);
+        washOval(418, 94, 60, 60, 14, Math.max(1, halo - 3));
+        washOval(418, 94, 40, 40, 14, halo);
+        disc(418, 94, 28, 14);
+        disc(418, 94, 17, 15);
+        /* three dune ridges, palest at the back */
+        R(0, 150, 480, 40, 14); wash(0, 150, 480, 40, 15, 7);
+        B(-40, 138, 260, 60, 14, 26); B(230, 144, 280, 54, 14, 24);
+        R(0, 178, 480, 30, 14); wash(0, 178, 480, 30, 6, 4);
+        /* the pool, sitting well behind him so his feet are on dry sand */
+        oval(240, 214, 156, 27, 3);
+        oval(240, 212, 152, 23, 11);
+        oval(240, 216, 150, 22, 3);
+        /* A ripple is only allowed to be as wide as the water is at that
+           height, or it hangs out over the sand. */
+        const span = y => Math.round(150 * Math.sqrt(Math.max(0, 1 - Math.pow((y - 216) / 22, 2))));
+        for (let i = 0; i < 9; i++) {
+          const y = 200 + i * 4;
+          const hw = span(y);
+          if (hw < 12) continue;
+          const w = Math.min(40 + i * 11, hw * 1.5);
+          const x = 240 - hw + (Math.sin(t * 0.28 + i * 1.35) * 0.5 + 0.5) * (hw * 2 - w);
+          R(x, y, w, 2, 11);
+        }
+        /* the sun's road across it, the one bright thing that moves fast */
+        for (let i = 0; i < 7; i++) {
+          const y = 202 + i * 5, hw = span(y);
+          if (hw < 12) continue;
+          const w = Math.min(16 + i * 3, hw);
+          R(Math.min(240 + hw - w, 356 - i * 5) + Math.round(Math.sin(t * 1.1 + i) * 3), y, w, 2, 15);
+        }
+        palm(52, 240, t, 0, 96);
+        palm(438, 236, t, 1.7, 108);
+        palm(96, 224, t, 3.4, 74);
+        R(0, 238, 480, 62, 14);
+        wash(0, 238, 480, 62, 6, 5);
+        wash(0, 280, 480, 20, 6, 10);
+      }
+
+      /* THE MOUNTAIN FIELD. Peaks are staircases, and the wind is a set of
+         bright bands crossing the meadow at slightly different speeds. */
+      /* A mountain, one row at a time: black edge, dark rock on the shaded
+         face, lighter rock on the lit one, and a snow line that wanders
+         instead of running dead level. */
+      function peak(cx, base, w, h, seed) {
+        for (let y = 0; y < h; y++) {
+          const k = y / (h - 1);
+          const ww = Math.round(w * k * 0.5) + 3;
+          const yy = base - h + y;
+          const snow = h * 0.3 + Math.sin(y * 0.7 + seed) * 3 + Math.sin(y * 0.21 + seed) * 5;
+          R(cx - ww - 1, yy, ww * 2 + 3, 1, 0);
+          if (y < snow) {
+            R(cx - ww, yy, ww * 2 + 1, 1, 7);
+            R(cx - ww, yy, ww + 1, 1, 15);
+          } else {
+            R(cx - ww, yy, ww * 2 + 1, 1, 8);
+            R(cx - ww, yy, Math.round(ww * 0.9), 1, 7);
+            /* streaks of old snow in the gullies below the line */
+            if (y < snow + 14 && (y + seed | 0) % 3) R(cx - Math.round(ww * 0.5), yy, Math.round(ww * 0.7), 1, 15);
+          }
+        }
+      }
+      function placeFjell(t) {
+        R(0, 0, 480, 300, 9);
+        ramp(0, 200, 11, 4, 14, 8);
+        ramp(96, 200, 15, 0, 8, 6);
+        /* slow high cloud, two banks, no hurry at all */
+        for (let i = 0; i < 5; i++) {
+          const x = ((t * 3 + i * 118) % 620) - 90;
+          puff(x, 40 + (i % 3) * 20, 74 + i * 9, 20 + (i % 2) * 7, 15);
+        }
+        peak(74,  204, 140, 96,  0.0);
+        peak(408, 204, 152, 108, 2.3);
+        peak(240, 202, 210, 138, 4.1);
+        R(0, 196, 480, 22, 2);

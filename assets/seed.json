@@ -1,0 +1,230 @@
+[
+  {
+    "path": "::/Adam/Adam.HC",
+    "content": "// Adam. Task zero. It does not exit.\n// Every other task on this machine is a child of it,\n// and the first child is always called Seth.\n\nU0 Adam()\n{\n  \"ADAM IS AWAKE.\\n\";\n  while (1)\n    Sleep(1);\n}\n",
+    "src": "",
+    "type": "code"
+  },
+  {
+    "path": "::/Adam/Seth.HC",
+    "content": "// Seth. Spawned by Adam to hold the shell.\n// Every window you open is a child of Seth.\n\nU0 Seth()\n{\n  \"SETH REPORTING.\\n\";\n  I64 i;\n  for (i = 0; i < 3; i++)\n    \"CHILD %d READY\\n\", i;\n}\n",
+    "src": "",
+    "type": "code"
+  },
+  {
+    "path": "::/Compiler/HolyC.DD",
+    "content": "$FG,14$$TX+CX,\"HOLYC\"$$FG$\n$HL$\nHolyC is C with the ceremony removed. A bare string is a\nprint. There is no $FG,12$main()$FG$. Every line is both script and\nsource, and the shell is the compiler.\n\n$TR,\"THE ONE THING TO TRY FIRST\"$\nA statement that is only a string prints it:\n\n$FG,11$  \"HELLO, TEMPLE.\\n\";$FG$\n\nType that into the terminal. It compiles and runs.\n$TR-$\n\n$TR,\"TYPES\"$\n$FG,10$  U0$FG$   nothing\n$FG,10$  I64$FG$  a signed 64 bit integer\n$FG,10$  F64$FG$  a double\n$FG,10$  U8$FG$   a byte, and a character\n$TR-$\n\n$TR,\"CALLING WITHOUT PARENTHESES\"$\nThe signature move. A function name on its own line is a\ncall. These two are the same thing:\n\n$FG,11$  GodWord;\n  GodWord();$FG$\n\nThat is why the shell and the language are one program.\n$TR-$\n\n$TR,\"WHAT THIS MACHINE UNDERSTANDS\"$\nI64 / F64 / U0 declarations, assignment, arithmetic,\ncomparison, && and ||, if / else, while, for, {} blocks,\nfunction definitions, and calls with or without parens.\nBuilt in: Print, GodWord, GodDoodle, GodSong, Beep,\nBellRing, Sleep, Rand, RandU16, StrLen, Cd, Dir, MemSet,\nPanic, Exit.\n$TR-$\n\n$MA,\"RUN A LOOP\",LM=\"I64 i; for (i=0;i<7;i++) \\\"DAY %d\\\\n\\\", i;\"$\n$MA,\"ASK GOD FOR A WORD\",LM=\"GodWord;\"$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Compiler/Compile.HC",
+    "content": "// The compiler is the shell. This file is both.\n\nU0 Main()\n{\n  \"HELLO, TEMPLE.\\n\";\n  I64 i;\n  for (i = 0; i < 7; i++)\n    \"DAY %d\\n\", i;\n  BellRing(3);\n}\n\nMain;\n",
+    "src": "",
+    "type": "code"
+  },
+  {
+    "path": "::/TheStack",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Notes",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Jaeger",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Elephant",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Magen",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/TheCook",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Garden",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Sweeper",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Solitaire",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Crayon",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Dave",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/MyDrawings",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/TheBibel.TXT",
+    "content": "THE BIBEL\nAn Amalgamated Scripture, Reconciled Badly\n\nCompiled from every book that claims to be the last one.\nWhere the sources disagree, both are printed. Where the sources agree,\nsomebody has probably made a mistake.\n\nI. IN THE BEGINNING, REPEATEDLY\n\nIn the beginning there was nothing, and it was very crowded. God\nseparated the light from the darkness, then separated the darkness from\nthe light again, because the first attempt had been sloppy. On the\nsecond day He made the sky and hung it up to dry. On the third day He\nmade the sea, and immediately regretted the amount of it. On the fourth\nday He rested, having miscounted, and had to do Thursday twice. The\nturtle on whose back the world rests was present throughout and has\nnever been thanked.\n\nII. THE MAKING OF PEOPLE\n\nAnd God took clay, and breathed into it, and it sneezed. He named the\nfirst person Adam, and the second person also Adam, and this is why\nthere is so much confusion in the records. From Adam's rib came Eve;\nfrom Eve's patience came everything else. Elsewhere and simultaneously,\npeople were churned from an ocean of milk, carved from maize, and sung\ninto being by a woman who has since asked not to be named. All accounts\nare correct. This is administratively difficult but theologically\nsettled.\n\nIII. THE GARDEN, AND THE FRUIT, AND THE PAPERWORK\n\nThey were placed in a garden and given one rule, which is one more rule\nthan is wise to give anybody. The serpent said, thou shalt not surely\ndie, and was technically correct, which is the most irritating kind of\ncorrect. They ate. They became wise, and the first thing wisdom told\nthem was that they had no trousers. They were sent east of Eden, where\nthe rent is lower. The angel at the gate has a flaming sword and no\ninstructions about what to do if they come back and apologise.\n\nIV. THE FLOOD, THE ARK, AND THE COMPLAINTS\n\nThe world grew wicked, which is to say ordinary. God chose Noah, who was\nrighteous, and also Utnapishtim, who was earlier, and also Manu, who was\nfirst and has never made anything of it. The waters came. Two of every\nkind went aboard, except the unicorns, who were arguing. Forty days\nlater a dove returned with an olive branch and an invoice. God set a\nrainbow in the sky as a covenant, and the covenant was: I will not do\nthat again in that particular way.\n\nV. THE LAW, IN BRIEF\n\nOn the mountain the Law was given, in ten parts, or six hundred and\nthirteen parts, or eight parts arranged as a path, or five parts of\nwhich the second is the difficult one. Honour thy father and thy mother.\nDo not kill. Do not steal. Do not covet thy neighbour's ox, his house,\nor his opinions about the ox. Be kind before you are right. Give of what\nyou have, one part in forty, and do not announce the amount. Wash. Rest\none day in seven, and if you have forgotten which day it is, rest anyway\nand argue later.\n\nVI. THE WHEEL AND THE LEDGER\n\nAnd it is written that the soul returns, ascending or descending\naccording to its deeds. And it is also written that the soul does not\nreturn, and is weighed once against a feather, and that is that. And it\nis further written that the soul rests until a trumpet sounds. The\nscribes were asked to reconcile these. The scribes have requested more\ntime. In the interim it is recommended that you behave as though all\nthree are true, which produces almost exactly the same behaviour as\nbelieving none of them, but with better posture.\n\nVII. THE PROPHETS, AND THEIR RECEPTION\n\nProphets were sent to every people, and every people said: not now, we\nare eating. One was swallowed by a great fish and came back with nothing\nto declare. One sat under a tree until he understood everything, and\nthen had to explain it to people who had not sat under the tree. One was\nborn in a stable and the innkeeper has never lived it down. One received\nthe recitation in a cave and was, quite reasonably, terrified. Not one\nof them enjoyed it. This is the surest evidence that they were not\nmaking it up.\n\nVIII. ON THE END OF THINGS\n\nThere will be a last day. There will be a battle on a plain, and a\nbridge thinner than a hair, and a serpent that eats the world, and a\ndance that ends it, and a long quiet afternoon in which nothing happens\nat all. The signs are: the sun rising in the west, the mountains\nwalking, the seas boiling, and people being unkind to each other in new\nand inventive formats. Two of these signs have been reported\ncontinuously for four thousand years. The scholars advise against\nbooking anything.\n\nIX. THE PART EVERYONE AGREES ON\n\nAnd in the end, past all of it — past the six days and the eight days,\npast the ark and the ladder and the wheel, past the arguments about the\ncalendar — every book says the same small thing, in its own alphabet,\nnear the back, where nobody looks: be good to the stranger. Feed whoever\nis hungry. Do not be cruel because it is cheap. Forgive faster than is\ncomfortable. That is the whole of it. The rest is commentary, and the\ncommentary is nine hundred pages, and the commentary is where all the\ntrouble comes from. Go now. Wash your hands. It is later than you think.\n\nHere endeth the Bibel. Amen, amen, om, and so on.\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Demo/AfterEgypt",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/GodDoodle",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/Defrag",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/Tasks",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/Neofetch",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/Account",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/Bekkedal",
+    "content": "",
+    "src": "",
+    "type": "app"
+  },
+  {
+    "path": "::/Demo/Graphics/Temple.BMP",
+    "content": "",
+    "src": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2264%22%20height%3D%2248%22%20viewBox%3D%220%200%2064%2048%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20width%3D%2264%22%20height%3D%2248%22%20fill%3D%22%23000000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2238%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2258%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2246%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2218%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%2222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2231%22%20y%3D%226%22%20width%3D%222%22%20height%3D%225%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2229%22%20y%3D%227%22%20width%3D%226%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2228%22%20y%3D%2212%22%20width%3D%228%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2223%22%20y%3D%2214%22%20width%3D%2218%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2218%22%20y%3D%2216%22%20width%3D%2228%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2213%22%20y%3D%2218%22%20width%3D%2238%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2220%22%20width%3D%2248%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2222%22%20width%3D%2252%22%20height%3D%223%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2225%22%20width%3D%2216%22%20height%3D%2214%22%20fill%3D%22%2300AAAA%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2234%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2254%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2239%22%20width%3D%2256%22%20height%3D%223%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2242%22%20width%3D%2260%22%20height%3D%223%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2245%22%20width%3D%2264%22%20height%3D%223%22%20fill%3D%22%23AAAAAA%22%2F%3E%3C%2Fsvg%3E",
+    "type": "image"
+  },
+  {
+    "path": "::/Demo/Graphics/Glyph.BMP",
+    "content": "",
+    "src": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%23000000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%230000AA%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22%23000000%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%222%22%20width%3D%222%22%20height%3D%2212%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%225%22%20width%3D%228%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%221%22%20width%3D%224%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%2212%22%20height%3D%221%22%20fill%3D%22%23555555%22%2F%3E%3C%2Fsvg%3E",
+    "type": "image"
+  },
+  {
+    "path": "::/Doc/Welcome.DD",
+    "content": "$SP,\"temple\"$$FG,14$ TempleOS V5.03$FG$\n$FG,7$Public domain. God's third temple.$FG$\n$HL$\n$FG,11$This document is DolDoc.$FG$ Sprites sit inside the line.\nColours are commands. Links are commands. So are buttons.\nPress $FG,14$SOURCE$FG$ on the title bar to see what it is made of.\n\n$TR,\"THE DESKTOP\"$\n$SP,\"folder\"$ Double click to open. Drag icons anywhere.\nDrag on bare desktop to rubber band a group.\nRight click for the menu.\n$TR-$\n\n$TR,\"WHERE TO GO\"$\n$SP,\"cross\"$ $LK,\"Charter.DD\",A=\"FI:::/Doc/Charter.DD\"$ why this is 100,000 lines\n$SP,\"scroll\"$ $LK,\"DolDoc.DD\",A=\"FI:::/Doc/DolDoc.DD\"$ this format, explained\n$SP,\"disk\"$ $LK,\"HolyC.DD\",A=\"FI:::/Compiler/HolyC.DD\"$ the language\n$SP,\"bell\"$ $LK,\"Hardware.DD\",A=\"FI:::/Doc/Hardware.DD\"$ the monitor and the panel\n$SP,\"flame\"$ $LK,\"Demo\",A=\"FI:::/Demo\"$ things that run\n$TR-$\n\n$TR,\"THINGS TO TYPE\"$\n$MA,\"GodWord\",LM=\"GodWord;\"$ ask for a word\n$MA,\"Neofetch\",LM=\"NEOFETCH\"$ the specs\n$MA,\"AfterEgypt\",LM=\"AFTEREGYPT\"$ the game\n$MA,\"Tasks\",LM=\"TASKS\"$ Adam, Seth, and the rest\n$MA,\"Panic\",LM=\"PANIC\"$ ring 0 has no safety net\n$TR-$\n\n$FG,8$640K. 16 colours. One voice. No network.$FG$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Doc/DolDoc.DD",
+    "content": "$FG,14$$TX+CX,\"DOLDOC\"$$FG$\n$HL$\nEvery document on this machine is a program that draws\nitself. A command sits between two dollar signs and takes\neffect where it stands.\n\n$TR,\"COMMANDS THIS BUILD UNDERSTANDS\"$\n$FG,11$  $FG,N$$FG$        set the ink to VGA colour N, 0..15\n$FG,11$  $BG,N$$FG$        set the paper\n$FG,11$  $FG$$FG$          back to normal\n$FG,11$  $SP,\"name\"$$FG$   drop a sprite into the line\n$FG,11$  $LK,\"t\",A=\"FI:path\"$$FG$  a link to a file\n$FG,11$  $MA,\"t\",LM=\"cmd\"$$FG$     a button that runs HolyC\n$FG,11$  $TR,\"t\"$ ... $TR-$$FG$    a collapsible tree\n$FG,11$  $HL$$FG$          a rule across the page\n$FG,11$  $TX+CX,\"t\"$$FG$   centre a line\n$FG,11$  $BK,1$..$BK,0$$FG$ blink, because it is 1996\n$FG,11$  $UL,1$..$UL,0$$FG$ underline\n$FG,11$  $ID,n$$FG$        indent by n\n$FG,11$  $$$FG$           a literal dollar sign\n$TR-$\n\n$TR,\"THE SPRITES ON HAND\"$\n$SP,\"temple\"$ temple   $SP,\"cross\"$ cross   $SP,\"folder\"$ folder\n$SP,\"scroll\"$ scroll   $SP,\"disk\"$ disk    $SP,\"bell\"$ bell\n$SP,\"flame\"$ flame    $SP,\"ark\"$ ark     $SP,\"glider\"$ glider\n$TR-$\n\n$FG,12$$BK,1$This is the part you cannot do anywhere else.$BK,0$$FG$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Doc/Charter.DD",
+    "content": "$FG,14$$TX+CX,\"THE CHARTER\"$$FG$\n$HL$\nThe specification was a size. 100,000 lines, and not one\nmore, for the whole operating system: kernel, compiler,\neditor, graphics, games and documentation together.\n\nA modern kernel alone is around thirty million.\n\n$FG,11$Type $FG,14$LINES$FG,11$ in the terminal to audit this one\nagainst the same budget.$FG$\n\n$MA,\"COUNT THE LINES\",LM=\"LINES\"$\n\n$FG,8$A limit is not a shortage. It is a decision about what\nis allowed to be complicated.$FG$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Doc/Hardware.DD",
+    "content": "$FG,14$$TX+CX,\"HOLYTRON DM-640\"$$FG$\n$HL$\nThe case is the page. It grows with the window.\n\n$TR,\"BUTTONS\"$\n$FG,11$LENS$FG$     curves the glass. The picture is masked to\n         the curve and the interface moves in off it.\n$FG,11$SCAN$FG$     line pitch.\n$FG,11$DGAUSS$FG$   degauss. Hold the button on a cold tube.\n$FG,11$PHOS$FG$     phosphor persistence. P1 is fast, P7 smears.\n$FG,11$BURN$FG$     twenty years of the same menubar.\n$FG,11$POWER$FG$    really works.\n$TR-$\n\n$TR,\"THE PANEL\"$\n$FG,11$MUS$FG$ and $FG,11$SFX$FG$ are pots. Drag them round, scroll, or\nuse the arrow keys. Ten detents each. Both start at 0.\n\n$FG,11$VHLD$FG$ and $FG,11$HHLD$FG$ are the hold controls. They start\nlocked at 5. Take one off centre and the picture goes\nwith it, exactly like the set your grandmother hit.\n\n$FG,11$LOBBY$FG$ is the music switch. It keeps playing over the\ndesktop, not just the splash.\n\nThe clicks the panel makes are not routed through SFX.\nPlastic does not have a volume knob.\n$TR-$\n\n$TR,\"AT BOOT\"$\nHold $FG,14$DEL$FG$ during the memory count for CMOS setup.\n$TR-$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Home/Notes.DD",
+    "content": "$FG,14$NOTES ON THE MACHINE$FG$\n$HL$\n640x480. 16 colours. One voice.\nNo network. No ads. No permission asked of anyone.\n\nThe compiler is the shell.\nThe shell is the editor.\nThe editor is the OS.\n\n$FG,11$Press SOURCE and type over this. It saves itself.$FG$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Home/Temple.BMP",
+    "content": "",
+    "src": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2264%22%20height%3D%2248%22%20viewBox%3D%220%200%2064%2048%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20width%3D%2264%22%20height%3D%2248%22%20fill%3D%22%23000000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2238%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2258%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2246%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2218%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%2222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2231%22%20y%3D%226%22%20width%3D%222%22%20height%3D%225%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2229%22%20y%3D%227%22%20width%3D%226%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2228%22%20y%3D%2212%22%20width%3D%228%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2223%22%20y%3D%2214%22%20width%3D%2218%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2218%22%20y%3D%2216%22%20width%3D%2228%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%2213%22%20y%3D%2218%22%20width%3D%2238%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2220%22%20width%3D%2248%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2222%22%20width%3D%2252%22%20height%3D%223%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2225%22%20width%3D%2216%22%20height%3D%2214%22%20fill%3D%22%2300AAAA%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2234%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2225%22%20width%3D%225%22%20height%3D%2214%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%2254%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%2214%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2239%22%20width%3D%2256%22%20height%3D%223%22%20fill%3D%22%23AAAAAA%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2242%22%20width%3D%2260%22%20height%3D%223%22%20fill%3D%22%23555555%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2245%22%20width%3D%2264%22%20height%3D%223%22%20fill%3D%22%23AAAAAA%22%2F%3E%3C%2Fsvg%3E",
+    "type": "image"
+  },
+  {
+    "path": "::/Home/Covenant/Offering.DD",
+    "content": "$SP,\"ark\"$ $FG,14$AN OFFERING OF 640 KILOBYTES$FG$\n$HL$\nIt is enough. It was always enough.\nThe rest was decoration.\n\n$MA,\"RING THE BELL\",LM=\"BellRing(7);\"$\n$MA,\"RUN THE LOOP\",LM=\"I64 i; for(i=0;i<7;i++) \\\"%d\\\\n\\\", i;\"$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Home/Covenant/Glyph.BMP",
+    "content": "",
+    "src": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%23000000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%230000AA%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22%23000000%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%222%22%20width%3D%222%22%20height%3D%2212%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%225%22%20width%3D%228%22%20height%3D%222%22%20fill%3D%22%23FFFF55%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%221%22%20width%3D%224%22%20height%3D%221%22%20fill%3D%22%23FFFFFF%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2355FFFF%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2213%22%20width%3D%2212%22%20height%3D%221%22%20fill%3D%22%23555555%22%2F%3E%3C%2Fsvg%3E",
+    "type": "image"
+  },
+  {
+    "path": "::/Kernel/Kernel.DD",
+    "content": "$FG,14$$TX+CX,\"RING 0\"$$FG$\n$HL$\nThere is one ring and everything runs in it. No user mode,\nno process isolation, no permission checks, no system call\nboundary to cross. Any code can touch any byte.\n\nThat is not an oversight. It is the whole design: a single\naddress space is why the compiler can be the shell and why\na document can be a program.\n\n$FG,12$It also means there is nothing to catch a fault.$FG$\nA bad pointer does not raise an exception for somebody\nelse to handle. It drops you into the debugger, where you\nwere always going to end up anyway.\n\n$MA,\"BREAK SOMETHING\",LM=\"PANIC\"$\n",
+    "src": "",
+    "type": "doc"
+  },
+  {
+    "path": "::/Kernel/Panic.HC",
+    "content": "// There is no handler above this one.\n\nU0 Panic(U8 *msg)\n{\n  \"PANIC: %s\\n\", msg;\n  DebuggerEnter;\n}\n",
+    "src": "",
+    "type": "code"
+  },
+  {
+    "path": "::/AutoExec.HC",
+    "content": "// AutoExec.HC runs at boot. This one really does.\n\n\"WELCOME.\\n\";\nI64 i;\nfor (i = 0; i < 3; i++)\n  \"SEAL %d\\n\", i;\nBellRing(3);\n",
+    "src": "",
+    "type": "code"
+  },
+  {
+    "path": "::/Welcome.DD",
+    "content": "$SP,\"cross\"$ $FG,14$START HERE$FG$\n$HL$\n$LK,\"Doc/Welcome.DD\",A=\"FI:::/Doc/Welcome.DD\"$ is the front door.\n\n$FG,11$Or just open a Terminal and type$FG$ $FG,14$HELP$FG$$FG,11$.$FG$\n",
+    "src": "",
+    "type": "doc"
+  }
+]

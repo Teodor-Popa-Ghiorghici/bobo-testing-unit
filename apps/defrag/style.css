@@ -1,0 +1,22 @@
+.defragpane { padding: 6px; background: #0000AA; min-height: 100%; }
+.defraggrid {
+  display: grid;
+  grid-template-columns: repeat(40, 1fr);
+  gap: 1px;
+  border: 2px solid #FFFFFF;
+  padding: 2px;
+  background: #000000;
+}
+.db { display: block; width: 100%; padding-bottom: 100%; background: #555555; }
+.db.used { background: #AAAAAA; }
+.db.free { background: #0000AA; }
+.db.read { background: #FFFF55; }
+.db.writ { background: #55FF55; }
+.db.bad  { background: #FF5555; }
+.defraglegend {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  color: #FFFFFF; padding: 4px 2px; font-size: 15px;
+}
+.defraglegend span { display: flex; align-items: center; gap: 3px; }
+.defraglegend .db { width: 9px; height: 9px; padding: 0; }
+.defragstatus { color: #55FF55; padding: 2px; }

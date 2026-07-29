@@ -1,0 +1,11 @@
+.ledgpane { padding: 6px 8px; color: var(--sch-dim, #AAAAAA); min-height: 100%; background: var(--sch-bg, #000000); }
+.ledghead { background: var(--sch-dim, #AAAAAA); color: var(--sch-bg, #000000); padding: 0 4px; display: flex; }
+.ledghead span:last-child { margin-left: auto; }
+.ledgrow { display: flex; border-bottom: 1px solid #1a1a1a; }
+.ledgrow .w { flex: 1 1 auto; overflow: hidden; white-space: nowrap; }
+.ledgrow .n { padding-left: 8px; }
+.ledgrow .w { color: var(--sch-fg, #FFFFFF); }
+.ledgrow.in  .n { color: var(--sch-ok, #55FF55); }
+.ledgrow.out .n { color: var(--sch-err, #FF5555); }
+.ledgrow .t { color: var(--sch-dim, #555555); padding-right: 8px; opacity: 0.7; }
+.ledgtot { margin-top: 6px; border-top: 1px solid var(--sch-dim, #555555); padding-top: 3px; color: var(--sch-hi, #FFFF55); }
