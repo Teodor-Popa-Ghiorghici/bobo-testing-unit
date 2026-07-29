@@ -337,6 +337,27 @@ export default {
       }
 
       /* ---- 32.18 the mitzvot you complete by playing -------------------- */
+      /* SUN is a real-money analogue, orthogonal to mitzvot (the game's own
+         currency) -- so even the two achievements that are "worth nothing"
+         in mitzvot still pay a little here. Everything else scales with how
+         hard the threshold actually is: log2 for the small everyday
+         milestones (clicks, ownership, gold stars...), log10 for the
+         thresholds that run from 1 up past a septillion. */
+      function achSun(a) {
+        if (a.worth0) return 5;
+        switch (a.t) {
+          case 'total':
+          case 'mps':
+            return Math.max(15, Math.round(15 + Math.log10(Math.max(1, a.v)) * 12));
+          case 'allb':
+          case 'dias':
+            return 120;
+          case 'flag':
+            return 25;
+          default:
+            return Math.max(5, Math.round(8 + Math.log2(Math.max(1, a.v)) * 6));
+        }
+      }
       function checkAch() {
         MG_ACH.forEach(a => {
           if (S.ach[a.id]) return;
@@ -357,6 +378,7 @@ export default {
           }
           if (hit) {
             S.ach[a.id] = 1;
+            if (window.Economy) window.Economy.earn(achSun(a), 'MAGEN: ' + a.n);
             /* the two that are worth nothing announce themselves quietly */
             if (a.worth0) {
               toast('MITZVAH: ' + a.n); sfx.quiet();

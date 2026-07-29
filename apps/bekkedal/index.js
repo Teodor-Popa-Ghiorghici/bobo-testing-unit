@@ -552,6 +552,7 @@ export default {
         if (q && Object.keys(q.need).every(id => has(id, q.need[id]))) {
           Object.keys(q.need).forEach(id => add(id, -q.need[id]));
           S.q[q.id] = 'done'; S.kr += q.kr;
+          if (window.Economy) window.Economy.earn(Math.max(20, Math.round(q.kr * 0.15)), 'BEKKEDAL: ' + q.t.en);
           S.fr[npc.id] = Math.min(5, S.fr[npc.id] + q.fr);
           if (q.tool) S.tools[q.tool] = 1;
           if (q.grant) {
@@ -721,7 +722,7 @@ export default {
           return;
         }
         if (mode === 'bag' || mode === 'quest') { if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') mode = ''; return; }
-        if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; } else newDay(false); } if (k === 'Escape') mode = ''; return; }
+        if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(500, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else newDay(false); } if (k === 'Escape') mode = ''; return; }
 
         /* walking */
         if (k === ' ') { if (fish) fishTap(); else act(); return; }
