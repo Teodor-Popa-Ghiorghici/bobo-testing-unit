@@ -1,4 +1,5 @@
 import { Style, Rage } from "./style.js";
+import { Snd } from "./snd.js";
 export const CRT = {
   lens: 1,
   scan: 2,
@@ -116,12 +117,16 @@ function loadCRT() {
   }, 60);
 }
 
-function degauss() {
+export function degauss() {
   const r = document.getElementById('degauss');
   if (!r) return;
+  Snd.thunk();
+  Snd.noise(420, { mech: true, freq: 90, q: 0.5, vol: 0.32 });
+  Snd.tone(52, 900, { mech: true, type: 'triangle', to: 30, vol: 0.14 });
+  Snd.tone(104, 700, { mech: true, type: 'sine', to: 61, vol: 0.07, delay: 0.05 });
   r.style.display = 'block';
   r.classList.remove('held');
-  void r.offsetWidth; 
+  void r.offsetWidth;
   r.classList.add('held');
 }
 

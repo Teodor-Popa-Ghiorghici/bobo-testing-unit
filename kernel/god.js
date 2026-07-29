@@ -1,3 +1,5 @@
+import { Snd } from './snd.js';
+
 export let godSeed = 0x2545F491;
 
 export function godStir() {
@@ -87,6 +89,22 @@ export function godWords(n) {
   const out = [];
   for (let i = 0; i < (n || 1); i++) out.push(godPick(GOD_WORDS));
   return out;
+}
+
+/* ---- GodSong: a melody chosen the same way ------------------------------ */
+const GOD_SCALE = [261.63, 293.66, 311.13, 349.23, 392.00, 415.30, 466.16, 523.25,
+                   587.33, 622.25, 698.46, 783.99];
+export function godSong() {
+  let t = 0;
+  const n = 10 + godRand(8);
+  for (let i = 0; i < n; i++) {
+    const f = GOD_SCALE[godRand(GOD_SCALE.length)];
+    const len = [90, 130, 180, 260][godRand(4)];
+    Snd.tone(f, len, { delay: t, type: godRand(3) ? 'square' : 'triangle', vol: 0.05 });
+    if (godRand(5) === 0) Snd.tone(f * 1.5, len, { delay: t, type: 'triangle', vol: 0.02 });
+    t += len / 1000 * 0.9;
+  }
+  return n;
 }
 
 export const VGA16 = [

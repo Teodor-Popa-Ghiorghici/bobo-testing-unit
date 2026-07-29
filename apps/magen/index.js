@@ -6,6 +6,7 @@ import { MG_SAVE, MG_SCALE, mgFmt, MG_B, MG_TIER_AT, MG_TIER_COST, MG_CLICK, MG_
          MG_SPEC, MG_ACH, MG_LEG, MG_NEWS, MG_DICT, MG_ARG, MG_HZ, MG_SONGS } from './data.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { VGA16 } from '../../kernel/god.js';
+import { mgIcon, mgUpIcon, mgTierIcon } from './icons.js';
 
 export default {
   open() {

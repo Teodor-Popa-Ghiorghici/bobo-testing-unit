@@ -2,6 +2,8 @@ import { Style } from './style.js';
 import { fs as vfs } from './vfs.js';
 import { openWindow, createWindow, toast } from './wm.js';
 import { SPRITES } from './sprites.js';
+import { hcLex, hcParse, hcRun } from './holyc.js';
+import { panic } from './panic.js';
 
 const ICON_POS_KEY = 'templeos.icons.v1';
 const WALL_KEY = 'templeos.wallpaper.v1';
@@ -42,8 +44,37 @@ export async function initDesktop() {
   desk.addEventListener('click', () => clearIconSel());
   wireMenu();
   wireMarquee(desk);
+  wireDrop(desk, () => '::');
   applyWallpaper();
   await refreshIcons();
+}
+
+/* a folder (or the bare desktop) accepts a file dropped straight from the
+   user's own computer onto it */
+export function wireDrop(el, getDir) {
+  const hasFiles = ev =>
+    ev.dataTransfer && Array.from(ev.dataTransfer.types || []).indexOf('Files') >= 0;
+
+  el.addEventListener('dragover', ev => {
+    if (!hasFiles(ev)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.dataTransfer.dropEffect = 'copy';
+    el.classList.add('dropok');
+  });
+  el.addEventListener('dragleave', ev => {
+    if (el.contains(ev.relatedTarget)) return;
+    el.classList.remove('dropok');
+  });
+  el.addEventListener('drop', ev => {
+    if (!ev.dataTransfer || !ev.dataTransfer.files.length) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (window.Snd) window.Snd.drop();
+    el.classList.remove('dropok');
+    document.querySelectorAll('.dropok').forEach(n => n.classList.remove('dropok'));
+    importFiles(ev.dataTransfer.files, null, getDir());
+  });
 }
 
 function deskIcons() {
@@ -116,6 +147,7 @@ async function refreshIcons() {
       });
 
       wireDeskIcon(el, item, openThis);
+      if (item.type === 'folder') wireDrop(el, () => `::/${item.name}`);
 
       iconsContainer.appendChild(el);
     });
@@ -243,6 +275,9 @@ function openIconContextMenu(ev, item) {
       openCompile();
     }});
   }
+  if (item.type === 'code') {
+    items.push({ label: 'RUN IT', run: () => runFileHolyC(`::/${item.name}`) });
+  }
   if (item.type !== 'terminal') {
     items.push({ sep: true });
     items.push({ label: 'DELETE', run: () => deleteIcon(item) });
@@ -262,7 +297,7 @@ async function deleteIcon(item) {
 async function setWallpaperFrom(item, mode) {
   const file = await vfs.read(`::/${item.name}`);
   if (!file || !file.src) { toast('COULD NOT READ THAT FILE.'); return; }
-  wallpaper = { src: file.src, mode };
+  wallpaper = { src: file.src, mode, kind: file.type === 'video' ? 'video' : 'image' };
   applyWallpaper();
   try { localStorage.setItem(WALL_KEY, JSON.stringify(wallpaper)); } catch (e) {}
   toast('BACKGROUND SET.');
@@ -275,6 +310,28 @@ function clearWallpaper() {
   toast('BACKGROUND CLEARED.');
 }
 
+function stopDeskVideo() {
+  const v = document.getElementById('deskvid');
+  if (v) v.remove();
+}
+
+function startDeskVideo(src, mode) {
+  const desk = document.getElementById('desktop');
+  stopDeskVideo();
+  const v = document.createElement('video');
+  v.id = 'deskvid';
+  v.src = src; v.loop = true; v.muted = true; v.playsInline = true;
+  v.autoplay = true;
+  v.style.position = 'absolute';
+  v.style.left = '0'; v.style.top = '0';
+  v.style.width = '100%'; v.style.height = '100%';
+  v.style.objectFit = mode === 'tile' ? 'none' : 'cover';
+  v.style.zIndex = '0';
+  v.addEventListener('error', () => { toast('THAT VIDEO WILL NOT DECODE.'); stopDeskVideo(); });
+  desk.insertBefore(v, desk.firstChild);
+  v.play().catch(() => {});
+}
+
 function applyWallpaper() {
   const desk = document.getElementById('desktop');
   if (!desk) return;
@@ -284,8 +341,15 @@ function applyWallpaper() {
   } catch (e) {}
   if (!wallpaper) {
     desk.style.backgroundImage = '';
+    stopDeskVideo();
     return;
   }
+  if (wallpaper.kind === 'video') {
+    desk.style.backgroundImage = '';
+    startDeskVideo(wallpaper.src, wallpaper.mode);
+    return;
+  }
+  stopDeskVideo();
   desk.style.backgroundImage = 'url("' + wallpaper.src + '")';
   desk.style.backgroundRepeat = wallpaper.mode === 'tile' ? 'repeat' : 'no-repeat';
   desk.style.backgroundSize = wallpaper.mode === 'tile' ? 'auto' : 'cover';
@@ -373,13 +437,14 @@ function readAsText(file) {
   });
 }
 
-async function importFiles(fileList, kind) {
+async function importFiles(fileList, kind, dir) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
-  const dir = uploadTarget || '::';
+  dir = dir || uploadTarget || '::';
   for (const f of files) {
     try {
-      if (kind === 'media') {
+      const isMedia = kind === 'media' || (!kind && /^(image|video)\//.test(f.type));
+      if (isMedia) {
         const src = await readAsDataURL(f);
         const type = f.type.startsWith('video') ? 'video' : 'image';
         await vfs.write(`${dir}/${f.name}`, { type, src });
@@ -461,6 +526,39 @@ async function openCompile() {
       compileNode(path, file.content, print);
     }
   });
+}
+
+async function runFileHolyC(path) {
+  const file = await vfs.read(path);
+  const rows = [];
+  let bad = null;
+  try {
+    hcRun(hcParse(hcLex(file && file.content || '')), l => rows.push(l), null, {
+      godDoodle: () => openWindow('goddoodle').catch(console.error),
+      dirNames: () => []
+    });
+  } catch (e) { bad = e; }
+  createWindow({
+    kind: 'terminal', title: 'RUN ' + path, w: 480, h: 260,
+    build: body => {
+      const t = document.createElement('div');
+      t.className = 'term';
+      const o = document.createElement('div');
+      o.className = 'termout';
+      const put = (txt, cls) => {
+        const d = document.createElement('div');
+        d.className = cls; d.textContent = txt; o.appendChild(d);
+      };
+      put('HOLYC JIT — ' + path, 'l-dim');
+      rows.forEach(r => put(r, 'l-holyc'));
+      if (bad && bad.holyc) put('HolyC: ' + bad.message, 'l-err');
+      else if (bad) { put('FAULT: ' + bad.message, 'l-err'); panic(bad, 'HolyC JIT'); }
+      else { put('', 'l-dim'); put('RAN CLEAN. NO LINKER. NO INTERCESSOR.', 'l-holy'); }
+      t.appendChild(o);
+      body.appendChild(t);
+    }
+  });
+  if (window.Snd) { if (bad) window.Snd.err(); else window.Snd.bell(); }
 }
 
 function wireMenu() {

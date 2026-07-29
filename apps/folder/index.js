@@ -1,5 +1,6 @@
 
 import { SPRITES } from '../../kernel/sprites.js';
+import { wireDrop } from '../../kernel/desktop.js';
 
 function spriteFor(type) {
   if (type === 'folder')   return SPRITES.folder;
@@ -73,10 +74,15 @@ export default {
         }
       });
       
+      if (item.type === 'folder') {
+        wireDrop(el, () => path + (path.endsWith('/') ? '' : '/') + item.name);
+      }
+
       body.appendChild(el);
     });
-    
-    
+
+    wireDrop(body, () => path);
+
     body.addEventListener('click', () => {
       body.querySelectorAll('.icon.sel').forEach(n => n.classList.remove('sel'));
     });
