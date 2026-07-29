@@ -187,6 +187,7 @@ export async function openWindow(appId, args = {}) {
   if (!registry[appId]) throw new Error('App not found');
   const mod = await registry[appId]();
   const app = mod.default;
+  if (app.open) return app.open(args);
   
   const made = createWindow({
     kind: 'app', 
@@ -235,3 +236,37 @@ export async function openWindow(appId, args = {}) {
   
   app.mount(made.body, ctx, args);
 }
+
+export function sysDialog(title, msg, opts) {
+  opts = opts || {};
+  const h = {};
+  const made = createWindow({
+    kind: opts.kind || 'terminal', title: title,
+    w: opts.w || 400, h: opts.h || (msg.split('\\n').length * 21 + 74),
+    build: body => {
+      const p = document.createElement('div');
+      p.className = 'sysdlg';
+      const m = document.createElement('div');
+      m.className = 'msg';
+      m.textContent = msg;
+      const row = document.createElement('div');
+      row.className = 'btns';
+      p.appendChild(m);
+      p.appendChild(row);
+      body.appendChild(p);
+      const mk = (label, fn) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.addEventListener('mousedown', ev => { ev.stopPropagation(); if (window.Snd) window.Snd.click(); h.close(); if (fn) fn(); });
+        row.appendChild(b);
+        return b;
+      };
+      if (opts.confirm) { mk(opts.okLabel || 'OK', opts.onOk); mk('CANCEL', opts.onCancel); }
+      else mk(opts.okLabel || 'OK', opts.onOk);
+    }
+  });
+  h.close = made.close;
+  if (opts.bad !== false && opts.confirm && window.Snd) window.Snd.err();
+  return h;
+}
+// appending to wm.js

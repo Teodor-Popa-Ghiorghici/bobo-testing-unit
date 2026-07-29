@@ -74,7 +74,28 @@ export async function initDesktop() {
         } else if (item.name === 'NOTES') {
           openWindow('notes').catch(console.error);
         } else if (item.name === 'TASKS') {
-          openWindow('tasks').catch(console.error);
+          openWindow('tasks').catch(console.error);} else if (item.name === 'HIFI') {
+          openWindow('hifi').catch(console.error);
+        } else if (item.name === 'MINESWEEPER') {
+          openWindow('sweeper').catch(console.error);
+        } else if (item.name === 'SOLITAIRE') {
+          openWindow('solitaire').catch(console.error);
+        } else if (item.name === 'CRAYON') {
+          openWindow('crayon').catch(console.error);
+        } else if (item.name === 'DRAWINGS') {
+          openWindow('drawings').catch(console.error);
+        } else if (item.name === 'ELEPHANT') {
+          openWindow('elephant').catch(console.error);
+        } else if (item.name === 'MAGEN') {
+          openWindow('magen').catch(console.error);
+        } else if (item.name === 'COOK') {
+          openWindow('cook').catch(console.error);
+        } else if (item.name === 'DISPLAY SETTINGS') {
+          openWindow('display').catch(console.error);
+        } else if (item.name === 'ABOUT') {
+          openWindow('about').catch(console.error);
+
+
         } else if (item.name === 'BEKKEDAL') {
           openWindow('bekkedal').catch(console.error);
 
@@ -114,3 +135,24 @@ function wireMenu() {
 }
 
 // Call wireMenu in initDesktop
+const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
+                'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+let konamiAt = 0;
+let edenOpen = false;
+export function wireKonami() {
+  window.addEventListener('keydown', e => {
+    const want = KONAMI[konamiAt];
+    const got = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (got === want) {
+      konamiAt++;
+      if (konamiAt === KONAMI.length) {
+        konamiAt = 0;
+        if (!edenOpen) {
+          import('../apps/eden_ext.js').then(m => m.openEden()).catch(console.error);
+        }
+      }
+    } else {
+      konamiAt = (got === KONAMI[0]) ? 1 : 0;
+    }
+  });
+}

@@ -2,6 +2,9 @@ import { initVFS } from './vfs.js';
 import { openWindow } from './wm.js';
 import { Cos } from './cos.js';
 import { initDesktop } from './desktop.js';
+import { Saver } from './saver.js';
+import { Hold } from './hold.js';
+import { wireKonami } from './desktop.js';
 import { initHardware, CRT } from './hardware.js';
 import "./snd.js";
 import "./economy.js";
@@ -97,6 +100,9 @@ function dismissSplash() {
   if (desktopBuilt) return;
   desktopBuilt = true;
   initDesktop();
+  try { Hold.apply(); } catch(e) {}
+  try { Saver.watch(); } catch(e) {}
+  try { wireKonami(); } catch(e) {}
 }
 
 document.addEventListener('DOMContentLoaded', () => {

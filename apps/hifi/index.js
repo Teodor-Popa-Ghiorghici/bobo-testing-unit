@@ -1,7 +1,16 @@
-function openHiFi() {
-  createWindow({
-    kind: 'app', title: 'The Stack', w: 812, h: 706,
-    build: body => {
+import { createWindow, raise } from '../../kernel/wm.js';
+import { Snd } from '../../kernel/snd.js';
+import { Cos } from '../../kernel/cos.js';
+import { fs as vfs } from '../../kernel/vfs.js';
+
+export default {
+  id: 'hifi',
+  title: 'HIFI',
+  width: 320,
+  height: 520,
+  resizable: false,
+  mount(root, _ctx) {
+  const body = root;
       const wrap = document.createElement('div');
       wrap.className = 'gamepane hifipane';
       const cv = document.createElement('canvas');
@@ -1266,6 +1275,5 @@ function openHiFi() {
         clearInterval(watch); alive = false; teardown();
       }, 900);
       info.textContent = 'SPACE · ARROWS · N/P · 1-9 EQ · B BYPASS · DROP FILES ON IT';
-    }
-  });
-}
+  }
+};

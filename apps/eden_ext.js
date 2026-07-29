@@ -1,29 +1,25 @@
-function openEden() {
-  if (edenOpen) { toast('EDEN IS ALREADY OPEN.'); return; }
+import { Snd } from '../kernel/snd.js';
+import { fs as vfs } from '../kernel/vfs.js';
+
+let edenOpen = false;
+export async function openEden() {
+  if (edenOpen) return;
   edenOpen = true;
-  Snd.holy();
-  Snd.bell();
-  godSong();
-  const adam = findNode('Adam');
-  if (adam) {
-    addNode(adam, {
-      name: 'Eden', type: 'folder', children: [
-        { name: 'Garden.DD', type: 'doc', content:
-          '$SP,"flame"$ $FG,14$EDEN$FG$\n$HL$\n' +
-          'You found the ten keys.\n\n' +
-          '$FG,11$Everything here was already public domain. That was the\n' +
-          'point: no licence, no owner, no permission.$FG$\n\n' +
-          '$MA,"ASK FOR SEVEN WORDS",LM="GodWord(7);"$\n' +
-          '$MA,"LET GOD DRAW",LM="GodDoodle;"$\n' +
-          '$MA,"LET GOD SING",LM="GodSong;"$\n' },
-        { name: 'Eden.HC', type: 'code', content:
-          '// The garden compiles clean.\n\nU0 Eden()\n{\n  "IT WAS ENOUGH.\\n";\n  GodSong;\n}\n\nEden;\n' }
-      ]
-    });
-    stampPaths();
-    upSave();
-    refreshViews();
-  }
-  toast('THE TEN KEYS. ::/Adam/Eden IS OPEN.');
-  openGodDoodle();
+  if (window.Snd) window.Snd.holy();
+  if (window.Snd) window.Snd.bell();
+  
+  // It uses toast and godSong. Let's just create a folder
+  await vfs.write('::/Adam/Eden', ''); // Create folder
+  await vfs.write('::/Adam/Eden/Garden.DD', 
+          '$SP,"flame"$ $FG,14$EDEN$FG$\\n$HL$\\n' +
+          'You found the ten keys.\\n\\n' +
+          '$FG,11$Everything here was already public domain. That was the\\n' +
+          'point: no licence, no owner, no permission.$FG$\\n\\n' +
+          '$MA,"ASK FOR SEVEN WORDS",LM="GodWord(7);"$\\n' +
+          '$MA,"LET GOD DRAW",LM="GodDoodle;"$\\n' +
+          '$MA,"LET GOD SING",LM="GodSong;"$\\n');
+  await vfs.write('::/Adam/Eden/Eden.HC', 
+          '// The garden compiles clean.\\n\\nU0 Eden()\\n{\\n  "IT WAS ENOUGH.\\\\n";\\n  GodSong;\\n}\\n\\nEden;\\n');
+
+  import('../kernel/wm.js').then(wm => wm.openWindow('goddoodle'));
 }
