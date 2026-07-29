@@ -34,13 +34,19 @@ function ckVec(r, temp) {
 
 export default {
   open() {
+  /* every scene still draws in the original 420x320 coordinate space --
+     this just backs the canvas with a bigger bitmap and scales the whole
+     draw pass into it once per frame, so the dialogue/menu/ledger text
+     comes out sharper and the window has room to actually show it at that
+     size instead of stretching a small bitmap to fill a bigger box. */
+  const RES = 1.3;
   createWindow({
-    kind: 'app', title: 'The Cook', w: 700, h: 566,
+    kind: 'app', title: 'The Cook', w: 820, h: 660,
     build: body => {
       const wrap = document.createElement('div');
       wrap.className = 'gamepane ckpane';
       const cv = document.createElement('canvas');
-      cv.width = 420; cv.height = 320;
+      cv.width = Math.round(420 * RES); cv.height = Math.round(320 * RES);
       cv.className = 'gamecv ckcv';
       cv.tabIndex = 0;
       wrap.appendChild(cv);
@@ -939,12 +945,12 @@ export default {
         else info.textContent = 'space to go on';
       }
       cv.addEventListener('mousemove', ev => {
-        const sx = cv.width / cv.clientWidth, sy = cv.height / cv.clientHeight;
+        const sx = 420 / cv.clientWidth, sy = 320 / cv.clientHeight;
         hover = mode === 'play' ? bottleAt(ev.offsetX * sx, ev.offsetY * sy) : -1;
       });
       cv.addEventListener('mouseleave', () => { hover = -1; });
       cv.addEventListener('mousedown', ev => {
-        const sx = cv.width / cv.clientWidth, sy = cv.height / cv.clientHeight;
+        const sx = 420 / cv.clientWidth, sy = 320 / cv.clientHeight;
         const mx = ev.offsetX * sx, my = ev.offsetY * sy;
         if (mode === 'story') { skipStory(); return; }
         if (mode === 'won') { nextAfterWin(); return; }
@@ -1047,6 +1053,7 @@ export default {
         } else Song.heat = 0;
 
         g.save();
+        g.scale(RES, RES);
         if (shake > 0.05) g.translate(Math.round((Math.random() - 0.5) * shake * 2),
                                       Math.round((Math.random() - 0.5) * shake * 2));
         if (mode === 'story') drawStory(t);
