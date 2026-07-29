@@ -26,7 +26,9 @@ window.DISP = DISP;
 const LENS_NAME = ['FLAT', 'SOFT', 'FULL'];
 const PHOS_NAME = ['P1', 'P4', 'P7'];
 const LENS_BOW = [0.0, 0.08, 0.22];
-const PHOS_GLOW = [0.75, 0.40, 0.20];
+/* P1 decays in microseconds (crisp, no bloom); P7 smears for a while
+   (bright pixels glow/bleed into their neighbors). */
+const PHOS_GLOW = [0, 0.45, 1];
 
 export function phosLevel() {
   return PHOS_GLOW[CRT.phos || 0];
@@ -133,18 +135,13 @@ export function degauss() {
   r.classList.add('held');
 }
 
+/* PHOS is persistence, not paint: it sets how far bright pixels bloom/smear
+   into a glow, not what color anything is. Scoped to the screen content
+   (#tube) only, so it never reaches the physical case/badge outside it. */
 function applyPhosphor() {
-  const root = document.documentElement;
-  if (CRT.phos === 0) {
-    root.style.setProperty('--phos', '#55FF55');
-    root.style.setProperty('--phos-dim', '#00AA00');
-  } else if (CRT.phos === 1) {
-    root.style.setProperty('--phos', '#FFFFFF');
-    root.style.setProperty('--phos-dim', '#AAAAAA');
-  } else {
-    root.style.setProperty('--phos', '#55FFFF');
-    root.style.setProperty('--phos-dim', '#00AAAA');
-  }
+  const tube = document.getElementById('tube');
+  if (!tube) return;
+  tube.style.setProperty('--phos-px', (phosLevel() * 5).toFixed(2) + 'px');
 }
 function applyHold() {
   if (window.Hold) window.Hold.apply();
@@ -343,20 +340,17 @@ function wireChin() {
   });
   
   if (getEl('power')) getEl('power').addEventListener('click', () => {
-    if (window.Snd && window.Snd.click) window.Snd.click();
-    CRT.on = !CRT.on; 
-    saveCRT();
-    const screen = document.getElementById('screen');
-    if (screen) {
-      if (CRT.on) {
-        screen.classList.remove('off');
-        if (window.runBoot) window.runBoot();
-      } else {
-        screen.classList.add('off');
-        Style.reset();
-        Rage.stop();
-        // Snd.thunk() would go here if we want a thunk sound
-      }
+    if (CRT.on) {
+      if (window.Snd && window.Snd.thunk) window.Snd.thunk();
+      if (window.Music && window.Music.stop) window.Music.stop();
+      Style.reset();
+      Rage.stop();
+      if (window.powerOff) window.powerOff();
+      saveCRT();
+    } else {
+      if (window.Snd && window.Snd.click) window.Snd.click();
+      if (window.powerOn) window.powerOn();
+      saveCRT();
     }
   });
 }

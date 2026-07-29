@@ -58,21 +58,21 @@ function drawWordmark() {
 let bootDone = false;
 let bootTimer = null;
 let booting = false;
+let vfsReady = false;
 
-window.runBoot = async function() {
-  if (bootDone || booting) return;
+function runBootLines() {
+  bootDone = false;
   booting = true;
-  
+  clearTimeout(bootTimer);
+
   const box = document.getElementById('bootlines');
-  if(!box) return;
+  if (!box) { booting = false; return; }
   box.innerHTML = '';
-  
-  await initVFS();
 
   let i = 0;
   const step = () => {
     if (!CRT.on) { booting = false; return; } // Pause if turned off
-    
+
     if (i >= BOOT_LINES.length) {
       const cur = document.createElement('span');
       cur.id = 'bootcursor';
@@ -80,6 +80,7 @@ window.runBoot = async function() {
       cur.textContent = '\u2588';
       box.lastChild.appendChild(cur);
       bootDone = true;
+      booting = false;
       document.addEventListener('keydown', dismissSplash);
       document.addEventListener('click', dismissSplash);
       return;
@@ -92,6 +93,49 @@ window.runBoot = async function() {
     bootTimer = setTimeout(step, 150);
   };
   bootTimer = setTimeout(step, 400);
+}
+
+window.runBoot = async function() {
+  if (bootDone || booting) return;
+  if (!vfsReady) { await initVFS(); vfsReady = true; }
+  runBootLines();
+};
+
+/* Power cycle: the shell stays alive in the background so windows and
+   state survive, but the splash + boot lines replay every time the set
+   is switched back on, same as the physical thing. */
+window.powerOff = function() {
+  if (!CRT.on) return;
+  CRT.on = false;
+  document.removeEventListener('keydown', dismissSplash);
+  document.removeEventListener('click', dismissSplash);
+  clearTimeout(bootTimer);
+  booting = false;
+  const lamp = document.getElementById('lamp');
+  if (lamp) lamp.classList.remove('on');
+  const screen = document.getElementById('screen');
+  if (!screen) return;
+  screen.classList.add('collapsing');
+  setTimeout(() => {
+    screen.classList.add('off');
+    screen.classList.remove('collapsing');
+  }, 270);
+};
+
+window.powerOn = function() {
+  if (CRT.on) return;
+  CRT.on = true;
+  const screen = document.getElementById('screen');
+  if (screen) screen.classList.remove('off', 'collapsing');
+  const lamp = document.getElementById('lamp');
+  if (lamp) lamp.classList.add('on');
+  const shell = document.getElementById('shell');
+  if (shell) shell.style.display = 'none';
+  const sp = document.getElementById('splash');
+  if (sp) sp.style.display = 'flex';
+  window.runBoot();
+  if (window.Snd && window.Snd.boot) window.Snd.boot();
+  if (window.Music && window.Music.sync) window.Music.sync();
 };
 
 let desktopBuilt = false;
@@ -106,13 +150,16 @@ function dismissSplash() {
   document.getElementById('shell').style.display = 'block';
   
   if (window.Snd && window.Snd.wake) window.Snd.wake();
-  if (window.Snd && window.Snd.ok) window.Snd.ok();
-  
+
   document.removeEventListener('keydown', dismissSplash);
   document.removeEventListener('click', dismissSplash);
-  
-  if (desktopBuilt) return;
+
+  if (desktopBuilt) {
+    if (window.Snd && window.Snd.ok) window.Snd.ok(); // coming back from a power cycle
+    return;
+  }
   desktopBuilt = true;
+  if (window.Snd && window.Snd.ok) window.Snd.ok();
   initDesktop();
   try { SunUI.mount(); } catch(e) {}
   try { Hold.apply(); } catch(e) {}
@@ -128,6 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
   drawWordmark();
   if (CRT.on) {
     document.getElementById('screen').classList.remove('off');
+    const lamp = document.getElementById('lamp');
+    if (lamp) lamp.classList.add('on');
     window.runBoot();
   }
 });

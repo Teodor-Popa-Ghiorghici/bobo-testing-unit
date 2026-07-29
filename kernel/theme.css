@@ -6,6 +6,13 @@
    no transitions, no anti-aliased curves.
    ========================================================================== */
 
+:root {
+  /* the shell's bright/dim text colors. Fixed VGA white/grey -- not a
+     "theme" knob, and not tied to the phosphor-persistence setting below. */
+  --phos: #FFFFFF;
+  --phos-dim: #AAAAAA;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -145,7 +152,7 @@ html, body {
   color: #6b6353;
   user-select: none;
 }
-#badge { display: flex; align-items: center; gap: 6px; text-shadow: 0 0 var(--phos-px, 2px) var(--phos, #FFFFFF); }
+#badge { display: flex; align-items: center; gap: 6px; text-shadow: 0 1px 0 rgba(255,255,255,0.45); }
 #badge svg { width: clamp(12px, 1.8vmin, 19px); height: clamp(12px, 1.8vmin, 19px); display: block; }
 
 #lamp {

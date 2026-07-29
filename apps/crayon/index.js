@@ -1,9 +1,9 @@
-import { createWindow, raise, sysDialog, toast } from '../../kernel/wm.js';
+import { createWindow, raise, sysDialog, toast, askName, openWindow } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { lampDip } from '../../kernel/hardware.js';
-import { Vault } from '../../kernel/vault.js';
+import { Vault, VaultURL } from '../../kernel/vault.js';
 
 
 const DRAW_KEY = 'templeos.draw';
@@ -146,7 +146,7 @@ export default {
       mk('NEW', newSheet);
       mk('SAVE', save);
       mk('EXPORT PNG', exportPng);
-      mk('DRAWINGS', () => openDrawings());
+      mk('DRAWINGS', () => openWindow('drawings').catch(() => {}));
 
       const wrap = document.createElement('div');
       wrap.className = 'drawwrap';

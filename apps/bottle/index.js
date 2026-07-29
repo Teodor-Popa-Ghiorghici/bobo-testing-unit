@@ -13,8 +13,8 @@ const JAG_LINES = [
 export default {
   id: 'bottle',
   title: 'THE BOTTLE',
-  width: 320,
-  height: 440,
+  width: 430,
+  height: 470,
   resizable: true,
   mount(root, ctx) {
   const body = root;

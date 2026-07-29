@@ -12,8 +12,8 @@ const NOTE_SEED = [
 export default {
   id: 'notes',
   title: 'NOTES',
-  width: 600,
-  height: 480,
+  width: 860,
+  height: 620,
   resizable: true,
   mount(root, ctx) {
   const body = root;

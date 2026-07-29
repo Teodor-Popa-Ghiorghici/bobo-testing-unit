@@ -280,4 +280,47 @@ export function sysDialog(title, msg, opts) {
   if (opts.bad !== false && opts.confirm && window.Snd) window.Snd.err();
   return h;
 }
+
+/* a name-entry dialog, in-glass, for anything that used to be a native
+   window.prompt() (new folder, save-as, ...) */
+export function askName(title, def, cb) {
+  const h = {};
+  const made = createWindow({
+    kind: 'text', title: title, w: 330, h: 136,
+    build: body => {
+      const p = document.createElement('div');
+      p.className = 'dlgpane';
+      const lbl = document.createElement('div');
+      lbl.textContent = 'NAME:';
+      const inp = document.createElement('input');
+      inp.value = def;
+      inp.spellcheck = false;
+      const row = document.createElement('div');
+      row.className = 'btns';
+      const ok = document.createElement('button');
+      ok.textContent = 'OK';
+      const no = document.createElement('button');
+      no.textContent = 'CANCEL';
+      row.appendChild(ok);
+      row.appendChild(no);
+      p.appendChild(lbl);
+      p.appendChild(inp);
+      p.appendChild(row);
+      body.appendChild(p);
+
+      const accept = () => { if (window.Snd) window.Snd.click(); h.close(); cb(inp.value); };
+      ok.addEventListener('mousedown', ev => { ev.stopPropagation(); accept(); });
+      no.addEventListener('mousedown', ev => { ev.stopPropagation(); if (window.Snd) window.Snd.close(); h.close(); });
+      inp.addEventListener('keydown', ev => {
+        ev.stopPropagation();
+        if (ev.key === 'Enter')  { accept(); return; }
+        if (ev.key === 'Escape') { if (window.Snd) window.Snd.close(); h.close(); return; }
+        if (window.Snd && (ev.key.length === 1 || ev.key === 'Backspace')) window.Snd.type();
+      });
+      setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    }
+  });
+  h.close = made.close;
+  return h;
+}
 // appending to wm.js

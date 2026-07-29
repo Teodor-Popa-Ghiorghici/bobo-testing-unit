@@ -1,16 +1,21 @@
-import { createWindow, raise, sysDialog, toast } from '../../kernel/wm.js';
+import { createWindow, raise, sysDialog, toast, openWindow } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { lampDip } from '../../kernel/hardware.js';
-import { Vault } from '../../kernel/vault.js';
+import { Vault, VaultURL } from '../../kernel/vault.js';
+import { showMenu } from '../../kernel/desktop.js';
+
+function openCrayon(rec) { openWindow('crayon', rec).catch(() => {}); }
 
 let drawerWin = null;
 window.addEventListener('crayon-saved', () => {
   if (drawerWin && drawerWin.refresh) drawerWin.refresh();
 });
 export default {
-  open() {
+  async open() {
+  if (!window.Crayon) await import('../crayon/index.js');
+  const Crayon = window.Crayon;
   if (drawerWin && document.body.contains(drawerWin.win)) { raise(drawerWin.win); drawerWin.refresh(); return; }
   let pane = null;
   const made = createWindow({
