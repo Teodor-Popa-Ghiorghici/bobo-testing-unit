@@ -1567,7 +1567,7 @@ textarea.editor {
 
 /* ---- crayon ------------------------------------------------------------- */
 .drawroot { display: flex; height: 100%; background: #2a2721; }
-.drawtools { width: 96px; flex: 0 0 96px; padding: 4px; display: flex; flex-direction: column; gap: 3px; background: #1a1814; border-right: 2px solid #555555; }
+.drawtools { width: 96px; flex: 0 0 96px; padding: 4px; display: flex; flex-direction: column; gap: 3px; background: #1a1814; border-right: 2px solid #555555; overflow-y: auto; }
 .drawswatch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
 .drawswatch i { display: block; height: 18px; border: 2px solid #1a1814; cursor: pointer; }
 .drawswatch i.on { border-color: var(--phos); }
@@ -1577,6 +1577,14 @@ textarea.editor {
 }
 .drawtools .tl.on { background: #e8e2d4; color: #1a1a1a; }
 .drawtools .hd { color: #6b6357; font-size: 15px; margin-top: 3px; }
+.drawwheel { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 2px; }
+.wheelbox { position: relative; width: 85px; height: 85px; }
+.wheelcv { image-rendering: pixelated; width: 85px; height: 85px; cursor: crosshair; border-radius: 50%; }
+.wheeldot {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  border: 2px solid #e8e2d4; box-shadow: 0 0 0 1px #1a1a1a; border-radius: 50%; pointer-events: none;
+}
+.britecv { image-rendering: pixelated; width: 85px; height: 8px; cursor: pointer; border: 1px solid #1a1a1a; }
 .drawwrap { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .drawcv { image-rendering: pixelated; box-shadow: 0 0 0 1px #1a1a1a, 3px 4px 0 rgba(0,0,0,0.5); }
 .thumbwrap { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; align-content: flex-start; }

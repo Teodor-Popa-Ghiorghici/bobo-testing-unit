@@ -20,9 +20,35 @@ const Solitaire = {
   boot() {
     let raw = localStorage.getItem(SOL_KEY);
     this.st = raw ? JSON.parse(raw) : { won: 0, played: 0, bestMoves: 0, back: 0 };
+    if (this.st.suitMode == null) this.st.suitMode = 4;
   },
   save() { localStorage.setItem(SOL_KEY, JSON.stringify(this.st)); }
 };
+
+/* the four lanes are really two teams (LANES[i].red), the way a classic
+   deck is two colours -- so a 2-tone mode is just painting each team its
+   team colour, and never touches the .red the stacking rules read. The
+   distinct mode swaps in four hues spread around the wheel instead of the
+   default palette's two warm/two cool pairing, for a board that reads at
+   a glance instead of on close inspection. */
+const SUIT_DISTINCT = [
+  { c: '#E8383A', c2: '#9c1416', ink: '#ffd6d6' },
+  { c: '#E8B23A', c2: '#8a6410', ink: '#fff3d6' },
+  { c: '#3A78E8', c2: '#1c3f8a', ink: '#d6e6ff' },
+  { c: '#3AA855', c2: '#1f5c30', ink: '#d8ffe0' }
+];
+const SUIT_MODES = [4, 2, 'distinct'];
+const SUIT_MODE_LABEL = { 4: 'SUITS: 4-TONE', 2: 'SUITS: 2-TONE', distinct: 'SUITS: DISTINCT' };
+function laneVis(i) {
+  const L = LANES[i];
+  const mode = Solitaire.st.suitMode;
+  if (mode === 2) {
+    return L.red ? { ...L, c: '#d43a4a', c2: '#8b1020', ink: '#ffd8dc' }
+                 : { ...L, c: '#1c1c1c', c2: '#000000', ink: '#eaeaea' };
+  }
+  if (mode === 'distinct') return { ...L, ...SUIT_DISTINCT[i] };
+  return L;
+}
 Solitaire.boot();
 
 window.Solitaire = Solitaire;
@@ -66,9 +92,19 @@ export default {
         Solitaire.save(); Snd.click(); setBack();
       });
       setBack();
+      const sb = document.createElement('button');
+      sb.className = 'appbtn';
+      const setSuit = () => { sb.textContent = SUIT_MODE_LABEL[Solitaire.st.suitMode]; };
+      sb.addEventListener('mousedown', ev => {
+        ev.stopPropagation();
+        const i = SUIT_MODES.indexOf(Solitaire.st.suitMode);
+        Solitaire.st.suitMode = SUIT_MODES[(i + 1) % SUIT_MODES.length];
+        Solitaire.save(); Snd.click(); setSuit();
+      });
+      setSuit();
       info = document.createElement('span');
       info.className = 'godword';
-      bar.appendChild(nb); bar.appendChild(bb); bar.appendChild(info);
+      bar.appendChild(nb); bar.appendChild(bb); bar.appendChild(sb); bar.appendChild(info);
       body.appendChild(pane); body.appendChild(bar);
     }
   });
@@ -338,6 +374,7 @@ export default {
   }
 
   function laneIcon(x, y, s, lane, col) {
+    x = Math.round(x); y = Math.round(y);
     g.fillStyle = col;
     if (lane === 0) {                    /* MID: the lane, and a diamond on it */
       g.fillRect(x - 2 * s, y - 9 * s, 4 * s, 18 * s);
@@ -367,7 +404,7 @@ export default {
   /* Silhouette first: every champion has to read as itself in one colour at
      eighty pixels, so each is a distinct outline before it is any detail. */
   function champArt(x, y, w, h, lane, tier) {
-    const L = LANES[lane];
+    const L = laneVis(lane);
     const cx = x + w / 2;
     const base = y + h;
     const sc = tier === 0 ? 0.72 : tier === 1 ? 0.88 : 1;
@@ -475,7 +512,7 @@ export default {
       return;
     }
 
-    const L = LANES[c.s];
+    const L = laneVis(c.s);
     roundRect(x, y, CW, CH, 5);
     g.fillStyle = '#f2efe6';
     g.fill();
@@ -489,13 +526,13 @@ export default {
     g.font = 'bold 17px Georgia, serif';
     g.textAlign = 'left';
     g.fillText(RANK_TXT[c.r], x + 5, y + 19);
-    laneIcon(x + 11, y + 30, 0.42, c.s, L.c);
+    laneIcon(x + 11, y + 31, 0.52, c.s, L.c);
     g.save();
     g.translate(x + CW, y + CH);
     g.rotate(Math.PI);
     g.fillStyle = L.c;
     g.fillText(RANK_TXT[c.r], 5, 19);
-    laneIcon(11, 30, 0.42, c.s, L.c);
+    laneIcon(11, 31, 0.52, c.s, L.c);
     g.restore();
 
     if (c.r === 1) {

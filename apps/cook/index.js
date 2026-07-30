@@ -34,13 +34,19 @@ function ckVec(r, temp) {
 
 export default {
   open() {
+  /* every scene still draws in the original 420x320 coordinate space --
+     this just backs the canvas with a bigger bitmap and scales the whole
+     draw pass into it once per frame, so the dialogue/menu/ledger text
+     comes out sharper and the window has room to actually show it at that
+     size instead of stretching a small bitmap to fill a bigger box. */
+  const RES = 1.3;
   createWindow({
-    kind: 'app', title: 'The Cook', w: 700, h: 566,
+    kind: 'app', title: 'The Cook', w: 820, h: 660,
     build: body => {
       const wrap = document.createElement('div');
       wrap.className = 'gamepane ckpane';
       const cv = document.createElement('canvas');
-      cv.width = 420; cv.height = 320;
+      cv.width = Math.round(420 * RES); cv.height = Math.round(320 * RES);
       cv.className = 'gamecv ckcv';
       cv.tabIndex = 0;
       wrap.appendChild(cv);
@@ -59,6 +65,38 @@ export default {
       const g = cv.getContext('2d');
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
       let alive = true;
+
+      /* ---- wall décor -----------------------------------------------------
+         Three empty frames hang in every story scene. Drop an image named
+         Frame1, Frame2 or Frame3 into ::/TheCook (Folder.exe handles new
+         folders and uploads fine now) and it shows up taped to the wall,
+         semi-transparent, next time this reloads them. */
+      const WALL_DIR = '::/TheCook';
+      const WALL_NAMES = ['Frame1', 'Frame2', 'Frame3'];
+      const wallImg = [null, null, null];
+      async function ensureWallFolder() {
+        const keep = await vfs.read(WALL_DIR + '/.keep').catch(() => null);
+        if (!keep) await vfs.write(WALL_DIR + '/.keep', { type: 'text', content: '' }).catch(() => {});
+      }
+      async function loadWallFrames() {
+        for (let i = 0; i < WALL_NAMES.length; i++) {
+          const rec = await vfs.read(WALL_DIR + '/' + WALL_NAMES[i]).catch(() => null);
+          if (rec && rec.type === 'image' && rec.src) {
+            const img = new Image();
+            img.src = rec.src;
+            wallImg[i] = img;
+          } else {
+            wallImg[i] = null;
+          }
+        }
+      }
+      ensureWallFolder().then(loadWallFrames);
+      const wallHandler = ev => {
+        if (!alive) return;
+        const dir = ev.detail && ev.detail.dir;
+        if (!dir || dir === '::' || dir === WALL_DIR) loadWallFrames();
+      };
+      window.addEventListener('vfs-changed', wallHandler);
 
       /* ---- 33.6 paint --------------------------------------------------- */
       const C = i => { const p = VGA16[i] || VGA16[7]; return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; };
@@ -717,6 +755,31 @@ export default {
             S2(x, y, 7, 9, 11); S2(x, y, 7, 2, 15);
           }
         }
+        drawWallFrames();
+      }
+
+      function drawWallFrames() {
+        const FW = 108, FH = 34, gap = 10, y = 8;
+        for (let i = 0; i < 3; i++) {
+          const x = 14 + i * (FW + gap);
+          const img = wallImg[i];
+          if (img && img.complete && img.naturalWidth) {
+            R(x, y, FW, FH, 0);
+            g.save();
+            g.beginPath(); g.rect(x, y, FW, FH); g.clip();
+            g.globalAlpha = 0.4;
+            const s = Math.max(FW / img.naturalWidth, FH / img.naturalHeight);
+            const iw = img.naturalWidth * s, ih = img.naturalHeight * s;
+            g.drawImage(img, x + (FW - iw) / 2, y + (FH - ih) / 2, iw, ih);
+            g.globalAlpha = 1;
+            g.restore();
+          } else {
+            R(x, y, FW, FH, 0);
+            R(x + FW / 2 - 4, y + FH / 2 - 1, 8, 2, 8);
+          }
+          R(x - 2, y - 2, FW + 4, 2, 15); R(x - 2, y + FH, FW + 4, 2, 8);
+          R(x - 2, y - 2, 2, FH + 4, 15); R(x + FW, y - 2, 2, FH + 4, 8);
+        }
       }
 
       function drawStory(t) {
@@ -939,12 +1002,12 @@ export default {
         else info.textContent = 'space to go on';
       }
       cv.addEventListener('mousemove', ev => {
-        const sx = cv.width / cv.clientWidth, sy = cv.height / cv.clientHeight;
+        const sx = 420 / cv.clientWidth, sy = 320 / cv.clientHeight;
         hover = mode === 'play' ? bottleAt(ev.offsetX * sx, ev.offsetY * sy) : -1;
       });
       cv.addEventListener('mouseleave', () => { hover = -1; });
       cv.addEventListener('mousedown', ev => {
-        const sx = cv.width / cv.clientWidth, sy = cv.height / cv.clientHeight;
+        const sx = 420 / cv.clientWidth, sy = 320 / cv.clientHeight;
         const mx = ev.offsetX * sx, my = ev.offsetY * sy;
         if (mode === 'story') { skipStory(); return; }
         if (mode === 'won') { nextAfterWin(); return; }
@@ -999,7 +1062,11 @@ export default {
       /* ---- 33.16 the loop --------------------------------------------------- */
       let raf = null, last = 0, acc = 0;
       function frame(ts) {
-        if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); save(); return; }
+        if (!alive || !document.body.contains(cv)) {
+          alive = false; Song.stop(); save();
+          window.removeEventListener('vfs-changed', wallHandler);
+          return;
+        }
         raf = requestAnimationFrame(frame);
         if (!last) last = ts;
         let dt = (ts - last) / 1000; last = ts;
@@ -1047,6 +1114,7 @@ export default {
         } else Song.heat = 0;
 
         g.save();
+        g.scale(RES, RES);
         if (shake > 0.05) g.translate(Math.round((Math.random() - 0.5) * shake * 2),
                                       Math.round((Math.random() - 0.5) * shake * 2));
         if (mode === 'story') drawStory(t);

@@ -71,7 +71,8 @@ export default {
     return;
   }
   let cv, g, root, sizeBtns = [], toolBtns = [], swatchEls = [];
-  let color = 3, size = 1, tool = 'crayon';
+  let color = 3, colorHex = CRAYON_PAL[3].c, size = 1, tool = 'crayon';
+  let wheelH = 0, wheelS = 0, wheelV = 1;
   const SIZES = [4, 9, 17];
   let drawing = false, lastX = 0, lastY = 0, lastT = 0, lastW = SIZES[1];
   let undo = [], scratchT = 0;
@@ -95,8 +96,9 @@ export default {
         el.className = (i === color) ? 'on' : '';
         el.addEventListener('mousedown', ev => {
           ev.stopPropagation();
-          color = i;
+          color = i; colorHex = p.c;
           swatchEls.forEach((e, k) => e.classList.toggle('on', k === i));
+          if (wheelDot) wheelDot.style.display = 'none';
           if (tool === 'eraser') setTool('crayon');
           Snd.click();
         });
@@ -105,10 +107,103 @@ export default {
       });
       tools.appendChild(sw);
 
+      /* ---- the wheel: a blocky hue/saturation disc, plus a brightness
+         strip underneath it, for any colour the seven swatches don't have */
+      const wheelWrap = document.createElement('div');
+      wheelWrap.className = 'drawwheel';
+      const wheelCv = document.createElement('canvas');
+      const WN = 17, WCELL = 5;
+      wheelCv.width = wheelCv.height = WN * WCELL;
+      wheelCv.className = 'wheelcv';
+      const wheelDot = document.createElement('div');
+      wheelDot.className = 'wheeldot';
+      wheelDot.style.display = 'none';
+      const briteCv = document.createElement('canvas');
+      briteCv.width = WN * WCELL; briteCv.height = 8;
+      briteCv.className = 'britecv';
+      const wheelBox = document.createElement('div');
+      wheelBox.className = 'wheelbox';
+      wheelBox.appendChild(wheelCv); wheelBox.appendChild(wheelDot);
+      wheelWrap.appendChild(wheelBox);
+      wheelWrap.appendChild(briteCv);
+      tools.appendChild(wheelWrap);
+
+      function hsvToHex(h, s, v) {
+        const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+        let r, gg, b;
+        if (h < 60) [r, gg, b] = [c, x, 0];
+        else if (h < 120) [r, gg, b] = [x, c, 0];
+        else if (h < 180) [r, gg, b] = [0, c, x];
+        else if (h < 240) [r, gg, b] = [0, x, c];
+        else if (h < 300) [r, gg, b] = [x, 0, c];
+        else [r, gg, b] = [c, 0, x];
+        const R = Math.round((r + m) * 255), G = Math.round((gg + m) * 255), B = Math.round((b + m) * 255);
+        return '#' + [R, G, B].map(v2 => v2.toString(16).padStart(2, '0')).join('');
+      }
+      const wg = wheelCv.getContext('2d');
+      wg.imageSmoothingEnabled = false;
+      for (let cy = 0; cy < WN; cy++) {
+        for (let cx = 0; cx < WN; cx++) {
+          const dx = (cx - (WN - 1) / 2) / ((WN - 1) / 2);
+          const dy = (cy - (WN - 1) / 2) / ((WN - 1) / 2);
+          const r = Math.sqrt(dx * dx + dy * dy);
+          if (r > 1.04) continue;
+          const h = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
+          wg.fillStyle = hsvToHex(h, Math.min(1, r), 1);
+          wg.fillRect(cx * WCELL, cy * WCELL, WCELL, WCELL);
+        }
+      }
+      function paintBrite() {
+        const bg = briteCv.getContext('2d');
+        bg.imageSmoothingEnabled = false;
+        const steps = 24;
+        for (let i = 0; i < steps; i++) {
+          bg.fillStyle = hsvToHex(wheelH, wheelS, i / (steps - 1));
+          bg.fillRect(Math.round(i * briteCv.width / steps), 0, Math.ceil(briteCv.width / steps), 8);
+        }
+      }
+      paintBrite();
+      function pickFromWheel(ev) {
+        const r = wheelCv.getBoundingClientRect();
+        const cx = (ev.clientX - r.left) / r.width * WN - (WN - 1) / 2 - 0.5;
+        const cy = (ev.clientY - r.top) / r.height * WN - (WN - 1) / 2 - 0.5;
+        const rad = Math.sqrt(cx * cx + cy * cy) / ((WN - 1) / 2);
+        if (rad > 1.15) return false;
+        wheelH = ((Math.atan2(cy, cx) * 180 / Math.PI) + 360) % 360;
+        wheelS = Math.min(1, rad);
+        colorHex = hsvToHex(wheelH, wheelS, wheelV);
+        color = -1;
+        swatchEls.forEach(e => e.classList.remove('on'));
+        wheelDot.style.display = 'block';
+        wheelDot.style.left = (50 + Math.cos(wheelH * Math.PI / 180) * wheelS * 50) + '%';
+        wheelDot.style.top = (50 + Math.sin(wheelH * Math.PI / 180) * wheelS * 50) + '%';
+        wheelDot.style.background = colorHex;
+        paintBrite();
+        if (tool === 'eraser') setTool('crayon');
+        return true;
+      }
+      let wheelDrag = false;
+      wheelCv.addEventListener('mousedown', ev => { ev.stopPropagation(); if (pickFromWheel(ev)) { wheelDrag = true; Snd.click(); } });
+      window.addEventListener('mousemove', ev => { if (wheelDrag) pickFromWheel(ev); });
+      window.addEventListener('mouseup', () => { wheelDrag = false; });
+      briteCv.addEventListener('mousedown', ev => {
+        ev.stopPropagation();
+        const r = briteCv.getBoundingClientRect();
+        wheelV = Math.max(0.08, Math.min(1, (ev.clientX - r.left) / r.width));
+        colorHex = hsvToHex(wheelH, wheelS, wheelV);
+        color = -1;
+        swatchEls.forEach(e => e.classList.remove('on'));
+        wheelDot.style.display = 'block';
+        wheelDot.style.background = colorHex;
+        if (tool === 'eraser') setTool('crayon');
+        Snd.click();
+      });
+
       const hd = t => { const d = document.createElement('div'); d.className = 'hd'; d.textContent = t; tools.appendChild(d); };
 
       hd('TOOL');
-      [['crayon', 'CRAYON'], ['eraser', 'ERASER'], ['fill', 'FILL']].forEach(t => {
+      [['crayon', 'CRAYON'], ['marker', 'MARKER'], ['pencil', 'PENCIL'], ['spray', 'SPRAY'],
+       ['eraser', 'ERASER'], ['fill', 'FILL']].forEach(t => {
         const b = document.createElement('button');
         b.className = 'tl' + (t[0] === tool ? ' on' : '');
         b.textContent = t[1];
@@ -212,19 +307,16 @@ export default {
        one, a flick is three or more. Fast goes thin and faint, slow goes
        dense, and the whole range has to sit inside a normal hand. */
     const fast = Math.min(1, speed / 2.4);
-    const w = Math.max(3, base * (1 - fast * 0.45));
-    const alpha = tool === 'eraser' ? 1 : (0.96 - fast * 0.34);
-    const col = tool === 'eraser' ? null : CRAYON_PAL[color].c;
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const stepN = Math.max(1, Math.ceil(dist / Math.max(1, w * 0.3)));
-    for (let i = 0; i <= stepN; i++) {
-      const t = i / stepN;
-      const jx = (Math.random() - 0.5) * w * 0.22;
-      const jy = (Math.random() - 0.5) * w * 0.22;
-      const px = x0 + dx * t + jx, py = y0 + dy * t + jy;
-      if (col) stamp(px, py, w, col, alpha);
-      else {
+
+    if (tool === 'eraser') {
+      const w = Math.max(3, base * (1 - fast * 0.45));
+      const stepN = Math.max(1, Math.ceil(dist / Math.max(1, w * 0.3)));
+      for (let i = 0; i <= stepN; i++) {
+        const t = i / stepN;
+        const jx = (Math.random() - 0.5) * w * 0.22, jy = (Math.random() - 0.5) * w * 0.22;
+        const px = x0 + dx * t + jx, py = y0 + dy * t + jy;
         /* the eraser has the same texture and reveals paper, not white */
         const n = Math.max(4, Math.round(w * 1.8));
         for (let k = 0; k < n; k++) {
@@ -235,6 +327,67 @@ export default {
           g.drawImage(makePaper(), ex, ey, 2, 2, ex, ey, 2, 2);
         }
       }
+      lastW = w;
+      return;
+    }
+
+    if (tool === 'marker') {
+      /* flat and opaque, almost no grain -- a wide felt tip, not wax */
+      const w = Math.max(5, base * 1.1);
+      const stepN = Math.max(1, Math.ceil(dist / Math.max(1, w * 0.4)));
+      g.globalAlpha = 0.92 - fast * 0.1;
+      g.fillStyle = colorHex;
+      for (let i = 0; i <= stepN; i++) {
+        const t = i / stepN;
+        g.beginPath(); g.arc(x0 + dx * t, y0 + dy * t, w / 2, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+      lastW = w;
+      return;
+    }
+
+    if (tool === 'pencil') {
+      /* thin and crisp: small jitter, a hard rather than waxy edge */
+      const w = Math.max(1, base * 0.3);
+      const stepN = Math.max(1, Math.ceil(dist / Math.max(1, w * 0.5)));
+      for (let i = 0; i <= stepN; i++) {
+        const t = i / stepN;
+        const px = x0 + dx * t + (Math.random() - 0.5) * 0.4, py = y0 + dy * t + (Math.random() - 0.5) * 0.4;
+        stamp(px, py, w, colorHex, 0.85 - fast * 0.2);
+      }
+      lastW = w;
+      return;
+    }
+
+    if (tool === 'spray') {
+      /* a scatter of single pixels over a much wider radius than the nib */
+      const w = Math.max(12, base * 2.4);
+      const stepN = Math.max(1, Math.ceil(dist / 3));
+      g.fillStyle = colorHex;
+      for (let i = 0; i <= stepN; i++) {
+        const t = i / stepN;
+        const px = x0 + dx * t, py = y0 + dy * t;
+        for (let k = 0; k < 6; k++) {
+          const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (w / 2);
+          g.globalAlpha = 0.45 + Math.random() * 0.3;
+          g.fillRect((px + Math.cos(a) * r) | 0, (py + Math.sin(a) * r) | 0, 1, 1);
+        }
+      }
+      g.globalAlpha = 1;
+      lastW = w;
+      return;
+    }
+
+    /* crayon: waxy grain, the machine's default nib */
+    const w = Math.max(3, base * (1 - fast * 0.45));
+    const alpha = 0.96 - fast * 0.34;
+    const stepN = Math.max(1, Math.ceil(dist / Math.max(1, w * 0.3)));
+    for (let i = 0; i <= stepN; i++) {
+      const t = i / stepN;
+      const jx = (Math.random() - 0.5) * w * 0.22;
+      const jy = (Math.random() - 0.5) * w * 0.22;
+      const px = x0 + dx * t + jx, py = y0 + dy * t + jy;
+      stamp(px, py, w, colorHex, alpha);
     }
     lastW = w;
   }
@@ -248,7 +401,7 @@ export default {
     const at = (x, y) => (y * DRAW_W + x) * 4;
     const s = at(sx, sy);
     const t = [d[s], d[s + 1], d[s + 2]];
-    const hex = CRAYON_PAL[color].c;
+    const hex = colorHex;
     const nc = [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)];
     if (Math.abs(t[0] - nc[0]) + Math.abs(t[1] - nc[1]) + Math.abs(t[2] - nc[2]) < 12) return;
     /* the tolerance itself is jittered, so the frontier stops unevenly and
@@ -312,6 +465,15 @@ export default {
     if (now - scratchT > 55) { scratchT = now; Snd.scratch(speed); }
   });
   window.addEventListener('mouseup', () => { drawing = false; });
+  window.addEventListener('keydown', ev => {
+    if (!document.body.contains(cv)) return;
+    if (document.activeElement && /input|textarea/i.test(document.activeElement.tagName)) return;
+    if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z') {
+      ev.preventDefault();
+      Snd.click();
+      doUndo();
+    }
+  });
 
   /* ---- saving ------------------------------------------------------------ */
   function thumb() {
