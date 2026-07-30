@@ -50,12 +50,3 @@ Not all extracted yet, but typically `#FFFFFF`, `#AAAAAA`, `#555555`, `#FFFF55` 
 ## Rules
 - Apps never import from `kernel/`.
 - Files stay under 300 lines (split into siblings in the app folder if needed).
-- `unmount` must clean up everything.
-- `defrag`: `apps/defrag/index.js` - A visual disk defragmentation simulation.
-- `terminal`: `apps/terminal/index.js` - Command line interface for the VFS.
-- `editor`: `apps/editor/index.js` - Text editor capable of saving to VFS.
-- `viewer`: `apps/viewer/index.js` - Image viewer for VFS images.
-- `folder`: `apps/folder/index.js` - File manager application for browsing the VFS.
-- `account`: `apps/account/index.js` - Ledger viewer showing SUN economy transactions and balance.
-- `aftere`: `apps/aftere/index.js` - AfterEgypt, a mini-game about reaching the third temple.
-- `garden`: `apps/garden/index.js` - A real-time virtual garden that grows plants and earns SUN.
