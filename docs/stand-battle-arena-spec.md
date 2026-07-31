@@ -3,17 +3,20 @@
 **Scope target:** ~40 hours of player content
 **Project nature:** personal, non-commercial fan project. It intentionally uses *JoJo's Bizarre Adventure* IP — canon characters, canon Stands, canon locations/arcs — not original reskins. Treat every named character, Stand, and location in this document as a real reference to the source material, not placeholder flavor text.
 **Art style:** pixel art throughout (see §11).
+**Companion document:** `docs/stand-battle-arena-gdd.md` is the *game* design document — run structure, item systems, progression, difficulty curve, and the moment-to-moment mechanics that make the loop worth 40 hours. This file remains the *technical* contract (architecture, rendering, audio, fairness constraints). Where the two disagree on gameplay specifics, the GDD wins; where they disagree on architecture or rendering, this file wins.
 **Audience for this document:** an AI coding agent implementing the project. Treat every numbered section as a requirement or constraint, not a suggestion, unless explicitly marked optional. Where a design rule and an implementation detail conflict later in development, the design rule wins — flag the conflict rather than silently resolving it.
 
 ---
 
 ## 0. Architecture Philosophy (read first)
 
-This is not a "5,000 lines of content" project. It is a **~5,000-line generic engine** that reads an **unbounded, separate pile of data** (Stands, moves, enemies, relics, floors, dialogue as JSON/JS objects).
+This is not a "hand-write every content item" project. It is a **generic engine** that reads an **unbounded, separate pile of data** (Stands, moves, enemies, relics, floors, dialogue as JSON/JS objects).
 
-Concretely: build an **effect-hook architecture**. Systems register callbacks (`onHit`, `onKill`, `onFloorStart`, `onRunStart`, etc.) and a single dispatcher (~600 lines) fires them. A new relic, enemy, or ability should be addable as a **data entry**, not a new code path. If you find yourself writing a bespoke function per content item, stop and refactor toward a hook the dispatcher can call generically.
+Concretely: build an **effect-hook architecture**. Systems register callbacks (`onHit`, `onKill`, `onFloorStart`, `onRunStart`, etc.) and a single dispatcher fires them. A new relic, enemy, or ability should be addable as a **data entry**, not a new code path. If you find yourself writing a bespoke function per content item, stop and refactor toward a hook the dispatcher can call generically.
 
-Do not let engine code balloon past its budget (§14) to accommodate content. Content scales independently, in data.
+**There is no line budget on this project.** Engine code may grow as large as the design requires; the constraint is *generality*, not size. The failure mode to avoid is not "too many lines" — it is "a bespoke code path per content item". A large engine that content plugs into as data is correct. A small engine with fifty `if (relicId === ...)` branches is not.
+
+The only structural rule that still binds is the repo-wide one in `CLAUDE.md`: individual source files stay readable (split into siblings in the app folder when they get long). That is a file-organisation rule, not a cap on total engine size.
 
 ---
 
@@ -208,20 +211,20 @@ The combinatorial spread (archetypes × relics × node paths × Heat tiers) is w
 
 ## 14. Technical Architecture
 
-### 14.1 Engine line budget (~4,900 lines target — do not significantly exceed)
+### 14.1 Engine module map (no line budget — see §0)
 
-| Module | Est. lines |
+| Module | Responsibility |
 |---|---|
-| Core loop / render / input | ~1,200 |
-| Combat system | ~1,000 |
-| Procedural map generator | ~500 |
-| UI (HUD/map/shop/dialogue) | ~800 |
-| Save / meta-progression | ~300 |
-| Juice / particle system | ~300 |
-| Audio manager | ~200 |
-| Effect-hook dispatcher | ~600 |
+| Core loop / render / input | Frame pump, input buffering, scene stack, camera |
+| Combat system | Frame data, hitbox/hurtbox resolution, states, status effects |
+| Procedural map generator | Seeded branching act layouts, node population |
+| UI (HUD/map/shop/dialogue) | All screens |
+| Save / meta-progression | Versioned save schema, Archive, Menacing Presence |
+| Juice / particle system | Hit-stop, shake, particles |
+| Audio manager | SFX bus, adaptive music |
+| Effect-hook dispatcher | Hook registration, mutable effect contexts, stat pipeline |
 
-Content (Stand movesets, enemy patterns, Arrow definitions, floor layouts, dialogue trees) lives entirely outside this budget as JSON/JS data consumed generically by the dispatcher.
+Size each module to whatever the design needs. Content (Stand movesets, enemy patterns, Arrow/Fragment definitions, floor layouts, dialogue trees) still lives *outside* the engine as JSON/JS data consumed generically by the dispatcher — that separation is the requirement, not any particular line count.
 
 ### 14.2 Starting data schemas
 
@@ -297,6 +300,6 @@ Before considering any milestone complete, verify:
 - [ ] Hub/story content is skippable and not the only delivery channel for narrative.
 - [ ] Juice intensity scales with moment significance — routine hits are not maxed-out.
 - [ ] Screen-shake/flash accessibility toggle is implemented, not deferred.
-- [ ] Engine code stays near its ~4,900-line budget; new content is added as data, not new code paths.
+- [ ] New content is added as data, not new code paths (there is no line budget — see §0).
 - [ ] All rendering uses integer scaling and disabled smoothing — no blurred pixel art anywhere in the build.
 - [ ] Character/Stand identities in-game match named JoJo canon (§2.2, §9) — not generic reskins.

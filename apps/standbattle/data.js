@@ -25,48 +25,25 @@ export const STANDS = {
   }
 };
 
-/* Move definitions. Timings are milliseconds; hitstopMs follows §10
-   (3-5 frames light ~= 50-83ms, up to 8 frames ~= 133ms on heavies/rush). */
-export const MOVES = {
-  sp_light: {
-    id: 'sp_light', type: 'light', persistenceCost: 0, persistenceGain: 5,
-    windupMs: 50, activeMs: 90, recoverMs: 130, range: 34,
-    hitCount: 1, damage: 4, knockback: 5, hitstopMs: 55, label: 'JAB'
-  },
-  sp_medium: {
-    id: 'sp_medium', type: 'medium', persistenceCost: 0, persistenceGain: 8,
-    windupMs: 110, activeMs: 110, recoverMs: 190, range: 38,
-    hitCount: 1, damage: 8, knockback: 9, hitstopMs: 70, label: 'STRIKE'
-  },
-  sp_heavy: {
-    id: 'sp_heavy', type: 'heavy', persistenceCost: 0, persistenceGain: 12,
-    windupMs: 230, activeMs: 130, recoverMs: 340, range: 40,
-    hitCount: 1, damage: 15, knockback: 16, hitstopMs: 110, label: 'HEAVY'
-  },
-  sp_barrage: {
-    id: 'sp_barrage', type: 'special', persistenceCost: 35, persistenceGain: 0,
-    windupMs: 90, activeMs: 260, recoverMs: 220, range: 36,
-    hitCount: 4, damage: 4, knockback: 3, hitstopMs: 45, label: 'ORA BARRAGE'
-  },
-  sp_ora_rush: {
-    id: 'sp_ora_rush', type: 'rush', persistenceCost: 80, persistenceGain: 0,
-    windupMs: 140, activeMs: 620, recoverMs: 300, range: 42,
-    hitCount: 9, damage: 5, knockback: 2, hitstopMs: 130, label: 'ORA ORA ORA!'
-  }
-};
+/* Move definitions moved to moves.js (tech §2.4 frame-data timeline shape,
+   Phase 2). Re-exported here so existing `import { MOVES } from './data.js'`
+   call sites keep working without churn. */
+export { MOVES } from './moves.js';
 
 /* Enemy definitions. attackPatterns reference the shared module library in
    ai.js — per §9, boss variety comes from recombining these, not bespoke
-   code per enemy. */
+   code per enemy. `poise` (GDD §3.9) is the hit count of poise damage the
+   enemy can absorb before staggering -- resolved once by poise.js, never
+   read as a raw number anywhere else. */
 export const ENEMIES = {
   morioh_thug: {
     id: 'morioh_thug', name: 'MORIOH DELINQUENT', baseType: 'melee',
-    hp: 40, power: 5, speedPx: 70, precision: 3,
+    hp: 40, power: 5, speedPx: 122, precision: 3, poise: 24,
     attackPatterns: ['sweep', 'telegraphed_slam']
   },
   angelo: {
     id: 'angelo', name: 'ANGELO', baseType: 'elite',
-    hp: 78, power: 7, speedPx: 95, precision: 6,
+    hp: 78, power: 7, speedPx: 165, precision: 6, poise: 50,
     attackPatterns: ['sweep', 'projectile', 'telegraphed_slam']
   }
 };
@@ -82,7 +59,7 @@ export const MODIFIERS = {
 export const BOSS_KILLER_QUEEN = {
   id: 'killer_queen', character: 'Yoshikage Kira', standName: 'Killer Queen',
   source: 'Diamond is Unbreakable (Part 4)',
-  hp: 200, power: 9, speedPx: 80, precision: 8,
+  hp: 200, power: 9, speedPx: 140, precision: 8, poise: 70,
   phases: [
     { hpAbove: 0.5, attackPatterns: ['sweep', 'telegraphed_slam', 'projectile'] },
     { hpAbove: 0, attackPatterns: ['sweep', 'telegraphed_slam', 'projectile', 'sheer_heart_attack'] }
@@ -92,11 +69,27 @@ export const BOSS_KILLER_QUEEN = {
 
 /* Temporary, run-scoped buffs offered by the Treasure/Event nodes — a taste
    of Build Diversity (§4) without a persisted Arrow pool, which is out of
-   scope for this prototype milestone (§15 step 1: zero meta-progression). */
+   scope for this prototype milestone (§15 step 1: zero meta-progression).
+
+   Phase 3: ported off three bespoke fighter.js fields (`powerMult`,
+   `speedMult`, a maxPersistence bonus) onto the hooks.js query pipeline —
+   `queries[]` is installed by effect_lib.js's installRunBuffs() into the
+   getDamage/getMaxPersistence/getMoveSpeed query hooks, the same generic
+   mechanism a real Arrow will use later. Zero engine code is specific to
+   any one of these three ids. */
 export const RUN_BUFFS = [
-  { id: 'power', label: 'STAR-SHAPED FRAGMENT', desc: '+15% Power for this run', powerMult: 1.15 },
-  { id: 'persistence', label: 'ARROW SLIVER', desc: '+20 max Persistence for this run', maxPersistenceBonus: 20 },
-  { id: 'speed', label: 'CRACKED HOURGLASS', desc: '+12% move speed for this run', speedMult: 1.12 }
+  {
+    id: 'power', label: 'STAR-SHAPED FRAGMENT', desc: '+15% Power for this run',
+    queries: [{ hook: 'getDamage', fn: 'multiplyIfPlayerAttacker', data: { mult: 1.15 } }]
+  },
+  {
+    id: 'persistence', label: 'ARROW SLIVER', desc: '+20 max Persistence for this run',
+    queries: [{ hook: 'getMaxPersistence', fn: 'addFlat', data: { amount: 20 } }]
+  },
+  {
+    id: 'speed', label: 'CRACKED HOURGLASS', desc: '+12% move speed for this run',
+    queries: [{ hook: 'getMoveSpeed', fn: 'multiplyFlat', data: { mult: 1.12 } }]
+  }
 ];
 
 export const EVENTS = {
