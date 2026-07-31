@@ -73,6 +73,13 @@
     "app": "garden"
   },
   {
+    "path": "::/StandBattleArena",
+    "content": "",
+    "src": "",
+    "type": "app",
+    "app": "standbattle"
+  },
+  {
     "path": "::/Sweeper",
     "content": "",
     "src": "",

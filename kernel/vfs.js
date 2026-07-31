@@ -16,7 +16,7 @@ function getDB() {
 /* bump this whenever assets/seed.json's shape changes (new fields, new
    apps) so a browser that already seeded an older shape gets patched
    instead of silently keeping stale records forever */
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 const SEED_VERSION_KEY = 'templeos.vfs.seedVersion';
 
 async function initVFS() {

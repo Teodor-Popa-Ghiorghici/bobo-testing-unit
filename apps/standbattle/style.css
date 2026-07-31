@@ -1,0 +1,3 @@
+.sbpane { flex-direction: column; background: #000000; }
+.sbcanvas { cursor: crosshair; }
+.sbinfo { font-size: 12px; }
