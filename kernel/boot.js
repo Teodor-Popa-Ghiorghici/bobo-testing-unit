@@ -12,6 +12,7 @@ import "./vault.js";
 import "./drunk.js";
 import { Music } from './music.js';
 import { SunUI } from './economy.js';
+import { MixerUI } from './mixer.js';
 import { panic } from './panic.js';
 window.Music = Music;
 
@@ -163,6 +164,7 @@ function dismissSplash() {
   if (window.Snd && window.Snd.ok) window.Snd.ok();
   initDesktop();
   try { SunUI.mount(); } catch(e) {}
+  try { MixerUI.mount(); } catch(e) {}
   try { Hold.apply(); } catch(e) {}
   try { Saver.watch(); } catch(e) {}
   try { wireKonami(); } catch(e) {}

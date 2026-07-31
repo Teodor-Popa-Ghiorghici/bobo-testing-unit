@@ -69,7 +69,7 @@ export default {
   let raf = null, mx = 0, my = 0, autoT = null, payShown = 0, payTarget = 0;
 
   const made = createWindow({
-    kind: 'app', title: 'SOLITAIRE.EXE', w: 900, h: 620,
+    kind: 'app', title: 'SOLITAIRE.EXE', w: 900, h: 620, appId: 'solitaire',
     build: body => {
       const pane = document.createElement('div');
       pane.className = 'gamepane solpane';

@@ -9,7 +9,7 @@ import { VGA16 } from '../../kernel/god.js';
 export default {
   open() {
   createWindow({
-    kind: 'app', title: 'Elephant', w: 748, h: 546,
+    kind: 'app', title: 'Elephant', w: 748, h: 546, appId: 'elephant',
     build: body => {
       const wrap = document.createElement('div');
       wrap.className = 'gamepane';

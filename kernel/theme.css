@@ -520,14 +520,15 @@ html, body {
   user-select: none;
   flex: 0 0 auto;
 }
-.titlebar .t { padding: 0 6px; overflow: hidden; white-space: nowrap; }
+.titlebar .t { flex: 1 1 auto; padding: 0 6px; overflow: hidden; white-space: nowrap; }
+.titlebar .th,
 .titlebar .m,
 .titlebar .x {
   padding: 0 6px;
   cursor: pointer;
   border-left: 2px solid #000000;
 }
-.titlebar .m { margin-left: auto; }
+.titlebar .th:hover,
 .titlebar .m:hover,
 .titlebar .x:hover { background: #000000; color: var(--phos); }
 .wbody { flex: 1 1 auto; overflow: auto; background: #000000; position: relative; }
@@ -1398,7 +1399,7 @@ textarea.editor {
    ========================================================================== */
 #tube, #tube * { cursor: var(--cur-arrow, default); }
 #tube .icon, #tube .tbtn, #tube .mi, #tube .menuitem, #tube button,
-#tube .ddlink, #tube .ddmacro, #tube .titlebar .x, #tube .titlebar .m,
+#tube .ddlink, #tube .ddmacro, #tube .titlebar .x, #tube .titlebar .m, #tube .titlebar .th,
 #tube .shopcard, #tube .nchip { cursor: var(--cur-hand, pointer); }
 #tube .titlebar { cursor: var(--cur-move, move); }
 #tube input, #tube textarea { cursor: var(--cur-text, text); }
@@ -1453,6 +1454,31 @@ textarea.editor {
   user-select: none;
 }
 #sunbox:hover { border-color: #FFFF55; }
+#mixerbox {
+  margin-left: auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border: 1px solid #555555;
+  background: #000000;
+  color: #55FFFF;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+}
+#mixerbox:hover { border-color: #55FFFF; }
+#taskbar #mixerbox { flex: 0 0 auto; margin-left: 6px; }
+#mixerpanel {
+  position: absolute;
+  z-index: 455;
+  display: flex; flex-direction: column; gap: 6px;
+  background: #AAAAAA; border: 2px solid #FFFFFF;
+  padding: 8px;
+  min-width: 190px;
+}
+.mixrow { display: flex; align-items: center; gap: 6px; }
+.mixlbl { flex: 0 0 78px; color: #000000; font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mixslider { flex: 1 1 auto; }
+.mixpct { flex: 0 0 30px; color: #000000; font-size: 12px; text-align: right; }
 #sunbox canvas { width: 14px; height: 14px; display: block; image-rendering: pixelated; }
 #sundigits { display: flex; height: 20px; overflow: hidden; line-height: 20px; }
 #sundigits .dg { width: 10px; text-align: center; position: relative; height: 20px; }

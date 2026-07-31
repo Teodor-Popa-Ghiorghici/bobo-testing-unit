@@ -1,5 +1,7 @@
 import { lampDip, CRT, Vol } from '../../kernel/hardware.js';
 import { SPECIES } from '../../kernel/cos_data.js';
+import { Mixer } from '../../kernel/mixer.js';
+import { ROOM_DEFS, drawRoomEffects } from './rooms.js';
 
 const BAYER4 = [
   [0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]
@@ -204,44 +206,70 @@ function gardenSky(W, H, light) {
 }
 
     
-    const defSt = { pots: [], lastTick: Date.now(), planted: 0 };
+    function sanitizePots(arr) {
+      const out = Array.isArray(arr) ? arr.slice(0, GARD_POTS) : [];
+      while (out.length < GARD_POTS) out.push(null);
+      return out.map(p => {
+        if (!p || !p.sp || !speciesById(p.sp)) return null;
+        return { sp: p.sp, planted: Date.now(), watered: 0, grown: 0, acc: 0, tok: 0, ...p };
+      });
+    }
+    function roomDef(i) { return ROOM_DEFS[i] || ROOM_DEFS[0]; }
+    /* the pot's buff and the room's buff stack: a room is the bigger lever,
+       a pot the finer one, and neither one replaces the other */
+    function combinedBuff(i) {
+      const pb = potBuff(), rb = roomDef(i).buff;
+      return { grow: pb.grow * rb.grow, yield: pb.yield * rb.yield, water: pb.water * rb.water,
+               night: rb.night, blessed: rb.blessed };
+    }
+
+    const defSt = { rooms: null, active: 0, lastTick: Date.now(), planted: 0 };
     let st = await ctx.load('st') || {};
     st = { ...defSt, ...st };
-    if (!Array.isArray(st.pots)) st.pots = [];
-    while (st.pots.length < GARD_POTS) st.pots.push(null);
-    st.pots.length = GARD_POTS;
-    st.pots = st.pots.map(p => {
-      if (!p || !p.sp || !speciesById(p.sp)) return null;
-      return { sp: p.sp, planted: Date.now(), watered: 0, grown: 0, acc: 0, tok: 0, ...p };
-    });
+    if (!Array.isArray(st.rooms)) {
+      /* migrating an older save: the one rack that existed becomes room 0 */
+      const legacyPots = Array.isArray(st.pots) ? st.pots : [];
+      st.rooms = ROOM_DEFS.map((r, i) => ({ unlocked: i === 0, pots: i === 0 ? legacyPots : [] }));
+      delete st.pots;
+    }
+    while (st.rooms.length < ROOM_DEFS.length) st.rooms.push({ unlocked: false, pots: [] });
+    st.rooms.length = ROOM_DEFS.length;
+    st.rooms = st.rooms.map((r, i) => ({ unlocked: i === 0 ? true : !!(r && r.unlocked), pots: sanitizePots(r && r.pots) }));
+    if (!(st.active >= 0 && st.active < ROOM_DEFS.length) || !st.rooms[st.active].unlocked) st.active = 0;
 
     const Garden = {
       st,
       save() { ctx.save('st', this.st); },
+      pots() { return this.st.rooms[this.st.active].pots; },
       step(now, dt, rate) {
-        const night = gardenIsNight(now);
-        const buff = potBuff();
-        const waterMs = WATER_MS * buff.water;
-        let tokens = this.tokens();
-        this.st.pots.forEach(p => {
-          if (!p) return;
-          const sp = speciesById(p.sp);
-          if (!sp) return;
-          const wet = Math.max(0, Math.min(dt, (p.watered + waterMs) - (now - dt)));
-          if (wet <= 0) return;
-          const credit = wet * rate * buff.grow;
-          const need = sp.grow * 1000;
-          if (p.grown < need * 3) p.grown = Math.min(need * 3, p.grown + credit);
-          if (p.grown < need * 3) return;
-          if (sp.night && !night) return;
-          p.acc += credit;
-          const per = sp.drop * 1000;
-          while (p.acc >= per && tokens < TOKEN_CAP) {
-            p.acc -= per;
-            p.tok = (p.tok || 0) + 1;
-            tokens++;
-          }
-          if (tokens >= TOKEN_CAP) p.acc = Math.min(p.acc, per);
+        const clockNight = gardenIsNight(now);
+        this.st.rooms.forEach((room, ri) => {
+          if (!room.unlocked) return;
+          const buff = combinedBuff(ri);
+          const waterMs = WATER_MS * buff.water;
+          const night = buff.night || clockNight;
+          let tokens = room.pots.reduce((a, p) => a + (p ? p.tok || 0 : 0), 0);
+          room.pots.forEach(p => {
+            if (!p) return;
+            const sp = speciesById(p.sp);
+            if (!sp) return;
+            const wet = Math.max(0, Math.min(dt, (p.watered + waterMs) - (now - dt)));
+            if (wet <= 0) return;
+            const credit = wet * rate * buff.grow;
+            const need = sp.grow * 1000;
+            if (p.grown < need * 3) p.grown = Math.min(need * 3, p.grown + credit);
+            if (p.grown < need * 3) return;
+            if (sp.night && !night) return;
+            p.acc += credit;
+            const per = sp.drop * 1000;
+            while (p.acc >= per && tokens < TOKEN_CAP) {
+              p.acc -= per;
+              const add = (buff.blessed && Math.random() < buff.blessed) ? 2 : 1;
+              p.tok = (p.tok || 0) + add;
+              tokens += add;
+            }
+            if (tokens >= TOKEN_CAP) p.acc = Math.min(p.acc, per);
+          });
         });
       },
       catchUp() {
@@ -259,7 +287,7 @@ function gardenSky(W, H, light) {
         this.st.lastTick = now;
         if (dt > 0) this.step(now, dt, dt > 4000 ? OFFLINE_RATE : 1);
       },
-      tokens() { return this.st.pots.reduce((a, p) => a + (p ? p.tok || 0 : 0), 0); },
+      tokens() { return this.pots().reduce((a, p) => a + (p ? p.tok || 0 : 0), 0); },
       stage(p) {
         if (!p) return -1;
         const sp = speciesById(p.sp);
@@ -270,12 +298,13 @@ function gardenSky(W, H, light) {
         if (p.grown >= need) return 1;
         return 0;
       },
-      isWet(p, now) { return p && (p.watered + WATER_MS * potBuff().water) > now; },
+      isWet(p, now) { return p && (p.watered + WATER_MS * combinedBuff(this.st.active).water) > now; },
       /* pulling a plant clears its pot, no confirmation asked here -- the
          caller (a deliberate PULL-tool click) is the confirmation */
       pull(i) {
-        if (!this.st.pots[i]) return;
-        this.st.pots[i] = null;
+        const pots = this.pots();
+        if (!pots[i]) return;
+        pots[i] = null;
         this.save();
       }
     };
@@ -311,7 +340,7 @@ const GardenAir = {
     lfo.frequency.value = 0.06; lg.gain.value = 180;
     lfo.connect(lg); lg.connect(f.frequency);
     try { src.start(); lfo.start(); } catch (e) {}
-    g.gain.setTargetAtTime(0.22, ctx.currentTime, 2.2);
+    g.gain.setTargetAtTime(0.22 * Mixer.get('garden'), ctx.currentTime, 2.2);
     this.src = src; this.gain = g; this.lfo = lfo;
     this.birdT = setInterval(() => {
       if (!CRT.on || Vol.sfx <= 0) return;
@@ -338,6 +367,13 @@ const GardenAir = {
   }
 };
 this._GardenAir = GardenAir;
+const mixerHandler = ev => {
+  if (!document.body.contains(cv)) { window.removeEventListener('mixer-changed', mixerHandler); return; }
+  if (ev.detail && ev.detail.channel === 'garden' && GardenAir.gain && window.Snd.ctx) {
+    GardenAir.gain.gain.setTargetAtTime(0.22 * Mixer.get('garden'), window.Snd.ctx.currentTime, 0.3);
+  }
+};
+window.addEventListener('mixer-changed', mixerHandler);
 const W = 700, H = 436;
   let cv = null, g = null, info = null, seedBtn = null, canBtn = null, pullBtn = null;
   let canning = false, pulling = false, seedIx = 0;
@@ -421,6 +457,11 @@ const W = 700, H = 436;
     const col = i % 4, row = Math.floor(i / 4);
     return { x: 40 + col * 184, y: 150 + row * 96, cx: 40 + col * 184 + 33, w: 66, h: 46 };
   }
+  /* the room tabs live top-right, over the sky, one per ROOM_DEFS entry */
+  function roomTabAt(i) {
+    const tw = 74, gap = 4, totalW = ROOM_DEFS.length * (tw + gap) - gap;
+    return { x: W - totalW - 10 + i * (tw + gap), y: 6, w: tw, h: 20 };
+  }
 
   cv.addEventListener('mousedown', ev => {
     ev.stopPropagation();
@@ -429,10 +470,29 @@ const W = 700, H = 436;
     const my = (ev.clientY - r.top) * (H / r.height);
     const now = Date.now();
 
+    for (let i = 0; i < ROOM_DEFS.length; i++) {
+      const t = roomTabAt(i);
+      if (mx < t.x || mx > t.x + t.w || my < t.y || my > t.y + t.h) continue;
+      const room = Garden.st.rooms[i];
+      if (room.unlocked) {
+        if (Garden.st.active !== i) { Garden.st.active = i; Garden.save(); window.Snd.click(); }
+      } else if (window.Economy.spend(ROOM_DEFS[i].price, 'GARDEN: ' + ROOM_DEFS[i].name)) {
+        room.unlocked = true;
+        Garden.st.active = i;
+        Garden.save();
+        window.Snd.purchase();
+      } else {
+        window.Snd.deny();
+      }
+      return;
+    }
+
+    const buff = combinedBuff(Garden.st.active);
+    const pots = Garden.pots();
     for (let i = 0; i < GARD_POTS; i++) {
       const q = potAt(i);
       if (mx < q.x - 6 || mx > q.x + q.w + 6 || my < q.y - 60 || my > q.y + q.h + 6) continue;
-      const p = Garden.st.pots[i];
+      const p = pots[i];
 
       if (pulling) {
         if (!p) return;
@@ -440,7 +500,7 @@ const W = 700, H = 436;
            tool is for clearing a pot, not for punishing a full one */
         if (p.tok) {
           const sp = speciesById(p.sp);
-          const n = sp ? Math.round(sp.yield * p.tok * potBuff().yield) : p.tok;
+          const n = sp ? Math.round(sp.yield * p.tok * buff.yield) : p.tok;
           window.Economy.earn(n, 'GARDEN: ' + (sp ? sp.name : '?'));
           window.Snd.coin();
         }
@@ -451,7 +511,7 @@ const W = 700, H = 436;
 
       if (!p) {
         const sp = ownedSeeds()[seedIx % ownedSeeds().length];
-        Garden.st.pots[i] = { sp: sp.id, planted: now, watered: now, grown: 0, acc: 0, tok: 0, wig: 0 };
+        pots[i] = { sp: sp.id, planted: now, watered: now, grown: 0, acc: 0, tok: 0, wig: 0 };
         Garden.st.planted = (Garden.st.planted || 0) + 1;
         window.Snd.dig();
         window.Snd.pluck(PENTA[sp.note]);
@@ -470,7 +530,7 @@ const W = 700, H = 436;
       const sp = speciesById(p.sp);
       p.wig = 1;
       if (p.tok) {
-        const n = sp ? Math.round(sp.yield * p.tok * potBuff().yield) : p.tok;
+        const n = sp ? Math.round(sp.yield * p.tok * buff.yield) : p.tok;
         p.tok = 0;
         window.Economy.earn(n, 'GARDEN: ' + (sp ? sp.name : '?'));
         window.Snd.coin();
@@ -501,7 +561,8 @@ const W = 700, H = 436;
 
     const now = Date.now();
     const light = gardenLight(now);
-    const night = light < 0.34;
+    const activeRoom = roomDef(Garden.st.active);
+    const night = light < 0.34 || activeRoom.buff.night;
 
     g.drawImage(gardenSky(W, H, light), 0, 0);
 
@@ -550,10 +611,11 @@ const W = 700, H = 436;
     }
 
     const skin = potSkin();
+    const roomPots = Garden.pots();
     const wet = [];
     for (let i = 0; i < GARD_POTS; i++) {
       const q = potAt(i);
-      const p = Garden.st.pots[i];
+      const p = roomPots[i];
       const isWet = Garden.isWet(p, now);
       if (p && !isWet) wet.push(i);
       /* pot */
@@ -622,12 +684,41 @@ const W = 700, H = 436;
       g.fillText('+' + p.n, p.x, p.y - p.t * 26);
     }
 
-    /* a night vignette, so the fireflies have something to be bright against */
+    /* a night vignette, so the fireflies have something to be bright against.
+       a room that forces night (the cellar) still gets one even at "noon". */
     if (night) {
-      const a = (0.34 - light) / 0.34 * 0.45;
-      g.fillStyle = 'rgba(6,8,24,' + a.toFixed(2) + ')';
+      const a = activeRoom.buff.night ? Math.max(0.3, (0.34 - light) / 0.34 * 0.45) : (0.34 - light) / 0.34 * 0.45;
+      g.fillStyle = 'rgba(6,8,24,' + Math.max(0, a).toFixed(2) + ')';
       g.fillRect(0, 0, W, H);
     }
+
+    /* each room's own little weather system -- greenhouse condensation,
+       cellar dust, rooftop wind, shrine sparks. the yard gets none. */
+    drawRoomEffects(g, W, H, activeRoom.id, tsec, dt);
+
+    /* the room's own colour, laid over everything -- a greenhouse's amber,
+       a cellar's cold blue, the shrine's violet */
+    if (activeRoom.tint) {
+      g.fillStyle = activeRoom.tint;
+      g.fillRect(0, 0, W, H);
+    }
+
+    /* the room tabs: five doors into five racks, the locked ones priced */
+    g.textAlign = 'center';
+    ROOM_DEFS.forEach((rd, i) => {
+      const t = roomTabAt(i);
+      const room = Garden.st.rooms[i];
+      const isActive = i === Garden.st.active;
+      g.fillStyle = isActive ? 'rgba(255,244,140,0.94)' : room.unlocked ? 'rgba(10,10,10,0.68)' : 'rgba(10,10,10,0.42)';
+      g.fillRect(t.x, t.y, t.w, t.h);
+      g.strokeStyle = isActive ? '#fff4a0' : room.unlocked ? '#cfcfcf' : '#888888';
+      g.lineWidth = 1;
+      g.strokeRect(t.x + 0.5, t.y + 0.5, t.w - 1, t.h - 1);
+      g.fillStyle = isActive ? '#3a2c08' : room.unlocked ? '#e8e2d4' : '#9a9a9a';
+      g.font = '10px monospace';
+      g.fillText(room.unlocked ? rd.name : (rd.price + ' SUN'), t.x + t.w / 2, t.y + 14);
+    });
+    g.textAlign = 'left';
 
     if (info) {
       const tk = Garden.tokens();
@@ -637,7 +728,7 @@ const W = 700, H = 436;
         ? 'CLICK A POT TO WATER IT'
         : pulling
         ? 'CLICK A PLANTED POT TO PULL IT UP'
-        : (night ? 'NIGHT ' : 'DAY ') + String(clock).padStart(2, '0') + ':00  ' +
+        : activeRoom.name + '  ' + (night ? 'NIGHT ' : 'DAY ') + String(clock).padStart(2, '0') + ':00  ' +
           tk + '/' + TOKEN_CAP + ' SUN  ' + (dry ? dry + ' DRY' : 'WATERED');
     }
   };

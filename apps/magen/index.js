@@ -5,13 +5,14 @@ import { fs as vfs } from '../../kernel/vfs.js';
 import { MG_SAVE, MG_SCALE, mgFmt, MG_B, MG_TIER_AT, MG_TIER_COST, MG_CLICK, MG_KAV, MG_DIAS,
          MG_SPEC, MG_ACH, MG_LEG, MG_NEWS, MG_DICT, MG_ARG, MG_HZ, MG_SONGS } from './data.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
+import { Mixer } from '../../kernel/mixer.js';
 import { VGA16 } from '../../kernel/god.js';
 import { mgIcon, mgUpIcon, mgTierIcon } from './icons.js';
 
 export default {
   open() {
   createWindow({
-    kind: 'app', title: 'Magen', w: 900, h: 590,
+    kind: 'app', title: 'Magen', w: 900, h: 590, appId: 'magen',
     build: body => {
       const root = document.createElement('div');
       root.className = 'mgroot';
@@ -689,7 +690,7 @@ export default {
         },
         level(ramp) {
           if (!this.bus || !Snd.ctx) return;
-          const want = musGain();
+          const want = musGain() * Mixer.get('magen');
           if (ramp == null && Math.abs(want - this.g0) < 0.0005) return;
           this.g0 = want;
           const now = Snd.ctx.currentTime, gn = this.bus.gain;
@@ -724,7 +725,7 @@ export default {
           if (this.when - now < 1.2) return;
           clearTimeout(this.timer);
           const F = 0.35, dip = F * 0.5;
-          const gn = this.bus.gain, target = Math.max(0.0002, musGain() * 0.8);
+          const gn = this.bus.gain, target = Math.max(0.0002, musGain() * Mixer.get('magen') * 0.8);
           gn.cancelScheduledValues(now);
           gn.setValueAtTime(Math.max(0.0001, gn.value), now);
           gn.exponentialRampToValueAtTime(0.0001, now + dip);
@@ -747,6 +748,11 @@ export default {
           this.voices = [];
         }
       };
+      const mixerHandler = ev => {
+        if (!alive) { window.removeEventListener('mixer-changed', mixerHandler); return; }
+        if (ev.detail && ev.detail.channel === 'magen') Song.level(0.2);
+      };
+      window.addEventListener('mixer-changed', mixerHandler);
 
       /* ---- 32.25 save ---------------------------------------------------- */
       function save() {

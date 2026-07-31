@@ -1,6 +1,7 @@
 import { Snd } from './snd.js';
 import { HZ, HYMN } from './music_data.js';
 import { CRT, Vol, musGain } from './hardware.js';
+import { Mixer } from './mixer.js';
 
 export const Music = {
   on: false,
@@ -65,7 +66,7 @@ export const Music = {
     const g = this.bus.gain, now = Snd.ctx.currentTime;
     g.cancelScheduledValues(now);
     g.setValueAtTime(0.0001, now);
-    g.exponentialRampToValueAtTime(Math.max(0.0002, musGain()), now + 1.1);
+    g.exponentialRampToValueAtTime(Math.max(0.0002, musGain() * Mixer.get('lobby')), now + 1.1);
     this.when = now + 0.15;
     this.tick();
   },
@@ -75,7 +76,7 @@ export const Music = {
     const g = this.bus.gain, now = Snd.ctx.currentTime;
     g.cancelScheduledValues(now);
     g.setValueAtTime(Math.max(0.0001, g.value), now);
-    g.exponentialRampToValueAtTime(Math.max(0.0002, musGain()), now + 0.14);
+    g.exponentialRampToValueAtTime(Math.max(0.0002, musGain() * Mixer.get('lobby')), now + 0.14);
   },
   /* the single place that decides whether the lobby is playing */
   sync() {
@@ -103,3 +104,7 @@ export const Music = {
     this.voices = [];
   }
 };
+
+window.addEventListener('mixer-changed', ev => {
+  if (ev.detail && ev.detail.channel === 'lobby') Music.level();
+});

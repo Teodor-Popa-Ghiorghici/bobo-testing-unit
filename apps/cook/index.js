@@ -3,6 +3,7 @@ import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
+import { Mixer } from '../../kernel/mixer.js';
 import { CK_SAVE, CK_W, CK_H, CK_T, CK_LV, CK_STORY, CK_END, CK_KID, CK_ACH, CK_HZ, CK_SONGS } from './data.js';
 import { VGA16 } from '../../kernel/god.js';
 
@@ -41,7 +42,7 @@ export default {
      size instead of stretching a small bitmap to fill a bigger box. */
   const RES = 1.3;
   createWindow({
-    kind: 'app', title: 'The Cook', w: 820, h: 660,
+    kind: 'app', title: 'The Cook', w: 820, h: 660, appId: 'cook',
     build: body => {
       const wrap = document.createElement('div');
       wrap.className = 'gamepane ckpane';
@@ -953,7 +954,7 @@ export default {
         },
         level(ramp) {
           if (!this.bus || !Snd.ctx) return;
-          const want = musGain();
+          const want = musGain() * Mixer.get('cook');
           if (ramp == null && Math.abs(want - this.g0) < 0.0005) return;
           this.g0 = want;
           const now = Snd.ctx.currentTime, gn = this.bus.gain;
@@ -984,6 +985,11 @@ export default {
           this.voices = [];
         }
       };
+      const mixerHandler = ev => {
+        if (!alive) { window.removeEventListener('mixer-changed', mixerHandler); return; }
+        if (ev.detail && ev.detail.channel === 'cook') Song.level(0.2);
+      };
+      window.addEventListener('mixer-changed', mixerHandler);
 
       /* ---- 33.15 input ----------------------------------------------------- */
       function refresh() {
