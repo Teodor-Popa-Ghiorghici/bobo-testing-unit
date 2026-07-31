@@ -233,6 +233,16 @@ export const SPRITES = {
     '<rect x="7" y="4" width="2" height="8" fill="#FFFF55"/>' +
     '<rect x="5" y="6" width="6" height="2" fill="#FFFF55"/>' +
     '<rect x="3" y="11" width="10" height="1" fill="#FF55FF"/></svg>',
+  /* a pixel star, for Stand Battle Arena (Star Platinum's emblem) */
+  arena:
+    '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="1" y="2" width="14" height="12" fill="#AA00AA"/>' +
+    '<rect x="2" y="3" width="12" height="10" fill="#000000"/>' +
+    '<rect x="7" y="4" width="2" height="2" fill="#FFFF55"/>' +
+    '<rect x="6" y="6" width="4" height="2" fill="#FFFF55"/>' +
+    '<rect x="4" y="8" width="8" height="2" fill="#FFFF55"/>' +
+    '<rect x="5" y="10" width="2" height="2" fill="#FFFF55"/>' +
+    '<rect x="9" y="10" width="2" height="2" fill="#FFFF55"/></svg>',
   video:
     '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
     '<rect x="1" y="2" width="14" height="12" fill="#AAAAAA"/>' +

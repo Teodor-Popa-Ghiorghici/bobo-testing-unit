@@ -22,6 +22,7 @@ export const registry = {
   cook: () => import('../apps/cook/index.js'),
   display: () => import('../apps/display/index.js'),
   about: () => import('../apps/about/index.js'),
+  standbattle: () => import('../apps/standbattle/index.js'),
 
   bekkedal: () => import('../apps/bekkedal/index.js'),
   bottle: () => import('../apps/bottle/index.js'),

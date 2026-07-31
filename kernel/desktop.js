@@ -27,7 +27,7 @@ const APP_SPRITES = {
   hifi: 'disc', notes: 'notes', bottle: 'bottle', elephant: 'elephant',
   magen: 'magen', cook: 'flask', garden: 'garden', sweeper: 'sweeper',
   solitaire: 'solitaire', crayon: 'crayon', shop: 'shop', drawings: 'drawings',
-  account: 'account'
+  account: 'account', standbattle: 'arena'
 };
 
 function spriteFor(type, app) {
