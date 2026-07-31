@@ -57,7 +57,7 @@ export default {
   async open() {
     const lines = await neofetchLines(vfs);
     createWindow({
-      kind: 'terminal', title: 'Neofetch', w: 560, h: 330,
+      kind: 'terminal', title: 'Neofetch', w: 560, h: 330, appId: 'neofetch',
       build: body => {
         const t = document.createElement('div');
         t.className = 'term';

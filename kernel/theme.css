@@ -520,14 +520,15 @@ html, body {
   user-select: none;
   flex: 0 0 auto;
 }
-.titlebar .t { padding: 0 6px; overflow: hidden; white-space: nowrap; }
+.titlebar .t { flex: 1 1 auto; padding: 0 6px; overflow: hidden; white-space: nowrap; }
+.titlebar .th,
 .titlebar .m,
 .titlebar .x {
   padding: 0 6px;
   cursor: pointer;
   border-left: 2px solid #000000;
 }
-.titlebar .m { margin-left: auto; }
+.titlebar .th:hover,
 .titlebar .m:hover,
 .titlebar .x:hover { background: #000000; color: var(--phos); }
 .wbody { flex: 1 1 auto; overflow: auto; background: #000000; position: relative; }
@@ -1398,7 +1399,7 @@ textarea.editor {
    ========================================================================== */
 #tube, #tube * { cursor: var(--cur-arrow, default); }
 #tube .icon, #tube .tbtn, #tube .mi, #tube .menuitem, #tube button,
-#tube .ddlink, #tube .ddmacro, #tube .titlebar .x, #tube .titlebar .m,
+#tube .ddlink, #tube .ddmacro, #tube .titlebar .x, #tube .titlebar .m, #tube .titlebar .th,
 #tube .shopcard, #tube .nchip { cursor: var(--cur-hand, pointer); }
 #tube .titlebar { cursor: var(--cur-move, move); }
 #tube input, #tube textarea { cursor: var(--cur-text, text); }

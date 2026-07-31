@@ -188,14 +188,35 @@ const Cos = {
     const room = document.getElementById('room');
     if (!room) return;
     const s = this.find('scheme', this.live('scheme')) || SCHEMES[0];
-    const v = s.v;
-    room.style.setProperty('--sch-bg', v.bg);
-    room.style.setProperty('--sch-fg', v.fg);
-    room.style.setProperty('--sch-ok', v.ok);
-    room.style.setProperty('--sch-hi', v.hi);
-    room.style.setProperty('--sch-err', v.err);
-    room.style.setProperty('--sch-dim', v.dim);
-    room.style.setProperty('--sch-acc', v.acc);
+    this.applySchemeVars(room, s.v);
+  },
+
+  applySchemeVars(el, v) {
+    el.style.setProperty('--sch-bg', v.bg);
+    el.style.setProperty('--sch-fg', v.fg);
+    el.style.setProperty('--sch-ok', v.ok);
+    el.style.setProperty('--sch-hi', v.hi);
+    el.style.setProperty('--sch-err', v.err);
+    el.style.setProperty('--sch-dim', v.dim);
+    el.style.setProperty('--sch-acc', v.acc);
+  },
+
+  /* a window's own scheme overrides whatever's set on #room, for that
+     window's subtree only -- CSS custom properties just cascade, so
+     nothing downstream needs to know this happened. Not persisted: it
+     lives with the window instance, the way the ask ("5 apps open, 5
+     different themes") describes it -- open the same app twice and
+     each copy keeps its own. */
+  applyWinScheme(win, schemeId) {
+    if (!win) return;
+    if (!schemeId) {
+      ['--sch-bg', '--sch-fg', '--sch-ok', '--sch-hi', '--sch-err', '--sch-dim', '--sch-acc']
+        .forEach(k => win.style.removeProperty(k));
+      return;
+    }
+    const s = this.find('scheme', schemeId);
+    if (!s) return;
+    this.applySchemeVars(win, s.v);
   },
 
   applyLogo() {

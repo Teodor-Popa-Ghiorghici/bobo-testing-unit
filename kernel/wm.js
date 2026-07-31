@@ -2,6 +2,7 @@ import { fs } from './vfs.js';
 import { registry } from './registry.js';
 import { Snd } from './snd.js';
 import { lampDip } from './hardware.js';
+import { Cos } from './cos.js';
 
 let zTop = 100;
 let cascadeN = 0;
@@ -72,6 +73,36 @@ export function createWindow(opts) {
   x.textContent = '[X]';
 
   bar.appendChild(t);
+
+  let winScheme = null;
+  if (opts.appId) {
+    const th = document.createElement('span');
+    th.className = 'th';
+    th.textContent = '[T]';
+    th.title = 'WINDOW THEME. Pick a colour scheme for just this window.';
+    th.addEventListener('mousedown', async ev => {
+      ev.stopPropagation();
+      if (window.Snd) window.Snd.click();
+      const { showMenu } = await import('./desktop.js');
+      const schemes = Cos.owned('scheme');
+      const items = [{ label: winScheme ? 'SYSTEM DEFAULT' : '> SYSTEM DEFAULT', run: () => {
+        winScheme = null;
+        Cos.applyWinScheme(win, null);
+      } }, { sep: true }];
+      schemes.forEach(id => {
+        const s = Cos.find('scheme', id);
+        if (!s) return;
+        items.push({ label: (winScheme === id ? '> ' : '') + s.name, run: () => {
+          winScheme = id;
+          Cos.applyWinScheme(win, id);
+        } });
+      });
+      const r = th.getBoundingClientRect();
+      showMenu(document.getElementById('ctxmenu'), r.left, r.bottom, items);
+    });
+    bar.appendChild(th);
+  }
+
   bar.appendChild(mbtn);
   bar.appendChild(x);
 
@@ -190,11 +221,12 @@ export async function openWindow(appId, args = {}) {
   if (app.open) return app.open(args);
   
   const made = createWindow({
-    kind: 'app', 
-    title: args.path || app.title, 
-    w: app.width || 640, 
-    h: app.height || 480, 
-    resizable: app.resizable
+    kind: 'app',
+    title: args.path || app.title,
+    w: app.width || 640,
+    h: app.height || 480,
+    resizable: app.resizable,
+    appId: appId
   });
   
   const ctx = {

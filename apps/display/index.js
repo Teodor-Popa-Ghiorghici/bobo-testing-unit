@@ -10,7 +10,7 @@ export default {
     ['VIGNETTE', 'vig', 'The corners going dark, the way a tube does.']
   ];
   const made = createWindow({
-    kind: 'terminal', title: 'DISPLAY.EXE', w: 420, h: 250,
+    kind: 'terminal', title: 'DISPLAY.EXE', w: 420, h: 250, appId: 'display',
     build: body => {
       const p = document.createElement('div');
       p.className = 'sysdlg';

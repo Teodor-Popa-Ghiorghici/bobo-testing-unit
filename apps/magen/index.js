@@ -12,7 +12,7 @@ import { mgIcon, mgUpIcon, mgTierIcon } from './icons.js';
 export default {
   open() {
   createWindow({
-    kind: 'app', title: 'Magen', w: 900, h: 590,
+    kind: 'app', title: 'Magen', w: 900, h: 590, appId: 'magen',
     build: body => {
       const root = document.createElement('div');
       root.className = 'mgroot';

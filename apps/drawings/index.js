@@ -19,7 +19,7 @@ export default {
   if (drawerWin && document.body.contains(drawerWin.win)) { raise(drawerWin.win); drawerWin.refresh(); return; }
   let pane = null;
   const made = createWindow({
-    kind: 'folder', title: 'MY DRAWINGS', w: 520, h: 420,
+    kind: 'folder', title: 'MY DRAWINGS', w: 520, h: 420, appId: 'drawings',
     build: body => {
       pane = document.createElement('div');
       pane.className = 'thumbwrap';

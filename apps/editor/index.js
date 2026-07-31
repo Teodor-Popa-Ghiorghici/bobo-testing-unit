@@ -18,7 +18,7 @@ function runHolyCToast(cmd, ctx) {
   if (window.Snd) { if (ok) window.Snd.holy(); else window.Snd.err(); }
   if (!rows.length) return;
   createWindow({
-    kind: 'terminal', title: 'HolyC JIT', w: 420, h: 220,
+    kind: 'terminal', title: 'HolyC JIT', w: 420, h: 220, appId: 'editor',
     build: body => {
       const t = document.createElement('div');
       t.className = 'term';

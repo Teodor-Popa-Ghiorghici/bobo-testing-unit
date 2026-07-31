@@ -42,7 +42,7 @@ export default {
      size instead of stretching a small bitmap to fill a bigger box. */
   const RES = 1.3;
   createWindow({
-    kind: 'app', title: 'The Cook', w: 820, h: 660,
+    kind: 'app', title: 'The Cook', w: 820, h: 660, appId: 'cook',
     build: body => {
       const wrap = document.createElement('div');
       wrap.className = 'gamepane ckpane';

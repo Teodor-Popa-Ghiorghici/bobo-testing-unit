@@ -79,7 +79,7 @@ export default {
   let current = null;         /* the saved record this canvas came from */
 
   const made = createWindow({
-    kind: 'app', title: 'DRAW.EXE', w: 800, h: 600,
+    kind: 'app', title: 'DRAW.EXE', w: 800, h: 600, appId: 'crayon',
     build: body => {
       root = document.createElement('div');
       root.className = 'drawroot';

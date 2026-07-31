@@ -38,7 +38,7 @@ export default {
   let raf = null, dripT = null, hoverX = -1, hoverY = -1;
 
   const made = createWindow({
-    kind: 'app', title: 'SWEEPER.EXE', w: 0, h: 0,
+    kind: 'app', title: 'SWEEPER.EXE', w: 0, h: 0, appId: 'sweeper',
     build: body => {
       const pane = document.createElement('div');
       pane.className = 'gamepane sweeppane';
