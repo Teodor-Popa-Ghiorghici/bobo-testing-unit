@@ -1,5 +1,6 @@
 import { lampDip, CRT, Vol } from '../../kernel/hardware.js';
 import { SPECIES } from '../../kernel/cos_data.js';
+import { Mixer } from '../../kernel/mixer.js';
 
 const BAYER4 = [
   [0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]
@@ -311,7 +312,7 @@ const GardenAir = {
     lfo.frequency.value = 0.06; lg.gain.value = 180;
     lfo.connect(lg); lg.connect(f.frequency);
     try { src.start(); lfo.start(); } catch (e) {}
-    g.gain.setTargetAtTime(0.22, ctx.currentTime, 2.2);
+    g.gain.setTargetAtTime(0.22 * Mixer.get('garden'), ctx.currentTime, 2.2);
     this.src = src; this.gain = g; this.lfo = lfo;
     this.birdT = setInterval(() => {
       if (!CRT.on || Vol.sfx <= 0) return;
@@ -338,6 +339,13 @@ const GardenAir = {
   }
 };
 this._GardenAir = GardenAir;
+const mixerHandler = ev => {
+  if (!document.body.contains(cv)) { window.removeEventListener('mixer-changed', mixerHandler); return; }
+  if (ev.detail && ev.detail.channel === 'garden' && GardenAir.gain && window.Snd.ctx) {
+    GardenAir.gain.gain.setTargetAtTime(0.22 * Mixer.get('garden'), window.Snd.ctx.currentTime, 0.3);
+  }
+};
+window.addEventListener('mixer-changed', mixerHandler);
 const W = 700, H = 436;
   let cv = null, g = null, info = null, seedBtn = null, canBtn = null, pullBtn = null;
   let canning = false, pulling = false, seedIx = 0;
