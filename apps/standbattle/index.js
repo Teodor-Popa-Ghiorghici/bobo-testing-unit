@@ -8,33 +8,37 @@ import { drawMap, pickNode, drawEvent, pickChoice, drawRest, pickRestContinue } 
 import { drawTitle, drawComplete } from './scenes.js';
 import { wireCombatAudio, sfxVictory, sfxDefeat, sfxActComplete } from './audio.js';
 import { musicStart, musicSetIntensity, musicStop } from './music.js';
+import { createSaveStore } from './save.js';
+import { createRng } from './rng.js';
+import { createInputSystem } from './input.js';
 
-const W = 384, H = 216;
-const KEYMAP = {
-  ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
-  KeyJ: 'light', KeyK: 'medium', KeyL: 'heavy',
-  Space: 'dodge', ShiftLeft: 'parry', ShiftRight: 'parry',
-  KeyU: 'special', KeyI: 'rush'
-};
+const W = 480, H = 270;
 
 export default {
   id: 'standbattle',
   title: 'STANDBATTLE.EXE',
   icon: 'assets/images/standbattle.png',
-  width: 800,
-  height: 540,
+  width: 1000,
+  height: 620,
   resizable: true,
 
   async mount(root, ctx) {
-    const _style = document.createElement('link');
-    _style.rel = 'stylesheet';
-    _style.href = 'apps/standbattle/style.css';
-    root.appendChild(_style);
+    const saveStore = createSaveStore(ctx);
+    const meta = await saveStore.loadMeta();
+    const savedRun = await saveStore.loadRun();
 
-    const state = { scene: 'title', runState: null, combat: null, currentEvent: null };
-    let shakeEnabled = await ctx.load('shakeEnabled');
-    if (shakeEnabled == null) shakeEnabled = true;
-    const cleared = !!(await ctx.load('cleared'));
+    const state = { scene: 'title', runState: null, runRng: null, combat: null, currentEvent: null };
+    let shakeEnabled = meta.shakeEnabled !== false;
+    const cleared = !!meta.cleared;
+    const input = createInputSystem(meta.keymap);
+
+    if (savedRun && savedRun.nodeIndex < ACT1_MORIOH.nodes.length) {
+      /* Resuming mid-run loses at most the node in progress -- combat
+         state itself is never persisted, only the map-scene checkpoint. */
+      state.runState = savedRun;
+      state.runRng = createRng(savedRun.seed);
+      state.scene = 'map';
+    }
 
     const pane = document.createElement('div');
     pane.className = 'gamepane sbpane';
@@ -48,9 +52,12 @@ export default {
     bar.className = 'appbar';
     const shakeBtn = document.createElement('button');
     shakeBtn.className = 'appbtn';
+    const debugBtn = document.createElement('button');
+    debugBtn.className = 'appbtn';
     const info = document.createElement('span');
     info.className = 'godword sbinfo';
     bar.appendChild(shakeBtn);
+    bar.appendChild(debugBtn);
     bar.appendChild(info);
 
     root.appendChild(pane);
@@ -59,9 +66,11 @@ export default {
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
 
+    /* integer scale only (§11) -- fit both axes, never a fractional blow-up */
     function resize() {
-      const availW = Math.max(W, pane.clientWidth || W * 2);
-      const scale = Math.max(1, Math.floor(availW / W));
+      const availW = Math.max(W, pane.clientWidth || W);
+      const availH = Math.max(H, pane.clientHeight || H);
+      const scale = Math.max(1, Math.floor(Math.min(availW / W, availH / H)));
       cv.style.width = (W * scale) + 'px';
       cv.style.height = (H * scale) + 'px';
     }
@@ -75,14 +84,33 @@ export default {
       ev.stopPropagation();
       shakeEnabled = !shakeEnabled;
       if (state.combat) state.combat.juice.setShakeEnabled(shakeEnabled);
-      ctx.save('shakeEnabled', shakeEnabled);
+      meta.shakeEnabled = shakeEnabled;
+      saveStore.saveMeta(meta);
       updateShakeBtn();
       if (window.Snd) window.Snd.click();
     });
 
+    /* Debug overlay toggle (tech §2.4/§2.5 deliverable 8): hitboxes,
+       hurtboxes, current frame, active windows, poise, i-frames. */
+    let debugEnabled = false;
+    function updateDebugBtn() { debugBtn.textContent = 'DEBUG: ' + (debugEnabled ? 'ON' : 'OFF'); }
+    updateDebugBtn();
+    debugBtn.addEventListener('mousedown', ev => {
+      ev.stopPropagation();
+      debugEnabled = !debugEnabled;
+      if (state.combat) state.combat.debug = debugEnabled;
+      updateDebugBtn();
+      if (window.Snd) window.Snd.click();
+    });
+
+    function persistRun() { saveStore.saveRun(state.runState); }
+
     function newRun() {
-      state.runState = { hp: 100, maxHp: 100, nodeIndex: 0, buffs: [] };
+      const seed = Date.now() + '-' + Math.floor(Math.random() * 1e9);
+      state.runRng = createRng(seed);
+      state.runState = { seed, hp: 100, maxHp: 100, nodeIndex: 0, buffs: [] };
       state.scene = 'map';
+      persistRun();
     }
 
     function startCombatForNode(node) {
@@ -96,9 +124,10 @@ export default {
           opts.speedMult = m.speedMult; opts.hpMult = m.hpMult; opts.tint = m.tint;
         }
       }
-      const combat = createCombat(enemyDef, state.runState.buffs, opts);
+      const combat = createCombat(enemyDef, state.runState.buffs, opts, state.runRng);
       combat.player.hp = state.runState.hp;
       combat.player.maxHp = state.runState.maxHp;
+      combat.debug = debugEnabled;
       wireCombatAudio(combat);
       musicSetIntensity(1);
       state.combat = combat;
@@ -116,13 +145,20 @@ export default {
       state.runState.nodeIndex++;
       state.scene = state.runState.nodeIndex >= ACT1_MORIOH.nodes.length ? 'complete' : 'map';
       musicSetIntensity(0);
-      if (state.scene === 'complete') { ctx.save('cleared', true); sfxActComplete(); }
+      if (state.scene === 'complete') {
+        meta.cleared = true;
+        saveStore.saveMeta(meta);
+        saveStore.clearRun();
+        sfxActComplete();
+      } else {
+        persistRun();
+      }
     }
 
     function applyEventChoice(idx) {
       const choice = state.currentEvent.choices[idx];
       if (choice.kind === 'heal') state.runState.hp = Math.min(state.runState.maxHp, state.runState.hp + choice.amount);
-      else if (choice.kind === 'buff') state.runState.buffs.push(RUN_BUFFS[Math.floor(Math.random() * RUN_BUFFS.length)]);
+      else if (choice.kind === 'buff') state.runState.buffs.push(state.runRng.stream('rewards').pick(RUN_BUFFS));
       if (window.Snd) window.Snd.chirp();
       advanceNode();
     }
@@ -154,6 +190,7 @@ export default {
           state.runState.hp = state.combat.player.hp;
           advanceNode();
         } else {
+          saveStore.clearRun();
           state.scene = 'title';
         }
       } else if (state.scene === 'complete') {
@@ -162,11 +199,11 @@ export default {
     }
 
     function onKey(ev, down) {
-      const action = KEYMAP[ev.code];
-      if (!action) return;
+      const resolved = input.resolveKey(ev.code, down);
+      if (!resolved) return;
       ev.preventDefault();
       ev.stopPropagation();
-      if (state.scene === 'combat' && state.combat) state.combat.setKey(action, down);
+      if (state.scene === 'combat' && state.combat) state.combat.setKey(resolved.action, down);
     }
     cv.addEventListener('keydown', ev => onKey(ev, true));
     cv.addEventListener('keyup', ev => onKey(ev, false));
@@ -176,6 +213,7 @@ export default {
     let raf = null, t0 = performance.now(), tsec = 0;
     function frame(now) {
       raf = requestAnimationFrame(frame);
+      input.tick();
       const dt = Math.min(50, now - t0);
       t0 = now;
       tsec += dt / 1000;
@@ -190,15 +228,15 @@ export default {
           musicSetIntensity(0);
           if (c.outcome === 'win') sfxVictory(); else sfxDefeat();
         }
-        drawCombat(g, W, H, c, tsec);
+        drawCombat(g, W, H, c, tsec, dt, ACT1_MORIOH.nodes[state.runState.nodeIndex].id);
       }
       else if (state.scene === 'map') drawMap(g, W, H, ACT1_MORIOH.nodes, state.runState, tsec);
-      else if (state.scene === 'event') drawEvent(g, W, H, state.currentEvent);
-      else if (state.scene === 'rest') drawRest(g, W, H, state.runState);
+      else if (state.scene === 'event') drawEvent(g, W, H, state.currentEvent, tsec);
+      else if (state.scene === 'rest') drawRest(g, W, H, state.runState, tsec);
       else if (state.scene === 'title') drawTitle(g, W, H, tsec, cleared);
-      else if (state.scene === 'complete') drawComplete(g, W, H, state.runState);
+      else if (state.scene === 'complete') drawComplete(g, W, H, state.runState, tsec);
       info.textContent = state.scene === 'combat'
-        ? 'A/D MOVE  J/K/L ATTACK  SPACE DODGE  SHIFT PARRY  U SPECIAL  I RUSH'
+        ? 'A/D MOVE  W/S DEPTH  J/K/L ATTACK  SPACE STEP  SHIFT CLASH  G GUARD  U SPECIAL  I RUSH'
         : 'CLICK TO CONTINUE';
     }
     raf = requestAnimationFrame(frame);
