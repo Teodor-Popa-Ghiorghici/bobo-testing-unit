@@ -80,17 +80,30 @@ not change with the resolution.**
 
 ### The art scale
 
-Tile art and sprites are still authored on the original 20px tile
+Most tile art and sprites are still authored on the original 20px tile
 (`BEK_T_SRC`). The playfield draws inside one `BEK_ART_SCALE` transform, so
-every literal in `drawTile`, `drawSoil`, `drawIcon`, `person`, `bear` and
-`goat` still means what it did at 480×300 and none of it had to be redrawn.
-That is why those functions multiply by `BEK_T_SRC`, not `BEK_T`: inside the
-transform they are working in source space. `BEK_T` is for camera and world
-arithmetic outside it.
+every literal in `drawTile`, `drawIcon`, `person`, `bear` and `goat` still
+means what it did at 480×300 and none of it had to be redrawn. That is why
+those functions multiply by `BEK_T_SRC`, not `BEK_T`: inside the transform
+they are working in source space. `BEK_T` is for camera and world arithmetic
+outside it.
 
-Phase 3 redraws the art at native density; when it does, `BEK_ART_SCALE` goes
-to 1 and `BEK_T_SRC` becomes `BEK_T`. Until then the scale must stay a whole
-number or the art stops landing on exact pixels.
+The art uplift is converting this one piece at a time. Terrain went first:
+`grassBase`, `caveFloor`, `pathTile`, `waterEdgeTile` and `drawSoil`'s
+`tilledSoil` now draw in real `BEK_T` pixels instead of scaled-up
+`BEK_T_SRC` art. They still run inside `drawTile`/`drawSoil`, which still
+draw everything else (trees, buildings, furniture, crops, sprites) in source
+space under the shared transform — so each converted function opens with
+`native()`, which cancels that transform for just its own fill. Converted
+and unconverted code can sit side by side in the same `drawTile` call this
+way: whichever coordinate space a given `if (c === ...)` branch uses, both
+land on the same device pixels, because `BEK_T === BEK_T_SRC * BEK_ART_SCALE`.
+A function that has been converted must not multiply by `BEK_T_SRC` again.
+
+Eventually every function converts and `BEK_ART_SCALE` goes to 1, at which
+point `native()` becomes a no-op and can be retired along with `BEK_T_SRC`.
+Until then the scale must stay a whole number or the art stops landing on
+exact pixels.
 
 ## Checks
 

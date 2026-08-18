@@ -922,17 +922,44 @@ export default {
       const rustic = () => S.map === 'farm' || S.map === 'setra' || S.map === 'lake' ||
                            S.map === 'enga' || S.map === 'farmhouse' || S.map === 'lakehouse';
 
+      /* ---- native-resolution terrain (art uplift, batch 1) ---------------
+         grassBase, caveFloor, the path/water-edge tiles below and drawSoil's
+         tilled earth now draw at real BEK_T density instead of the scaled-up
+         BEK_T_SRC art the rest of drawTile still uses. They still run inside
+         the shared BEK_ART_SCALE transform the playfield draws under (see
+         `draw`), so each one opens with `native()`, which cancels that
+         transform for just its own fill: one unit drawn inside it is one real
+         screen pixel, and BEK_T is the tile span instead of BEK_T_SRC.
+         Everything else in drawTile is still unconverted and keeps
+         multiplying by BEK_T_SRC under the ambient scale until its own batch
+         — Phase 3 retires this once every function is native and
+         BEK_ART_SCALE goes to 1. */
+      function native(draw) {
+        g.save();
+        g.scale(1 / BEK_ART_SCALE, 1 / BEK_ART_SCALE);
+        draw();
+        g.restore();
+      }
+
       /* seven tuft colours instead of one, so a field of grass stops reading
          as a single flat green */
       /* Mostly greens with the odd dry or flowering blade — enough to break up
          a field, not so much that the grass turns to confetti. */
       const TUFT = [10, 2, 10, 14, 10, 2, 3];
-      function grassBase(px, py, seed, v) {
-        g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        g.fillStyle = C(TUFT[v % TUFT.length]);
-        g.fillRect(px + 2 + seed, py + 3, 1, 2); g.fillRect(px + 8, py + 16, 1, 2);
-        g.fillStyle = C(TUFT[(v * 3 + 1) % TUFT.length]);
-        g.fillRect(px + 13, py + 11 + (seed % 3), 1, 2);
+      function grassBase(x, y, seed, v) {
+        const px = x * BEK_T, py = y * BEK_T;
+        native(() => {
+          g.fillStyle = C(2); g.fillRect(px, py, BEK_T, BEK_T);
+          g.fillStyle = C(TUFT[v % TUFT.length]);
+          g.fillRect(px + 4 + seed * 2, py + 6, 2, 4); g.fillRect(px + 16, py + 32, 2, 4);
+          g.fillStyle = C(TUFT[(v * 3 + 1) % TUFT.length]);
+          g.fillRect(px + 26, py + 22 + (seed % 3) * 2, 2, 4);
+          /* one more blade than the three above, on its own seed — a gentle
+             lift in density rather than a scatter that reads as static once
+             a whole field of tiles is on screen together */
+          g.fillStyle = C(TUFT[(v + seed + 2) % TUFT.length]);
+          g.fillRect(px + 33 - seed, py + 11 + seed, 2, 3);
+        });
       }
 
       /* the floor of a room: boards, never grass, and only the odd knot */
@@ -945,13 +972,21 @@ export default {
 
       /* the floor of the gruva: it is a hole in a mountain, so it is gravel.
          Grass down here was reading as a lawn a hundred feet underground. */
-      function caveFloor(px, py, seed, v) {
-        /* dark floor, lit rock walls — the other way round and the corridors
-           disappear into the stone they are cut through */
-        g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        g.fillStyle = C(8); g.fillRect(px + 2 + seed, py + 5, 3, 2); g.fillRect(px + 12, py + 13, 4, 2); g.fillRect(px + 7, py + 16, 2, 1);
-        g.fillStyle = C(7); g.fillRect(px + 6, py + 10, 2, 1); g.fillRect(px + 15, py + 3, 1, 1);
-        if (v === 3) { g.fillStyle = C(6); g.fillRect(px + 9, py + 8, 2, 2); }
+      function caveFloor(x, y, seed, v) {
+        const px = x * BEK_T, py = y * BEK_T;
+        native(() => {
+          /* dark floor, lit rock walls — the other way round and the corridors
+             disappear into the stone they are cut through */
+          g.fillStyle = C(0); g.fillRect(px, py, BEK_T, BEK_T);
+          g.fillStyle = C(8);
+          g.fillRect(px + 4 + seed * 2, py + 10, 6, 4); g.fillRect(px + 24, py + 26, 8, 4); g.fillRect(px + 14, py + 32, 4, 2);
+          g.fillStyle = C(7);
+          g.fillRect(px + 12, py + 20, 4, 2); g.fillRect(px + 30, py + 6, 2, 2);
+          if (v === 3) { g.fillStyle = C(6); g.fillRect(px + 18, py + 16, 4, 4); }
+          /* rare extras only, so the gravel stays sparse rather than static */
+          if (seed === 4) { g.fillStyle = C(6); g.fillRect(px + 6, py + 6, 3, 3); }    /* a second dirt clump */
+          if (v === 6) { g.fillStyle = C(15); g.fillRect(px + 20, py + 24, 1, 1); }    /* a mineral glint in the grit */
+        });
       }
 
       /* The outer ring of every map, drawn as a hard black frame with a grey
@@ -970,6 +1005,42 @@ export default {
         if (D) g.fillRect(px, py + BEK_T_SRC - 5, BEK_T_SRC, 1);
         if (L) g.fillRect(px + 4, py, 1, BEK_T_SRC);
         if (R) g.fillRect(px + BEK_T_SRC - 5, py, 1, BEK_T_SRC);
+      }
+
+      /* a worn trail: no directional art (the same glyph does every bend and
+         junction on the map), so the detail stays scattered grit rather than
+         implying a direction the tile can't back up */
+      function pathTile(x, y, seed, v) {
+        const px = x * BEK_T, py = y * BEK_T;
+        native(() => {
+          g.fillStyle = C(6); g.fillRect(px, py, BEK_T, BEK_T);
+          g.fillStyle = C(8);
+          g.fillRect(px + 6 + seed * 2, py + 10, 4, 2); g.fillRect(px + 24, py + 26 - seed, 4, 2);
+          g.fillStyle = C(7);
+          g.fillRect(px + 16, py + 18, 4, 2); g.fillRect(px + 30, py + 6, 2, 2);
+          g.fillStyle = C(0); g.fillRect(px + 14 + seed * 3, py + 24 + seed, 2, 1);    /* a crack in the hardpack */
+          if (v === 1) { g.fillStyle = C(14); g.fillRect(px + 10, py + 32, 2, 2); }
+        });
+      }
+
+      /* the shallow shore: mostly water, a foam seam where it meets the bank,
+         then the strip of sand and turf that the deep-water 'W' tile doesn't
+         carry. Ripple bands still drift with `t` the way they always did. */
+      function waterEdgeTile(x, y, t, seed) {
+        const px = x * BEK_T, py = y * BEK_T, w = Math.floor(t * 2 + x + y) % 4;
+        native(() => {
+          g.fillStyle = C(1); g.fillRect(px, py, BEK_T, BEK_T);
+          g.fillStyle = C(3); g.fillRect(px, py, BEK_T, 16);
+          g.fillStyle = C(9); g.fillRect(px, py, BEK_T, 8);
+          g.fillStyle = C(11);
+          g.fillRect(px + 6, py + 4 + w, 12, 2); g.fillRect(px + 24, py + 8 - w, 10, 2);
+          g.fillRect(px + 2, py + 20 + (seed % 3), 8, 1); g.fillRect(px + 22, py + 24 - (seed % 3), 10, 1);
+          g.fillStyle = C(15); g.fillRect(px, py + 28, BEK_T, 1);                          /* foam, water meets sand */
+          g.fillStyle = C(11); g.fillRect(px + 3 + seed * 2, py + 29, 6, 1); g.fillRect(px + 22, py + 29, 8, 1);
+          g.fillStyle = C(14); g.fillRect(px, py + 30, BEK_T, 4);                          /* sand */
+          g.fillStyle = C(6); g.fillRect(px, py + 34, BEK_T, 6);                           /* bank */
+          g.fillStyle = C(8); g.fillRect(px + 5 + seed * 3, py + 36, 2, 2); g.fillRect(px + 27, py + 35, 2, 1);
+        });
       }
 
       function drawTile(c, x, y, t) {
@@ -991,23 +1062,17 @@ export default {
           return;
         }
         if (c === '~') {
-          g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-          g.fillStyle = C(3); g.fillRect(px, py, BEK_T_SRC, 8);
-          g.fillStyle = C(9); g.fillRect(px, py, BEK_T_SRC, 4);
-          g.fillStyle = C(11); g.fillRect(px + 3, py + 2, 6, 1); g.fillRect(px + 12, py + 4, 5, 1);
-          g.fillStyle = C(14); g.fillRect(px, py + BEK_T_SRC - 5, BEK_T_SRC, 2);
-          g.fillStyle = C(6); g.fillRect(px, py + BEK_T_SRC - 3, BEK_T_SRC, 3);
+          waterEdgeTile(x, y, t, seed);
           if (rim) edgeMark(px, py, x, y);
           return;
         }
-        if (c === '.' || c === 'P') {
+        if (c === 'P') {
           g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-          if (c === 'P') { g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1); g.fillStyle = C(6); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC); }
-          else {
-            g.fillStyle = C(8); g.fillRect(px + 3 + seed, py + 5, 2, 1); g.fillRect(px + 12, py + 13 - seed, 2, 1);
-            g.fillStyle = C(7); g.fillRect(px + 8, py + 9, 2, 1); g.fillRect(px + 15, py + 3, 1, 1);
-            if (v === 1) { g.fillStyle = C(14); g.fillRect(px + 5, py + 16, 1, 1); }
-          }
+          g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1); g.fillStyle = C(6); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
+          return;
+        }
+        if (c === '.') {
+          pathTile(x, y, seed, v);
           return;
         }
         if (c === 'M' || c === 'O' || c === 'Q') {
@@ -1023,8 +1088,8 @@ export default {
           return;
         }
         if (ins) floorBase(px, py, seed, v);
-        else if (cave) caveFloor(px, py, seed, v);
-        else grassBase(px, py, seed, v);
+        else if (cave) caveFloor(x, y, seed, v);
+        else grassBase(x, y, seed, v);
         if (c === ',') { g.fillStyle = C(10); g.fillRect(px + 4, py + 8, 1, 8); g.fillRect(px + 7, py + 6, 1, 10); g.fillRect(px + 11, py + 9, 1, 7); g.fillRect(px + 14, py + 7, 1, 9); g.fillStyle = C(TUFT[v % TUFT.length]); g.fillRect(px + 7, py + 5, 1, 2); }
         if (c === 'F') { const fc = [15, 14, 13, 5, 11]; g.fillStyle = C(fc[v % 5]); g.fillRect(px + 6, py + 8, 2, 2); g.fillStyle = C(fc[(v + 2) % 5]); g.fillRect(px + 12, py + 12, 2, 2); g.fillStyle = C(fc[(v + 4) % 5]); g.fillRect(px + 4, py + 14, 2, 2); }
         if (c === 'p') { const cols = [9, 14, 13, 5]; g.fillStyle = C(2); g.fillRect(px + 9, py + 10, 1, 7); g.fillStyle = C(cols[v % 4]); g.fillRect(px + 7, py + 7, 5, 4); g.fillStyle = C(15); g.fillRect(px + 9, py + 8, 1, 1); }
@@ -1152,11 +1217,28 @@ export default {
         }
         if (rim) edgeMark(px, py, x, y);
       }
+      /* Ploughed in even rows, so the furrows always run the same way the
+         field was worked — horizontal bands that line up tile to tile rather
+         than each tile picking its own direction. Wet soil goes darker as
+         well as greyer and keeps a black, dither-proof shadow in every
+         furrow (plus a glint of standing water) so it still reads apart from
+         dry soil once the night stipple is over everything. */
+      function tilledSoil(x, y, wet) {
+        const px = x * BEK_T, py = y * BEK_T, seed = (x * 7 + y * 13) % 5;
+        native(() => {
+          g.fillStyle = C(wet ? 8 : 6); g.fillRect(px + 2, py + 2, 36, 36);
+          g.fillStyle = C(wet ? 0 : 8);
+          g.fillRect(px + 4, py + 9, 32, 2); g.fillRect(px + 4, py + 19, 32, 2); g.fillRect(px + 4, py + 29, 32, 2);
+          g.fillStyle = C(7);
+          g.fillRect(px + 4, py + 8, 32, 1); g.fillRect(px + 4, py + 18, 32, 1); g.fillRect(px + 4, py + 28, 32, 1);
+          if (wet) { g.fillStyle = C(9); g.fillRect(px + 7 + seed * 6, py + 11, 1, 1); g.fillRect(px + 28 - seed * 4, py + 31, 1, 1); }
+        });
+      }
       function drawSoil(x, y) {
         const c = S.soil[key(x, y)]; if (!c) return;
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        if (c.till) { g.fillStyle = C(c.wet ? 8 : 6); g.fillRect(px + 1, py + 1, 18, 18); g.fillStyle = C(c.wet ? 0 : 8); g.fillRect(px + 3, py + 5, 14, 1); g.fillRect(px + 3, py + 11, 14, 1); }
+        if (c.till) tilledSoil(x, y, c.wet);
         if (!c.seed) return;
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         const spec = BEK_CROPS[c.seed]; const f = Math.min(1, c.age / spec.days); const h = 3 + Math.round(f * 11);
         g.fillStyle = C(10); g.fillRect(px + 9, py + 18 - h, 2, h);
         g.fillStyle = C(2); g.fillRect(px + 6, py + 16 - h, 3, 2); g.fillRect(px + 11, py + 14 - h, 3, 2);
