@@ -744,13 +744,16 @@ textarea.editor {
   background: var(--sch-bg, #000000);
 }
 .gamecv { outline: 0; cursor: crosshair; }
-/* Bekkedal draws 480x300 and is presented at 150% — a whole-number-ish blow-up
-   the pixelated scaler keeps crisp. height:auto holds the ratio while
-   max-width shrinks it on a small desktop, and max-height must be released
-   or the shared rule squashes the picture instead of scaling it. */
+/* Bekkedal draws 960x540 and is presented at 100% — one canvas pixel to one
+   CSS pixel, which is the only ratio `image-rendering: pixelated` can keep
+   perfectly crisp. The old build drew 480x300 and blew it up 150%, a
+   fractional factor that gave some rows two screen pixels and others one.
+   height:auto holds the 16:9 ratio while max-width shrinks it on a small
+   desktop, and max-height must be released or the shared rule squashes the
+   picture instead of scaling it. */
 .bekcv {
   cursor: default;
-  width: 720px;
+  width: 960px;
   height: auto;
   max-height: none;
 }
