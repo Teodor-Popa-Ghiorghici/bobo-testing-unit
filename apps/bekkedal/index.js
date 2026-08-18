@@ -97,7 +97,18 @@ export default {
         cv.style.height = (BEK_H * scale) + 'px';
         wrap.style.backgroundColor = C(0);              /* solid VGA16 letterbox/pillarbox */
       }
+      /* Escape exiting fullscreen is the browser's own doing, not ours — it
+         can't be preventDefault()'d, and some browsers swallow that keydown
+         entirely instead of also delivering it to the page, so the shop/bag/
+         quest/etc. handlers below never see it and the menu is left open
+         behind a windowed game. manualFSToggle tells fullscreenchange
+         whether *we* drove this transition (F11 / the button, which should
+         leave menus alone) or the browser did on its own (Escape or its
+         fullscreen-exit UI), in which case backing out of an open menu too
+         is the least surprising thing to do. */
+      let manualFSToggle = false;
       function toggleFullscreen() {
+        manualFSToggle = true;
         if (document.fullscreenElement === wrap) document.exitFullscreen().catch(() => {});
         else wrap.requestFullscreen().catch(() => {});
       }
@@ -105,6 +116,8 @@ export default {
         const on = document.fullscreenElement === wrap;
         bFull.classList.toggle('on', on);
         if (S) S.fullscreen = on ? 1 : 0;
+        if (!on && !manualFSToggle) closeMenu();
+        manualFSToggle = false;
         applyScale();
       };
       document.addEventListener('fullscreenchange', onFSChange);
@@ -751,6 +764,16 @@ export default {
       }
 
       /* ---- input -------------------------------------------------------- */
+      /* the one place Escape's "back out of the current menu" action lives,
+         so fullscreen's own Escape fallback (above) stays in lockstep with
+         every mode's keydown handler instead of duplicating each one */
+      function closeMenu() {
+        if (mode === 'talk' && dlg && !dlg.opts) { dlgAdvance(); return; }
+        if (mode === 'offer') { offer = null; mode = ''; return; }
+        if (mode === 'shop') { shop = null; mode = ''; return; }
+        if (mode === 'travel') { travel = null; mode = ''; return; }
+        if (mode === 'bag' || mode === 'quest' || mode === 'sleep') { mode = ''; return; }
+      }
       cv.addEventListener('keydown', e => {
         const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
         if (k === 'F11') { e.preventDefault(); toggleFullscreen(); return; }
@@ -778,7 +801,7 @@ export default {
         }
         if (mode === 'offer') {
           if (k === ' ' || k === 'Enter') doOffer();
-          if (k === 'Escape' || k === 'e') { offer = null; mode = ''; }
+          if (k === 'Escape' || k === 'e') closeMenu();
           return;
         }
         if (mode === 'shop') {
@@ -789,18 +812,18 @@ export default {
           if (k === 'w' || k === 'ArrowUp') shop.sel = (shop.sel + len - 1) % len;
           if (k === 's' || k === 'ArrowDown') shop.sel = (shop.sel + 1) % len;
           if (k === ' ' || k === 'Enter') { shop.side ? shopSell() : shopBuy(); }
-          if (k === 'Escape' || k === 'e') { shop = null; mode = ''; }
+          if (k === 'Escape' || k === 'e') closeMenu();
           return;
         }
         if (mode === 'travel') {
           if (k === 'w' || k === 'ArrowUp') travel.sel = (travel.sel + travel.list.length - 1) % travel.list.length;
           if (k === 's' || k === 'ArrowDown') travel.sel = (travel.sel + 1) % travel.list.length;
           if (k === ' ' || k === 'Enter') doTravel();
-          if (k === 'Escape' || k === 'm') { travel = null; mode = ''; }
+          if (k === 'Escape' || k === 'm') closeMenu();
           return;
         }
-        if (mode === 'bag' || mode === 'quest') { if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') mode = ''; return; }
-        if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(500, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else newDay(false); } if (k === 'Escape') mode = ''; return; }
+        if (mode === 'bag' || mode === 'quest') { if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') closeMenu(); return; }
+        if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(500, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else newDay(false); } if (k === 'Escape') closeMenu(); return; }
 
         /* walking */
         if (k === ' ') { if (fish) fishTap(); else act(); return; }
