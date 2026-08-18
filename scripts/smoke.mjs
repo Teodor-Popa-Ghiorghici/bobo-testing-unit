@@ -273,8 +273,78 @@ function caseMigration() {
   report('previous-version save migrates cleanly', true);
 }
 
+/* ---- case 4: finishing the house is a permanent milestone, not a reset --- */
+/* Drives the real ending path: stand on the lake lot's sign with S.built
+   already set (the ending screen only reaches lotSign()'s S.built branch,
+   see index.js around the SPACE handler for mode === 'end'), press SPACE to
+   open the ending screen, then SPACE again to dismiss it. Asserts money,
+   inventory and day are untouched (i.e. `S = fresh()` was not called) and
+   that houseBuilt/houseBuiltDay/act2Unlocked landed on the same save. */
+function findCanvas() {
+  return createdEls.find(el => el.tagName === 'canvas');
+}
+
+function caseHouseCompletionMilestone() {
+  clearSave();
+  let seedHandle;
+  try { seedHandle = mountApp(); } catch (e) {
+    report('house completion is a permanent milestone', false, 'seed mount() threw: ' + (e && e.stack || e));
+    return;
+  }
+  seedHandle.bSave.click();
+  const seedRaw = globalThis.localStorage.getItem(BEK_SAVE);
+  if (!seedRaw) { report('house completion is a permanent milestone', false, 'seed save was not written'); return; }
+  const save = JSON.parse(seedRaw);
+
+  const KNOWN_KR = 4321;
+  const KNOWN_DAY = 17;
+  const KNOWN_BAG = { sopp: 7, tommer: 3 };
+  save.kr = KNOWN_KR;
+  save.day = KNOWN_DAY;
+  save.bag = KNOWN_BAG;
+  save.built = 1;                       /* the house structure already stands */
+  save.houseBuilt = false; save.houseBuiltDay = null; save.act2Unlocked = false;
+  save.map = 'lake'; save.px = 4; save.py = 7; save.dir = 1;   /* facing the lot sign at (4,6) */
+
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+
+  let handle;
+  try { handle = mountApp(); } catch (e) {
+    report('house completion is a permanent milestone', false, 'mount() threw: ' + (e && e.stack || e));
+    return;
+  }
+  const cv = findCanvas();
+  if (!cv) { report('house completion is a permanent milestone', false, 'canvas not found'); return; }
+
+  const space = { key: ' ', preventDefault: () => {} };
+  try {
+    cv.keydown(space);   /* act() on the sign -> lotSign() -> mode = 'end' */
+    cv.keydown(space);   /* SPACE on the ending screen -> mark milestone, dismiss */
+  } catch (e) {
+    report('house completion is a permanent milestone', false, 'threw driving the ending path: ' + (e && e.stack || e));
+    return;
+  }
+
+  handle.bSave.click();
+  const afterRaw = globalThis.localStorage.getItem(BEK_SAVE);
+  if (!afterRaw) { report('house completion is a permanent milestone', false, 'save was not written after dismissing ending'); return; }
+  const after = JSON.parse(afterRaw);
+
+  const problems = [];
+  if (after.kr !== KNOWN_KR) problems.push('kr changed: ' + after.kr + ' !== ' + KNOWN_KR);
+  if (after.day !== KNOWN_DAY) problems.push('day changed: ' + after.day + ' !== ' + KNOWN_DAY);
+  if (JSON.stringify(after.bag) !== JSON.stringify(KNOWN_BAG)) problems.push('bag changed: ' + JSON.stringify(after.bag) + ' !== ' + JSON.stringify(KNOWN_BAG));
+  if (after.houseBuilt !== true) problems.push('houseBuilt not set: ' + after.houseBuilt);
+  if (after.houseBuiltDay !== KNOWN_DAY) problems.push('houseBuiltDay not recorded: ' + after.houseBuiltDay + ' !== ' + KNOWN_DAY);
+  if (after.act2Unlocked !== true) problems.push('act2Unlocked not derived from houseBuilt: ' + after.act2Unlocked);
+
+  report('house completion is a permanent milestone', problems.length === 0, problems.join('; '));
+}
+
 caseSimulate30Days();
 caseRoundTrip();
 caseMigration();
+caseHouseCompletionMilestone();
 
 process.exit(failed ? 1 : 0);

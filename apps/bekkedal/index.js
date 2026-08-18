@@ -53,7 +53,7 @@ export default {
       /* ---- state -------------------------------------------------------- */
       let S = null;
       const fresh = () => ({
-        ver: 2, lang: BEK_LANG,
+        ver: 3, lang: BEK_LANG,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -64,7 +64,13 @@ export default {
         fr: { astrid: 0, hakon: 0, ingrid: 0, olav: 0, marit: 0, sigrid: 0, gunnar: 0, lars: 0 },
         met: {}, seen: {}, flag: {}, q: {},
         chatIx: {}, disc: { farm: 1 }, weather: 'klar',
-        built: 0, ending: 0
+        built: 0, ending: 0,
+        /* the completed house is a permanent milestone, not part of the
+           resettable run state — never touched by fresh() after game start */
+        houseBuilt: false, houseBuiltDay: null,
+        /* derived from houseBuilt; not referenced anywhere yet, it is the
+           hook Phase 8 (act 2 content) will read */
+        act2Unlocked: false
       });
       /* nested objects a stale save might be missing */
       const heal = s => {
@@ -74,7 +80,7 @@ export default {
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
-        ['axeLv', 'pickLv', 'seedIx', 'enMax', 'waterMax', 'weather', 'ver'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        ['axeLv', 'pickLv', 'seedIx', 'enMax', 'waterMax', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
         if (typeof s.chatIx === 'number') s.chatIx = {};
         return s;
@@ -687,7 +693,15 @@ export default {
         keys[k] = true;
         if (k === ' ' || k === 'Tab' || String(k).indexOf('Arrow') === 0) e.preventDefault();
 
-        if (mode === 'end') { if (k === ' ' || k === 'Enter') { S = fresh(); spawnDrops(); mode = ''; Song.pickNext(true); } return; }
+        if (mode === 'end') {
+          if (k === ' ' || k === 'Enter') {
+            /* the finished house is a permanent milestone: mark it on the
+               same save and return to play, never S = fresh() */
+            S.houseBuilt = true; S.houseBuiltDay = S.day; S.act2Unlocked = S.houseBuilt;
+            mode = ''; Song.pickNext(true);
+          }
+          return;
+        }
         if (mode === 'talk') {
           if (dlg && dlg.opts) {
             if (k === 'w' || k === 'ArrowUp') { dlg.sel = (dlg.sel + dlg.opts.opts.length - 1) % dlg.opts.opts.length; sfx.sel(); }
