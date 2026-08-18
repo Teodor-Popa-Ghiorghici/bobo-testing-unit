@@ -54,9 +54,18 @@ export default {
       const bSave = document.createElement('button'); bSave.className = 'appbtn'; bSave.textContent = 'SAVE';
       const bLoad = document.createElement('button'); bLoad.className = 'appbtn'; bLoad.textContent = 'LOAD';
       const bLang = document.createElement('button'); bLang.className = 'appbtn';
+      const bFull = document.createElement('button'); bFull.className = 'appbtn'; bFull.textContent = 'FULLSCREEN';
       const info = document.createElement('span'); info.className = 'godword';
-      bar.appendChild(bSave); bar.appendChild(bLoad); bar.appendChild(bLang); bar.appendChild(info);
+      bar.appendChild(bSave); bar.appendChild(bLoad); bar.appendChild(bLang); bar.appendChild(bFull); bar.appendChild(info);
       body.appendChild(wrap); body.appendChild(bar);
+
+      /* wrap/bar become an explicit flex column so wrap's box (the space the
+         canvas has to scale into) is the window body's height minus the
+         appbar, not however tall the canvas happens to make it — otherwise
+         sizing the canvas from wrap's own size would be circular. */
+      body.style.display = 'flex'; body.style.flexDirection = 'column';
+      wrap.style.flex = '1 1 auto'; wrap.style.minHeight = '0';
+      bar.style.flex = '0 0 auto';
 
       const g = cv.getContext('2d');
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
@@ -69,10 +78,45 @@ export default {
                               'WASD · SPACE ACT · F PLANT · C SEED · TAB TOOL · R EAT · I BAG · Q QUESTS · M MAP');
       };
 
+      /* ---- fullscreen & the display scale --------------------------------
+         The canvas is always drawn at its native BEK_W x BEK_H (960x540) —
+         fullscreen and windowed resize only change how many whole screen
+         pixels each canvas pixel is presented at. A ResizeObserver on wrap
+         is the single trigger for recomputing that scale: entering/leaving
+         fullscreen resizes wrap exactly like dragging the window's grip
+         does, so both paths recompute the same way and Escape (which the
+         browser handles natively) needs no special-casing here — it just
+         shrinks wrap back to the windowed box, which the observer picks up
+         and rescales to the same integer factor as before. */
+      function applyScale() {
+        const isFS = document.fullscreenElement === wrap;
+        const availW = isFS ? window.innerWidth : wrap.clientWidth;
+        const availH = isFS ? window.innerHeight : wrap.clientHeight;
+        const scale = Math.max(1, Math.min(Math.floor(availW / BEK_W), Math.floor(availH / BEK_H)));
+        cv.style.width = (BEK_W * scale) + 'px';
+        cv.style.height = (BEK_H * scale) + 'px';
+        wrap.style.backgroundColor = C(0);              /* solid VGA16 letterbox/pillarbox */
+      }
+      function toggleFullscreen() {
+        if (document.fullscreenElement === wrap) document.exitFullscreen().catch(() => {});
+        else wrap.requestFullscreen().catch(() => {});
+      }
+      const onFSChange = () => {
+        const on = document.fullscreenElement === wrap;
+        bFull.classList.toggle('on', on);
+        if (S) S.fullscreen = on ? 1 : 0;
+        applyScale();
+      };
+      document.addEventListener('fullscreenchange', onFSChange);
+      const ro = new ResizeObserver(() => applyScale());
+      ro.observe(wrap);
+      applyScale();
+      bFull.addEventListener('click', () => { toggleFullscreen(); cv.focus(); });
+
       /* ---- state -------------------------------------------------------- */
       let S = null;
       const fresh = () => ({
-        ver: 3, lang: BEK_LANG,
+        ver: 4, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -99,7 +143,7 @@ export default {
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
-        ['axeLv', 'pickLv', 'seedIx', 'enMax', 'waterMax', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        ['axeLv', 'pickLv', 'seedIx', 'enMax', 'waterMax', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
         if (typeof s.chatIx === 'number') s.chatIx = {};
         return s;
@@ -709,6 +753,7 @@ export default {
       /* ---- input -------------------------------------------------------- */
       cv.addEventListener('keydown', e => {
         const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        if (k === 'F11') { e.preventDefault(); toggleFullscreen(); return; }
         keys[k] = true;
         if (k === ' ' || k === 'Tab' || String(k).indexOf('Arrow') === 0) e.preventDefault();
 
@@ -1556,5 +1601,16 @@ export default {
         Song.stop();
         try { if (hymnWas) Music.sync(); } catch (e) {}
       }, 800);
+
+      /* the fullscreen listener lives on `document`, not on the canvas, so it
+         outlives the window's own DOM removal and must be torn down here */
+      this._cleanup = () => {
+        ro.disconnect();
+        document.removeEventListener('fullscreenchange', onFSChange);
+        if (document.fullscreenElement === wrap) document.exitFullscreen().catch(() => {});
+      };
+  },
+  unmount() {
+    if (this._cleanup) { this._cleanup(); this._cleanup = null; }
   }
 };
