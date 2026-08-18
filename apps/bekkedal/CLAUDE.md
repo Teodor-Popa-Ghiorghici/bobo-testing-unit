@@ -30,7 +30,11 @@ Four siblings carry what used to be tangled into the draw calls:
 - `layout.js` — every panel rectangle, padding and column offset, derived from
   the geometry in `data.js` and the metrics in `font.js`. Nothing in here is a
   measured pixel.
+- `noise.js` — every "which tuft, what colour, where does the grit sit"
+  decision the terrain art makes. Pure functions of `(mapId, x, y)`; no state,
+  nothing seeded, nothing saved. See **Terrain variation** below.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
+- `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 
 ## Why the font is a bitmap
 
@@ -82,31 +86,119 @@ not change with the resolution.**
 
 Most tile art and sprites are still authored on the original 20px tile
 (`BEK_T_SRC`). The playfield draws inside one `BEK_ART_SCALE` transform, so
-every literal in `drawTile`, `drawIcon`, `person`, `bear` and `goat` still
+every literal in the tile passes, `drawIcon`, `person`, `bear` and `goat` still
 means what it did at 480×300 and none of it had to be redrawn. That is why
 those functions multiply by `BEK_T_SRC`, not `BEK_T`: inside the transform
 they are working in source space. `BEK_T` is for camera and world arithmetic
 outside it.
 
 The art uplift is converting this one piece at a time. Terrain went first:
-`grassBase`, `caveFloor`, `pathTile`, `waterEdgeTile` and `drawSoil`'s
-`tilledSoil` now draw in real `BEK_T` pixels instead of scaled-up
-`BEK_T_SRC` art. They still run inside `drawTile`/`drawSoil`, which still
-draw everything else (trees, buildings, furniture, crops, sprites) in source
-space under the shared transform — so each converted function opens with
-`native()`, which cancels that transform for just its own fill. Converted
-and unconverted code can sit side by side in the same `drawTile` call this
-way: whichever coordinate space a given `if (c === ...)` branch uses, both
-land on the same device pixels, because `BEK_T === BEK_T_SRC * BEK_ART_SCALE`.
-A function that has been converted must not multiply by `BEK_T_SRC` again.
+the grass, cave, path and water-edge tiles and `drawSoil`'s `tilledSoil` now
+draw in real `BEK_T` pixels instead of scaled-up `BEK_T_SRC` art. They still
+run inside the tile passes (see **The terrain cache**), which still draw
+everything else (trees, buildings, furniture, crops, sprites) in source space
+under the shared transform — so each converted function opens with
+`native()`, which cancels that transform for just its own fill. Converted and
+unconverted code can sit side by side in the same pass this way: whichever
+coordinate space a given `if (c === ...)` branch uses, both land on the same
+device pixels, because `BEK_T === BEK_T_SRC * BEK_ART_SCALE`. A function that
+has been converted must not multiply by `BEK_T_SRC` again.
 
 Eventually every function converts and `BEK_ART_SCALE` goes to 1, at which
 point `native()` becomes a no-op and can be retired along with `BEK_T_SRC`.
 Until then the scale must stay a whole number or the art stops landing on
 exact pixels.
 
+## Terrain variation
+
+`noise.js` owns it. One avalanching integer hash, `hash(x, y, ch)`, replaces
+what used to be two linear seeds (`(x*7+y*13)%5` and `(x*31+y*17)%7`, plus
+`(x*5+y*3)%3` inside the fir). Linear seeds repeat on a lattice: step (6, 1)
+and all three came back to the value they had, so the maps laid down diagonal
+bands of identical tiles — a cave wall was a visible grid of one stamped
+stone. Look at any wide shot of the gruva before and after if you want to see
+what that cost.
+
+Three things follow from the hash, and adding terrain detail means using
+them rather than writing arithmetic on x and y:
+
+- **Channels.** `ch` selects an independent stream, and every decision gets
+  its own: a mark's x, its y and its colour are three channels, not one
+  number shared three ways. A tile should be making four to six uncorrelated
+  choices. Channels are declared in the recipe tables at the bottom of
+  `noise.js` and nowhere else — `channels()` returns them and `tile_check.js`
+  tests exactly what that returns, so a stream drawn from but not declared is
+  a stream nothing checks.
+- **A per-map salt.** `mapSalt(mapId)` shifts the whole channel space, so the
+  same grid square is not the same tuft of grass in all eleven maps.
+- **`spot(i, span, size)`** (in `index.js`) turns a step index into a
+  position, spreading `JIT` steps across all the room the mark's own size
+  leaves it. Marks jitter on both axes, over the whole tile. A decorative
+  mark at a literal offset is the bug this replaced.
+
+Above that sits a second, coarser frequency, so the map has regions and not
+just texture — a drier corner of a field, a mossy run of cave wall, ground
+that stays wet in a hollow:
+
+- `hLow`/`hLowV` hash the cell a tile falls in rather than the tile, at
+  period 4 or 8. Use these for how *often* a sparse one-pixel mark appears,
+  where the cell edge is invisible.
+- `patchAmt` interpolates the same cell hashes and returns an ordered-dither
+  strength, so the patch **paints** and its edge feathers out through
+  `ditherPat()` — the same stipple as the night overlay, which is the only
+  way this game blends. `PATCH` in `noise.js` declares each field's channel,
+  period and how hard it may push. Keep those numbers low: the dry field
+  first went in at 7 and whole corners of the valley stopped reading as
+  grass. Note also that `patchAmt` rounds with a per-tile offset rather than
+  to nearest — rounding to nearest puts each step in strength on an exact
+  contour of a smooth field, which comes out as a straight line drawn across
+  the map.
+
+## The terrain cache
+
+`tileGround`, `tileDetail` and `tileLive` replace the old single `drawTile`.
+
+`tileGround` fills a tile's ground and stops. `tileDetail` then runs over the
+whole map *afterwards*, which is the point of the split: a detail may hang
+over into the next tile without that tile's ground painting it out a moment
+later. Both render into `terrCv`, an offscreen canvas the size of the whole
+map (`BEK_MAP_W` x `BEK_MAP_H`, device pixels, so nothing that has already
+converted to native resolution loses half of it), and `draw` blits that at
+1:1 before it applies the art transform.
+
+The cache key is everything the two static passes read: `S.map`, `S.day`
+(felled/mined/picked all expire against it), `S.built`, and `terrBump`, a
+counter. **Any new mutation of `S.felled`, `S.mined` or `S.picked` must call
+`terrDirty()`**, or the ground will keep showing a tree you just felled until
+something else happens to change the key.
+
+`tileLive` is what is left: the glyphs whose art reads the clock — `W` and
+`~` water and the `v` hearth — redrawn on top every frame from the
+`terrLive` list the rebuild collects. `drawSoil` stays its own live second
+pass. Anything new that animates goes in `tileLive` and gets its glyph added
+to `LIVE`; anything static goes in the cached passes and costs nothing per
+frame.
+
+This is what makes per-tile detail affordable. Terrain rasterising went from
+3102 `fillRect`s every frame (8.6 per tile, 360 tiles, sixty times a second)
+to 28, with a ~7800-rect rebuild only when the key changes — so a tile can
+spend 20-60 rects on looking like something.
+
 ## Checks
 
+- `node apps/bekkedal/tile_check.js` — the terrain variation field. Asserts
+  it is deterministic across a reload (a second process recomputes it and the
+  digests must match — terrain is never saved, so a field that drifted would
+  be a different valley every time you walked into it), that every declared
+  channel is within 20% of flat, that no lag within eight tiles in any
+  direction repeats a tile's decisions more often than chance, and that two
+  tiles of a kind agreeing on *everything* stay at least three tiles apart.
+  The periodicity section is the one that earns its keep: it scores the old
+  linear seeds at 1.0 — a total repeat — at lag (6, 1). Uniformity is pooled
+  across all eleven maps on purpose; one 24x15 grid is 360 samples, and split
+  nine ways 20% is 1.6 standard deviations, which a perfectly good hash fails
+  about half the time. Run it after touching `noise.js` or any tile art that
+  draws from it.
 - `node apps/bekkedal/layout_check.js` — geometry invariants (canvas, viewport,
   camera clamp range, every panel on screen, all 11 maps still 24×15), the
   fishing reel zone's agreement with its hit test, and text fitting for every
@@ -133,8 +225,11 @@ grey instead of dither. The coarser pattern is also the faster one — the
 rasteriser repeats it fewer times across the canvas — so the full-screen
 fog-plus-night composite costs about 0.59ms at 960×540, against 0.31ms for the
 old 480×300 build at a third of the pixels. This applies to every function under "the
-speaker" section's sibling drawing code: `drawTile`, `drawSoil`, `drawIcon`,
-`person`, `bear`, `goat`, `panel`, `text`, and `draw` itself.
+speaker" section's sibling drawing code: `tileGround`, `tileDetail`,
+`tileLive`, `drawSoil`, `drawIcon`, `person`, `bear`, `goat`, `panel`, `text`,
+and `draw` itself. `wash()` is the patch-shaped case of it — it is
+`ditherPat` clipped to a rect, and it must be called outside a `native()`
+block, never inside one, because it opens its own.
 
 ## Autosave
 

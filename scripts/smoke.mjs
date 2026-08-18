@@ -35,7 +35,9 @@ function makeCtx2D() {
   return {
     fillStyle: '', font: '', globalAlpha: 1, lineWidth: 1, strokeStyle: '',
     fillRect: noop, fillText: noop, strokeRect: noop, clearRect: noop,
+    drawImage: noop,
     beginPath: noop, moveTo: noop, lineTo: noop, closePath: noop, stroke: noop,
+    rect: noop, clip: noop,
     fill: noop, arc: noop, save: noop, restore: noop, translate: noop,
     rotate: noop, scale: noop, setTransform: noop,
     createPattern: () => ({}),
@@ -82,6 +84,11 @@ function setupGlobalEnv() {
     addEventListener: () => {}
   };
   globalThis.document.body.contains = () => true;
+  /* applyScale() watches the canvas wrapper for resizes. Nothing here ever
+     resizes, so the observer only has to exist and hold a reference — but
+     without it mount() throws before a single frame is drawn and every case
+     below fails on the same ReferenceError instead of on its own subject. */
+  globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   globalThis.requestAnimationFrame = fn => { rafCb = fn; return 1; };
   globalThis.cancelAnimationFrame = () => {};
   globalThis.performance = globalThis.performance || { now: () => Date.now() };

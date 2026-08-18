@@ -8,7 +8,9 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
-         BEK_DITHER_CELL, BEK_DITHER_PX } from './data.js';
+         BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
+import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
+         soilVar, objVar, LOW, PATCH, JIT } from './noise.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { createText } from './text.js';
 import { BORDER, CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -67,7 +69,11 @@ export default {
       wrap.style.flex = '1 1 auto'; wrap.style.minHeight = '0';
       bar.style.flex = '0 0 auto';
 
-      const g = cv.getContext('2d');
+      /* `let`, not `const`: the terrain cache below renders the very same
+         tile functions into its own offscreen context by pointing `g` at it
+         for the length of a rebuild, so none of them needs a context
+         argument threaded through. */
+      let g = cv.getContext('2d');
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
       const C = i => { const p = VGA16[i]; return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; };
       const TX = (no, en) => BEK_LANG === 'en' ? en : no;      /* resolve a dynamic pair now */
@@ -538,7 +544,7 @@ export default {
           if (!spend(1)) return;
           const kinds = ['blomst_bla', 'blomst_gul', 'blomst_ro'];
           const got = kinds[Math.floor(Math.random() * kinds.length)];
-          add(got, 1); S.picked[rkey(S.map, f.x, f.y)] = S.day + 1; sfx.pick();
+          add(got, 1); S.picked[rkey(S.map, f.x, f.y)] = S.day + 1; terrDirty(); sfx.pick();
           say('+1 ' + iname(got)); return;
         }
         if (tool.id === 'stang') {
@@ -547,10 +553,10 @@ export default {
           fish = { phase: 'wait', t: 0.8 + Math.random() * 1.6, rare: Math.random() < 0.1 }; sfx.cast(); return;
         }
         if (tool.id === 'oks') {
-          if (t === 'Y') { if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 2; add('tommer', 1); sfx.chop(); say('+1 ' + iname('tommer')); return; }
+          if (t === 'Y') { if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 2; terrDirty(); add('tommer', 1); sfx.chop(); say('+1 ' + iname('tommer')); return; }
           if (t === 'G') {
             if (S.axeLv < 2) { say(TX('FOR STOR. Du trenger en STÅLØKS.', 'TOO BIG. You need a STEEL AXE.')); sfx.deny(); return; }
-            if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 3; add('tommer', 2); sfx.chop(); say('+2 ' + iname('tommer')); return;
+            if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 3; terrDirty(); add('tommer', 2); sfx.chop(); say('+2 ' + iname('tommer')); return;
           }
           say(TX('INGENTING Å FELLE.', 'NOTHING TO FELL.')); return;
         }
@@ -559,7 +565,7 @@ export default {
           if (!S.tools.hakke) { say(TX('DU HAR INGEN HAKKE.', 'YOU HAVE NO PICK.')); sfx.deny(); return; }
           if (t === 'Q' && S.pickLv < 2) { say(TX('RIK ÅRE. Trenger STÅLHAKKE.', 'RICH VEIN. Needs a STEEL PICK.')); sfx.deny(); return; }
           if (!spend(tool.e)) return;
-          S.mined[rkey(S.map, f.x, f.y)] = S.day + 3; sfx.mine();
+          S.mined[rkey(S.map, f.x, f.y)] = S.day + 3; terrDirty(); sfx.mine();
           add('stein', 1);
           let ore;
           if (t === 'Q') ore = Math.random() < 0.6 ? 'solv' : 'kobber';
@@ -877,6 +883,7 @@ export default {
           const raw = localStorage.getItem(BEK_SAVE);
           if (!raw) { say(TX('INGEN LAGRING.', 'NO SAVE.')); return; }
           S = heal(Object.assign(fresh(), JSON.parse(raw)));
+          terrDirty();                                    /* a loaded save brings its own felled/mined/picked */
           BEK_LANG = S.lang || BEK_LANG; refreshBar();
           mode = ''; dlg = null; shop = null; fish = null; travel = null; offer = null;
           say(T(UI.loaded) + ' DAG ' + S.day + '.'); sfx.coin();
@@ -929,7 +936,10 @@ export default {
          dither — and a larger pattern tile is measurably cheaper to fill,
          because the rasteriser repeats it fewer times across the canvas. */
       function ditherPat(col, strength) {
-        const k = col + ':' + strength;
+        /* Keyed by the target context as well as the colour: a pattern is
+           made by the context that will fill with it, and the terrain cache
+           fills with the same stipples the screen does. */
+        const k = (g.tag || 'screen') + ':' + col + ':' + strength;
         if (ditherCache[k]) return ditherCache[k];
         const c = document.createElement('canvas'); c.width = BEK_DITHER_PX; c.height = BEK_DITHER_PX;
         const q = c.getContext('2d'); q.fillStyle = C(col);
@@ -946,16 +956,16 @@ export default {
                            S.map === 'enga' || S.map === 'farmhouse' || S.map === 'lakehouse';
 
       /* ---- native-resolution terrain (art uplift, batch 1) ---------------
-         grassBase, caveFloor, the path/water-edge tiles below and drawSoil's
-         tilled earth now draw at real BEK_T density instead of the scaled-up
-         BEK_T_SRC art the rest of drawTile still uses. They still run inside
-         the shared BEK_ART_SCALE transform the playfield draws under (see
-         `draw`), so each one opens with `native()`, which cancels that
-         transform for just its own fill: one unit drawn inside it is one real
-         screen pixel, and BEK_T is the tile span instead of BEK_T_SRC.
-         Everything else in drawTile is still unconverted and keeps
-         multiplying by BEK_T_SRC under the ambient scale until its own batch
-         — Phase 3 retires this once every function is native and
+         The grass, cave, path and water-edge tiles and drawSoil's tilled
+         earth draw at real BEK_T density instead of the scaled-up BEK_T_SRC
+         art the rest of the tile passes still use. They run inside the
+         shared BEK_ART_SCALE transform the playfield draws under (see
+         `draw`) and inside the terrain cache's copy of it, so each one opens
+         with `native()`, which cancels that transform for just its own fill:
+         one unit drawn inside it is one real screen pixel, and BEK_T is the
+         tile span instead of BEK_T_SRC. Everything else is still unconverted
+         and keeps multiplying by BEK_T_SRC under the ambient scale until its
+         own batch — Phase 3 retires this once every function is native and
          BEK_ART_SCALE goes to 1. */
       function native(draw) {
         g.save();
@@ -964,52 +974,197 @@ export default {
         g.restore();
       }
 
+      /* ---- terrain variation ---------------------------------------------
+         Everything decorative below is placed out of noise.js. `v.x0`,
+         `o.lean` and the rest are step indices on independent hash channels,
+         one channel per decision, so a tile's marks move independently of
+         each other and of the neighbouring tile's. `patchAmt` is the
+         low-frequency field: it comes back as a dither strength rather than
+         a colour, so a patch's edge feathers out through the same ordered
+         stipple the night overlay uses instead of stopping dead on a tile
+         boundary. Nothing in here is a function of x and y directly any
+         more — that is what used to lay the diagonal bands.
+
+         `PATCH` declares each field's channel, period and how hard it is
+         allowed to push; pass a max to `pAmt` only to paint the same field
+         more faintly on a different surface. */
+      const pAmt = (x, y, P, max) => patchAmt(S.map, x, y, P.ch, P.period, max == null ? P.max : max);
+      /* the discrete low-frequency fields. hLowV takes a raw channel, so the
+         map's salt goes on here — without it every valley gets its flowers
+         and its mineral veins in exactly the same places. */
+      const pLow = (x, y, ch, period, n) => hLowV(x, y, mapSalt(S.map) + ch, period, n);
+
+      /* A mark's position from one channel: nine steps spread across all the
+         room the mark's own size leaves it, edge to edge. x and y come off
+         different channels, so a mark is free on both axes — the old code
+         nudged x by up to four pixels and never touched y at all. */
+      const spot = (i, span, size) => Math.round(i * (span - size) / (JIT - 1));
+
+      /* A patch arriving on screen: the ordered stipple clipped to a rect,
+         drawn native so it stays exactly as coarse as the night overlay's.
+         Call it outside a native() block, never inside one — it opens its
+         own, and two of them nested would halve the scale twice. */
+      function wash(px, py, w, h, col, s) {
+        if (s <= 0) return;
+        native(() => { g.fillStyle = ditherPat(col, s > 16 ? 16 : s); g.fillRect(px, py, w, h); });
+      }
+
       /* seven tuft colours instead of one, so a field of grass stops reading
          as a single flat green */
       /* Mostly greens with the odd dry or flowering blade — enough to break up
          a field, not so much that the grass turns to confetti. */
       const TUFT = [10, 2, 10, 14, 10, 2, 3];
-      function grassBase(x, y, seed, v) {
+      /* the same seven where the coarse patch has taken the field over to straw */
+      const TUFT_DRY = [14, 3, 14, 6, 2, 3, 14];
+
+      /* ---- ground: the first cached pass ---------------------------------
+         Fills, and the patches that tint them. Nothing here reaches past its
+         own tile, because every tile's ground is laid before any detail is. */
+      function grassGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => {
-          g.fillStyle = C(2); g.fillRect(px, py, BEK_T, BEK_T);
-          g.fillStyle = C(TUFT[v % TUFT.length]);
-          g.fillRect(px + 4 + seed * 2, py + 6, 2, 4); g.fillRect(px + 16, py + 32, 2, 4);
-          g.fillStyle = C(TUFT[(v * 3 + 1) % TUFT.length]);
-          g.fillRect(px + 26, py + 22 + (seed % 3) * 2, 2, 4);
-          /* one more blade than the three above, on its own seed — a gentle
-             lift in density rather than a scatter that reads as static once
-             a whole field of tiles is on screen together */
-          g.fillStyle = C(TUFT[(v + seed + 2) % TUFT.length]);
-          g.fillRect(px + 33 - seed, py + 11 + seed, 2, 3);
-        });
+        native(() => { g.fillStyle = C(2); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, 6, pAmt(x, y, PATCH.DRY));       /* a corner gone to straw */
+        wash(px, py, BEK_T, BEK_T, 10, pAmt(x, y, PATCH.LUSH));     /* a wetter, greener run  */
       }
 
-      /* the floor of a room: boards, never grass, and only the odd knot */
-      function floorBase(px, py, seed, v) {
+      /* the floor of a room: boards, never grass */
+      function floorGround(x, y) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        g.fillStyle = C(8); g.fillRect(px, py + 9, BEK_T_SRC, 1);
-        for (let i = 0; i < BEK_T_SRC; i += 10) g.fillRect(px + i, py, 1, BEK_T_SRC);
-        if (v === 2) { g.fillStyle = C(8); g.fillRect(px + 4 + seed, py + 4, 2, 1); }
+        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, 8, pAmt(x, y, PATCH.WORN, 3));   /* where feet go */
       }
 
       /* the floor of the gruva: it is a hole in a mountain, so it is gravel.
-         Grass down here was reading as a lawn a hundred feet underground. */
-      function caveFloor(x, y, seed, v) {
+         Grass down here was reading as a lawn a hundred feet underground.
+         Dark floor, lit rock walls — the other way round and the corridors
+         disappear into the stone they are cut through. */
+      function caveGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
+        native(() => { g.fillStyle = C(0); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, 2, pAmt(x, y, PATCH.MOSS));      /* moss where the air moves */
+        wash(px, py, BEK_T, BEK_T, 1, pAmt(x, y, PATCH.DAMP));      /* and where the water does */
+      }
+
+      /* a worn trail: no directional art (the same glyph does every bend and
+         junction on the map), so the detail stays scattered grit rather than
+         implying a direction the tile can't back up */
+      function pathGround(x, y) {
+        const px = x * BEK_T, py = y * BEK_T;
+        native(() => { g.fillStyle = C(6); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, 8, pAmt(x, y, PATCH.WORN));      /* trodden hard */
+        wash(px, py, BEK_T, BEK_T, 14, pAmt(x, y, PATCH.DUST));     /* dry and dusty */
+      }
+
+      function rockGround(x, y, snow) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
+        g.fillStyle = C(8); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
+        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, snow ? 15 : 2, pAmt(x, y, PATCH.MOSS));
+        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, 7, pAmt(x, y, PATCH.DAMP));
+      }
+
+      /* ---- ground detail: the second cached pass -------------------------- */
+      /* four blades, each placed and coloured off its own three channels, so
+         no two tiles of grass anywhere on the map put a blade in the same
+         place. Which of the two palettes they come from follows the coarse
+         patch, and it flips on that patch's half-contour — where the straw
+         wash is at half coverage, so the change of palette is under stipple
+         rather than beside it. */
+      function grassDetail(x, y) {
+        const px = x * BEK_T, py = y * BEK_T;
+        const v = groundVar(S.map, x, y);
+        const pal = pAmt(x, y, PATCH.DRY) * 2 > PATCH.DRY.max ? TUFT_DRY : TUFT;
+        const meadow = pLow(x, y, LOW.MEADOW, 8, 3) === 0;
         native(() => {
-          /* dark floor, lit rock walls — the other way round and the corridors
-             disappear into the stone they are cut through */
-          g.fillStyle = C(0); g.fillRect(px, py, BEK_T, BEK_T);
-          g.fillStyle = C(8);
-          g.fillRect(px + 4 + seed * 2, py + 10, 6, 4); g.fillRect(px + 24, py + 26, 8, 4); g.fillRect(px + 14, py + 32, 4, 2);
-          g.fillStyle = C(7);
-          g.fillRect(px + 12, py + 20, 4, 2); g.fillRect(px + 30, py + 6, 2, 2);
-          if (v === 3) { g.fillStyle = C(6); g.fillRect(px + 18, py + 16, 4, 4); }
-          /* rare extras only, so the gravel stays sparse rather than static */
-          if (seed === 4) { g.fillStyle = C(6); g.fillRect(px + 6, py + 6, 3, 3); }    /* a second dirt clump */
-          if (v === 6) { g.fillStyle = C(15); g.fillRect(px + 20, py + 24, 1, 1); }    /* a mineral glint in the grit */
+          for (let i = 0; i < 4; i++) {
+            g.fillStyle = C(pal[v['c' + i]]);
+            g.fillRect(px + spot(v['x' + i], BEK_T, 2), py + spot(v['y' + i], BEK_T, 4), 2, 4);
+          }
+          /* a flowering head, but only in the stretch of map that flowers —
+             one pixel, so the cell edge of the low-frequency field is
+             invisible and this one does not need feathering */
+          if (meadow && v.c3 < 3) {
+            g.fillStyle = C(v.c0 % 2 ? 14 : 15);
+            g.fillRect(px + spot(v.x2, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1);
+          }
         });
+      }
+
+      function floorDetail(x, y) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
+        const v = groundVar(S.map, x, y);
+        g.fillStyle = C(8); g.fillRect(px, py + 9, BEK_T_SRC, 1);
+        for (let i = 0; i < BEK_T_SRC; i += 10) g.fillRect(px + i, py, 1, BEK_T_SRC);
+        if (v.c2 === 2) { g.fillStyle = C(8); g.fillRect(px + spot(v.x0, BEK_T_SRC, 2), py + spot(v.y1, BEK_T_SRC, 1), 2, 1); }
+      }
+
+      function caveDetail(x, y) {
+        const px = x * BEK_T, py = y * BEK_T;
+        const v = groundVar(S.map, x, y);
+        const vein = pLow(x, y, LOW.VEIN, 4, 4) === 0;
+        native(() => {
+          g.fillStyle = C(8);
+          g.fillRect(px + spot(v.x0, BEK_T, 6), py + spot(v.y0, BEK_T, 4), 6, 4);
+          g.fillRect(px + spot(v.x1, BEK_T, 8), py + spot(v.y1, BEK_T, 4), 8, 4);
+          g.fillStyle = C(7);
+          g.fillRect(px + spot(v.x2, BEK_T, 4), py + spot(v.y2, BEK_T, 2), 4, 2);
+          g.fillRect(px + spot(v.x3, BEK_T, 2), py + spot(v.y3, BEK_T, 2), 2, 2);
+          /* rare extras only, so the gravel stays sparse rather than static */
+          if (v.c0 === 3) { g.fillStyle = C(6); g.fillRect(px + spot(v.x3, BEK_T, 4), py + spot(v.y0, BEK_T, 4), 4, 4); }
+          if (v.c1 === 4) { g.fillStyle = C(6); g.fillRect(px + spot(v.x0, BEK_T, 3), py + spot(v.y2, BEK_T, 3), 3, 3); }
+          if (vein && v.c2 < 2) { g.fillStyle = C(15); g.fillRect(px + spot(v.x1, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1); }
+        });
+      }
+
+      function pathDetail(x, y) {
+        const px = x * BEK_T, py = y * BEK_T;
+        const v = pathVar(S.map, x, y);
+        native(() => {
+          g.fillStyle = C(8);
+          g.fillRect(px + spot(v.ax, BEK_T, 4), py + spot(v.ay, BEK_T, 2), 4, 2);
+          g.fillRect(px + spot(v.bx, BEK_T, 4), py + spot(v.by, BEK_T, 2), 4, 2);
+          g.fillStyle = C(7);
+          g.fillRect(px + spot(v.cx, BEK_T, 4), py + spot(v.cy, BEK_T, 2), 4, 2);
+          g.fillRect(px + spot(v.dx, BEK_T, 2), py + spot(v.dy, BEK_T, 2), 2, 2);
+          g.fillStyle = C(0);
+          g.fillRect(px + spot(v.kx, BEK_T, 2), py + spot(v.ky, BEK_T, 1), 2, 1);   /* a crack in the hardpack */
+          if (v.peb === 1) { g.fillStyle = C(14); g.fillRect(px + spot(v.px, BEK_T, 2), py + spot(v.py, BEK_T, 2), 2, 2); }
+        });
+      }
+
+      function rockDetail(c, x, y, snow) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, S1 = BEK_T_SRC;
+        const v = rockVar(S.map, x, y);
+        g.fillStyle = C(7);
+        g.fillRect(px + spot(v.fx, S1, 9), py + spot(v.fy, S1, 6), 9, 6);
+        g.fillRect(px + spot(v.gx, S1, 7), py + spot(v.gy, S1, 6), 7, 6);
+        g.fillStyle = C(0);
+        g.fillRect(px + spot(v.ax, S1, 8), py + spot(v.ay, S1, 1), 8, 1);
+        g.fillRect(px + spot(v.bx, S1, 5), py + spot(v.by, S1, 1), 5, 1);
+        if (snow) {
+          g.fillStyle = C(15);
+          g.fillRect(px + spot(v.mx, S1, 4), py + spot(v.my, S1, 1), 4, 1);
+          g.fillRect(px + spot(v.jx, S1, 3), py + spot(v.jy, S1, 1), 3, 1);
+        } else if (v.kind === 2) {                                                  /* mineral */
+          g.fillStyle = C(5);
+          g.fillRect(px + spot(v.mx, S1, 1), py + spot(v.my, S1, 1), 1, 1);
+          g.fillRect(px + spot(v.jx, S1, 1), py + spot(v.jy, S1, 1), 1, 1);
+        }
+        if (v.kind === 4) { g.fillStyle = C(9); g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 3), 1, 3); }   /* seepage */
+        if (c === 'O') {
+          g.fillStyle = C(6); g.fillRect(px + spot(v.ix, S1, 3), py + spot(v.iy, S1, 3), 3, 3);
+          g.fillStyle = C(7); g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
+          g.fillStyle = C(14);
+          g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 1), 1, 1);
+          g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
+        }
+        if (c === 'Q') {
+          g.fillStyle = C(15);
+          g.fillRect(px + spot(v.ix, S1, 2), py + spot(v.iy, S1, 2), 2, 2);
+          g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
+          g.fillStyle = C(11); g.fillRect(px + spot(v.hx, S1, 2), py + spot(v.hy, S1, 2), 2, 2);
+          g.fillStyle = C(13); g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
+          g.fillStyle = C(5); g.fillRect(px + spot(v.fx, S1, 1), py + spot(v.gy, S1, 1), 1, 1);
+        }
       }
 
       /* The outer ring of every map, drawn as a hard black frame with a grey
@@ -1030,106 +1185,139 @@ export default {
         if (R) g.fillRect(px + BEK_T_SRC - 5, py, 1, BEK_T_SRC);
       }
 
-      /* a worn trail: no directional art (the same glyph does every bend and
-         junction on the map), so the detail stays scattered grit rather than
-         implying a direction the tile can't back up */
-      function pathTile(x, y, seed, v) {
-        const px = x * BEK_T, py = y * BEK_T;
-        native(() => {
-          g.fillStyle = C(6); g.fillRect(px, py, BEK_T, BEK_T);
-          g.fillStyle = C(8);
-          g.fillRect(px + 6 + seed * 2, py + 10, 4, 2); g.fillRect(px + 24, py + 26 - seed, 4, 2);
-          g.fillStyle = C(7);
-          g.fillRect(px + 16, py + 18, 4, 2); g.fillRect(px + 30, py + 6, 2, 2);
-          g.fillStyle = C(0); g.fillRect(px + 14 + seed * 3, py + 24 + seed, 2, 1);    /* a crack in the hardpack */
-          if (v === 1) { g.fillStyle = C(14); g.fillRect(px + 10, py + 32, 2, 2); }
-        });
+      /* ---- the animated tiles, drawn live over the cache ------------------ */
+      function waterTile(x, y, t) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, w = Math.floor(t * 2 + x + y) % 4;
+        const v = waterVar(S.map, x, y);
+        g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
+        g.fillStyle = C(3); g.fillRect(px, py + 6 + v.sw, BEK_T_SRC, 2);              /* the swell */
+        /* the ripple bands drift +/-3 with `w`, so their placement is held
+           three pixels clear of both edges to keep them inside the tile */
+        g.fillStyle = C(9);
+        g.fillRect(px + spot(v.ax, BEK_T_SRC, 8), py + 3 + spot(v.ay, 14, 1) + w, 8, 1);
+        g.fillRect(px + spot(v.bx, BEK_T_SRC, 7), py + 3 + spot(v.by, 14, 1) - w, 7, 1);
+        if (v.foam === 0) { g.fillStyle = C(11); g.fillRect(px + spot(v.bx, BEK_T_SRC, 4), py + spot(v.ay, BEK_T_SRC, 1), 4, 1); }
+        if (v.glint === 3) { g.fillStyle = C(15); g.fillRect(px + spot(v.ax, BEK_T_SRC, 2), py + 3 + spot(v.by, 14, 1) + w, 2, 1); }
       }
 
       /* the shallow shore: mostly water, a foam seam where it meets the bank,
          then the strip of sand and turf that the deep-water 'W' tile doesn't
          carry. Ripple bands still drift with `t` the way they always did. */
-      function waterEdgeTile(x, y, t, seed) {
+      function waterEdgeTile(x, y, t) {
         const px = x * BEK_T, py = y * BEK_T, w = Math.floor(t * 2 + x + y) % 4;
+        const v = edgeVar(S.map, x, y);
         native(() => {
           g.fillStyle = C(1); g.fillRect(px, py, BEK_T, BEK_T);
           g.fillStyle = C(3); g.fillRect(px, py, BEK_T, 16);
           g.fillStyle = C(9); g.fillRect(px, py, BEK_T, 8);
           g.fillStyle = C(11);
-          g.fillRect(px + 6, py + 4 + w, 12, 2); g.fillRect(px + 24, py + 8 - w, 10, 2);
-          g.fillRect(px + 2, py + 20 + (seed % 3), 8, 1); g.fillRect(px + 22, py + 24 - (seed % 3), 10, 1);
-          g.fillStyle = C(15); g.fillRect(px, py + 28, BEK_T, 1);                          /* foam, water meets sand */
-          g.fillStyle = C(11); g.fillRect(px + 3 + seed * 2, py + 29, 6, 1); g.fillRect(px + 22, py + 29, 8, 1);
-          g.fillStyle = C(14); g.fillRect(px, py + 30, BEK_T, 4);                          /* sand */
-          g.fillStyle = C(6); g.fillRect(px, py + 34, BEK_T, 6);                           /* bank */
-          g.fillStyle = C(8); g.fillRect(px + 5 + seed * 3, py + 36, 2, 2); g.fillRect(px + 27, py + 35, 2, 1);
+          g.fillRect(px + spot(v.ax, BEK_T, 12), py + 4 + spot(v.ay, 18, 2) + w, 12, 2);
+          g.fillRect(px + spot(v.bx, BEK_T, 10), py + 4 + spot(v.by, 18, 2) - w, 10, 2);
+          g.fillRect(px + spot(v.fx, BEK_T, 8), py + 18 + spot(v.ay, 9, 1), 8, 1);
+          g.fillRect(px + spot(v.gx, BEK_T, 10), py + 18 + spot(v.by, 9, 1), 10, 1);
+          g.fillStyle = C(15); g.fillRect(px, py + 28, BEK_T, 1);                         /* foam, water meets sand */
+          g.fillStyle = C(11);
+          g.fillRect(px + spot(v.fx, BEK_T, 6), py + 29, 6, 1); g.fillRect(px + spot(v.gx, BEK_T, 8), py + 29, 8, 1);
+          g.fillStyle = C(14); g.fillRect(px, py + 30, BEK_T, 4);                         /* sand */
+          g.fillStyle = C(6); g.fillRect(px, py + 34, BEK_T, 6);                          /* bank */
+          g.fillStyle = C(8);
+          g.fillRect(px + spot(v.sx, BEK_T, 2), py + 34 + spot(v.sy, 6, 2), 2, 2);
+          g.fillRect(px + spot(v.bx, BEK_T, 2), py + 34 + spot(v.ax, 6, 1), 2, 1);
         });
       }
 
-      function drawTile(c, x, y, t) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, seed = (x * 7 + y * 13) % 5, snow = (S.map === 'setra' || S.map === 'vidda');
-        const v = (x * 31 + y * 17) % 7;                 /* a wider seed, for colour */
-        const ins = !!(BEK_MAPS[S.map] && BEK_MAPS[S.map].inside);
-        const cave = S.map === 'gruva';
-        const rim = !ins && (x === 0 || y === 0 || x === BEK_COLS - 1 || y === BEK_ROWS - 1);
+      function hearthTile(x, y, t) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, fl = Math.floor(t * 6) % 3;
+        g.fillStyle = C(8); g.fillRect(px + 2, py + 2, 16, 16);
+        g.fillStyle = C(0); g.fillRect(px + 5, py + 5, 10, 11);
+        g.fillStyle = C(4); g.fillRect(px + 7, py + 9, 6, 7);
+        g.fillStyle = C(12); g.fillRect(px + 8, py + 8 - fl, 4, 6 + fl);
+        g.fillStyle = C(14); g.fillRect(px + 9, py + 7 - fl, 2, 3);
+        g.fillStyle = C(15); g.fillRect(px + 9, py + 6 - fl, 1, 1);
+      }
+
+      /* ---- the three passes ------------------------------------------------
+         `tileGround` fills a tile's ground and stops. `tileDetail` then runs
+         over the whole map afterwards, so a mark is free to hang over into
+         the next tile without that tile's ground painting it out a moment
+         later — which is exactly what a single interleaved pass could not
+         allow. Both feed the terrain cache and run only when the map, the
+         day or the felled/mined/picked state changes. `tileLive` is what is
+         left over: the three glyphs whose art reads the clock. */
+      const ins_ = () => !!(BEK_MAPS[S.map] && BEK_MAPS[S.map].inside);
+      const snow_ = () => S.map === 'setra' || S.map === 'vidda';
+      const rim_ = (x, y) => !ins_() && (x === 0 || y === 0 || x === BEK_COLS - 1 || y === BEK_ROWS - 1);
+      /* a tile that lays its own ground has no grass or boards under it */
+      const ownGround = (c, x, y) => 'W~P.MOQHRDLf '.indexOf(c) >= 0 || (c === 'T' && rim_(x, y));
+
+      function tileGround(c, x, y) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         /* the dead margin outside a room's walls: not floor, not field, nothing */
         if (c === ' ') { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'W') {
-          g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-          const w = Math.floor(t * 2 + x + y) % 4;
-          g.fillStyle = C(3); g.fillRect(px, py + 6 + (seed % 3), BEK_T_SRC, 2);      /* the swell */
-          g.fillStyle = C(9); g.fillRect(px + 2, py + 4 + w, 8, 1); g.fillRect(px + 11, py + 12 - w, 7, 1);
-          if (seed === 0) { g.fillStyle = C(11); g.fillRect(px + 6, py + 9, 4, 1); }
-          if (seed === 3) { g.fillStyle = C(15); g.fillRect(px + 14, py + 3 + w, 2, 1); }
-          if (rim) edgeMark(px, py, x, y);
-          return;
+        if (c === 'T' && rim_(x, y)) { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }   /* the wall of wood is solid black behind */
+        if (c === 'W' || c === '~') { g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === '.') { pathGround(x, y); return; }
+        if (c === 'M' || c === 'O' || c === 'Q') { rockGround(x, y, snow_()); return; }
+        if (c === 'P' || c === 'f') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'L') { g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'H') { g.fillStyle = C(ins_() ? 8 : rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'R' || c === 'D') { g.fillStyle = C(rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (ins_()) floorGround(x, y); else if (S.map === 'gruva') caveGround(x, y); else grassGround(x, y);
+      }
+
+      function tileDetail(c, x, y) {
+        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
+        const ins = ins_(), snow = snow_(), rim = rim_(x, y);
+        if (c === ' ' || c === 'W' || c === '~') return;      /* nothing static of their own */
+        if (!ownGround(c, x, y)) {
+          if (ins) floorDetail(x, y); else if (S.map === 'gruva') caveDetail(x, y); else grassDetail(x, y);
         }
-        if (c === '~') {
-          waterEdgeTile(x, y, t, seed);
-          if (rim) edgeMark(px, py, x, y);
-          return;
-        }
+        const o = objVar(c, S.map, x, y);
         if (c === 'P') {
-          g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-          g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1); g.fillStyle = C(6); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
+          g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
+          g.fillStyle = C(6); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
           return;
         }
-        if (c === '.') {
-          pathTile(x, y, seed, v);
-          return;
+        if (c === '.') { pathDetail(x, y); if (rim) edgeMark(px, py, x, y); return; }
+        if (c === 'M' || c === 'O' || c === 'Q') { rockDetail(c, x, y, snow); if (rim) edgeMark(px, py, x, y); return; }
+        if (c === ',') {
+          g.fillStyle = C(10);
+          g.fillRect(px + spot(o.ax, BEK_T_SRC, 1), py + spot(o.ay, BEK_T_SRC, 8), 1, 8);
+          g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 10);
+          g.fillRect(px + spot(o.cx, BEK_T_SRC, 1), py + spot(o.cy, BEK_T_SRC, 7), 1, 7);
+          g.fillRect(px + spot(o.dx, BEK_T_SRC, 1), py + spot(o.dy, BEK_T_SRC, 9), 1, 9);
+          g.fillStyle = C(TUFT[o.c]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 2);
         }
-        if (c === 'M' || c === 'O' || c === 'Q') {
-          g.fillStyle = C(8); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-          g.fillStyle = C(7); g.fillRect(px + 1, py + 1, 9, 6); g.fillRect(px + 11, py + 9, 7, 6);
-          g.fillStyle = C(0); g.fillRect(px + 2, py + 12, 8, 1); g.fillRect(px + 13, py + 3, 5, 1);
-          if (snow) { g.fillStyle = C(15); g.fillRect(px + 3, py + 2, 4, 1); g.fillRect(px + 12, py + 1, 3, 1); }
-          else if (v === 2) { g.fillStyle = C(5); g.fillRect(px + 15, py + 6, 1, 1); g.fillRect(px + 4, py + 16, 1, 1); }   /* mineral */
-          if (v === 4) { g.fillStyle = C(9); g.fillRect(px + 2, py + 5, 1, 3); }                                            /* seepage */
-          if (c === 'O') { g.fillStyle = C(6); g.fillRect(px + 6, py + 7, 3, 3); g.fillStyle = C(7); g.fillRect(px + 11, py + 6, 2, 2); g.fillStyle = C(14); g.fillRect(px + 7, py + 8, 1, 1); g.fillRect(px + 12, py + 12, 1, 1); }
-          if (c === 'Q') { g.fillStyle = C(15); g.fillRect(px + 6, py + 6, 2, 2); g.fillRect(px + 11, py + 10, 2, 2); g.fillStyle = C(11); g.fillRect(px + 8, py + 11, 2, 2); g.fillStyle = C(13); g.fillRect(px + 12, py + 5, 1, 1); g.fillStyle = C(5); g.fillRect(px + 5, py + 13, 1, 1); }
-          if (rim) edgeMark(px, py, x, y);
-          return;
+        if (c === 'F') {
+          const fc = [15, 14, 13, 5, 11];
+          g.fillStyle = C(fc[o.ac]); g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, BEK_T_SRC, 2), 2, 2);
+          g.fillStyle = C(fc[o.bc]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, BEK_T_SRC, 2), 2, 2);
+          g.fillStyle = C(fc[o.cc]); g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, BEK_T_SRC, 2), 2, 2);
         }
-        if (ins) floorBase(px, py, seed, v);
-        else if (cave) caveFloor(x, y, seed, v);
-        else grassBase(x, y, seed, v);
-        if (c === ',') { g.fillStyle = C(10); g.fillRect(px + 4, py + 8, 1, 8); g.fillRect(px + 7, py + 6, 1, 10); g.fillRect(px + 11, py + 9, 1, 7); g.fillRect(px + 14, py + 7, 1, 9); g.fillStyle = C(TUFT[v % TUFT.length]); g.fillRect(px + 7, py + 5, 1, 2); }
-        if (c === 'F') { const fc = [15, 14, 13, 5, 11]; g.fillStyle = C(fc[v % 5]); g.fillRect(px + 6, py + 8, 2, 2); g.fillStyle = C(fc[(v + 2) % 5]); g.fillRect(px + 12, py + 12, 2, 2); g.fillStyle = C(fc[(v + 4) % 5]); g.fillRect(px + 4, py + 14, 2, 2); }
-        if (c === 'p') { const cols = [9, 14, 13, 5]; g.fillStyle = C(2); g.fillRect(px + 9, py + 10, 1, 7); g.fillStyle = C(cols[v % 4]); g.fillRect(px + 7, py + 7, 5, 4); g.fillStyle = C(15); g.fillRect(px + 9, py + 8, 1, 1); }
+        if (c === 'p') {
+          const cols = [9, 14, 13, 5], h = 5 + o.h;
+          const bx = px + spot(o.x, BEK_T_SRC, 5), by = py + spot(o.y, BEK_T_SRC, h + 4);
+          g.fillStyle = C(2); g.fillRect(bx + 2, by + 4, 1, h);
+          g.fillStyle = C(cols[o.c]); g.fillRect(bx, by, 5, 4);
+          g.fillStyle = C(15); g.fillRect(bx + 2, by + 1, 1, 1);
+        }
         /* A dark fir is the same green as the grass it stands on, so without a
            black silhouette behind it a tree in a field is invisible. Draw the
            shape once in black, one pixel proud, then the tree inside it. */
         if (c === 'T') {
-          const vv = (x * 5 + y * 3) % 3, lit = (v % 3) === 0 ? 10 : 2;
-          if (rim) { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); }      /* the wall of wood is solid black behind */
+          const ln = o.lean, lit = o.lit === 0 ? 10 : 2;
           g.fillStyle = C(0);
-          g.fillRect(px + 2, py + 11, 16, 5); g.fillRect(px + 3, py + 7, 14, 6); g.fillRect(px + 5, py + 3 - vv, 10, 7);
+          g.fillRect(px + 2, py + 11, 16, 5); g.fillRect(px + 3, py + 7, 14, 6); g.fillRect(px + 5, py + 3 - ln, 10, 7);
           g.fillStyle = C(6); g.fillRect(px + 9, py + 14, 2, 5);
-          g.fillStyle = C(2); g.fillRect(px + 3, py + 12, 14, 3); g.fillRect(px + 4, py + 8, 12, 4); g.fillRect(px + 6, py + 4 - vv, 8, 5);
+          g.fillStyle = C(2); g.fillRect(px + 3, py + 12, 14, 3); g.fillRect(px + 4, py + 8, 12, 4); g.fillRect(px + 6, py + 4 - ln, 8, 5);
           g.fillStyle = C(0); g.fillRect(px + 3, py + 14, 14, 1);
-          g.fillStyle = C(lit); g.fillRect(px + 6, py + 9, 3, 1); g.fillRect(px + 8, py + 5 - vv, 2, 1);
-          if (v === 5) { g.fillStyle = C(3); g.fillRect(px + 12, py + 10, 2, 1); }
-          if (snow) { g.fillStyle = C(15); g.fillRect(px + 8, py + 4 - vv, 3, 1); g.fillRect(px + 5, py + 8, 3, 1); }
+          g.fillStyle = C(lit); g.fillRect(px + 6, py + 9, 3, 1); g.fillRect(px + 8, py + 5 - ln, 2, 1);
+          if (o.bare === 5) { g.fillStyle = C(3); g.fillRect(px + 4 + spot(o.bx, 12, 2), py + 8 + spot(o.by, 6, 1), 2, 1); }
+          if (snow) {
+            g.fillStyle = C(15);
+            g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 4 - ln + spot(o.sy, 4, 1), 3, 1);
+            g.fillRect(px + 4 + spot(o.tx, 10, 3), py + 8 + spot(o.ty, 4, 1), 3, 1);
+          }
         }
         if (c === 'G') {
           g.fillStyle = C(0);
@@ -1137,39 +1325,48 @@ export default {
           g.fillStyle = C(6); g.fillRect(px + 9, py + 15, 3, 4);
           g.fillStyle = C(2); g.fillRect(px + 2, py + 13, 16, 4); g.fillRect(px + 3, py + 8, 14, 5); g.fillRect(px + 5, py + 3, 10, 6); g.fillRect(px + 7, py, 6, 4);
           g.fillStyle = C(0); g.fillRect(px + 2, py + 15, 16, 1);
-          g.fillStyle = C(10); g.fillRect(px + 6, py + 10, 4, 1); g.fillRect(px + 8, py + 4, 3, 1);
-          g.fillStyle = C(3); g.fillRect(px + 12, py + 9, 2, 1);
-          if (snow) { g.fillStyle = C(15); g.fillRect(px + 8, py, 4, 1); }
+          g.fillStyle = C(o.lit === 0 ? 10 : 2);
+          g.fillRect(px + 4 + spot(o.lx, 10, 4), py + 9 + spot(o.ly, 4, 1), 4, 1);
+          g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 3 + spot(o.sy, 4, 1), 3, 1);
+          g.fillStyle = C(3); g.fillRect(px + 6 + spot(o.lx, 10, 2), py + 8 + spot(o.ly, 5, 1), 2, 1);
+          if (snow) { g.fillStyle = C(15); g.fillRect(px + 6 + spot(o.sx, 8, 4), py, 4, 1); }
         }
         if (c === 'Y') {
-          g.fillStyle = C(15); g.fillRect(px + 8, py + 10, 3, 9); g.fillStyle = C(8); g.fillRect(px + 8, py + 12, 3, 1); g.fillRect(px + 8, py + 15, 3, 1);
-          g.fillStyle = C(10); g.fillRect(px + 3, py + 3, 13, 8); g.fillStyle = C(2); g.fillRect(px + 6, py + 4, 3, 3); g.fillRect(px + 11, py + 7, 3, 2);
-          g.fillStyle = C(14); g.fillRect(px + 9, py + 5, 2, 2);
-          if (v === 3) { g.fillStyle = C(14); g.fillRect(px + 4, py + 8, 2, 2); }   /* one turning early */
+          g.fillStyle = C(15); g.fillRect(px + 8, py + 10, 3, 9);
+          g.fillStyle = C(8); g.fillRect(px + 8, py + 12, 3, 1); g.fillRect(px + 8, py + 15, 3, 1);
+          g.fillStyle = C(10); g.fillRect(px + 3, py + 3, 13, 8);
+          g.fillStyle = C(2);
+          g.fillRect(px + 4 + spot(o.lx, 11, 3), py + 4 + spot(o.ly, 6, 3), 3, 3);
+          g.fillRect(px + 4 + spot(o.mx, 11, 3), py + 4 + spot(o.my, 6, 2), 3, 2);
+          g.fillStyle = C(14); g.fillRect(px + 4 + spot(o.mx, 11, 2), py + 4 + spot(o.ly, 6, 2), 2, 2);
+          if (o.turn === 3) { g.fillStyle = C(14); g.fillRect(px + 4 + spot(o.lx, 11, 2), py + 4 + spot(o.my, 6, 2), 2, 2); }   /* one turning early */
         }
-        if (c === '^') { g.fillStyle = C(8); g.fillRect(px + 3, py + 6, 14, 11); g.fillStyle = C(7); g.fillRect(px + 5, py + 8, 8, 5); g.fillStyle = C(0); g.fillRect(px + 4, py + 15, 12, 1); if (v === 1) { g.fillStyle = C(10); g.fillRect(px + 12, py + 7, 3, 2); } }
+        if (c === '^') {
+          g.fillStyle = C(8); g.fillRect(px + 3, py + 6, 14, 11);
+          g.fillStyle = C(7); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
+          g.fillStyle = C(0); g.fillRect(px + 4, py + 15, 12, 1);
+          if (o.cap === 1) { g.fillStyle = C(10); g.fillRect(px + 4 + spot(o.mx, 12, 3), py + 7 + spot(o.my, 8, 2), 3, 2); }
+        }
         if (c === '=') { g.fillStyle = C(6); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(14); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
         if (c === 'x') { g.fillStyle = C(6); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }
         if (c === 'H') {
           /* not every course of logs has a window cut in it */
-          const win = (v % 5) < 2;
+          const win = o.win < 2;
           if (ins) {
             /* Seen from inside, a wall must not be the same brown as the
                floor or the room has no edges. Dark timber, lighter courses. */
-            g.fillStyle = C(8); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
             g.fillStyle = C(6); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
             g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
             if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 5, 9, 8);
               g.fillStyle = C(15); g.fillRect(px + 5, py + 5, 9, 1); g.fillRect(px + 9, py + 5, 1, 8); }
           } else if (rustic()) {
-            g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);                                   /* laft: stacked logs */
-            g.fillStyle = C(8); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);
+            g.fillStyle = C(8); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
             g.fillStyle = C(0); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
             if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 4, 9, 8);
               g.fillStyle = C(15); g.fillRect(px + 5, py + 4, 9, 1); g.fillRect(px + 9, py + 4, 1, 8); }
+            else { g.fillStyle = C(0); g.fillRect(px + spot(o.kx, BEK_T_SRC, 2), py + spot(o.ky, BEK_T_SRC, 2), 2, 2); }   /* a knot in a log */
           } else {
-            g.fillStyle = C(4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);                                   /* painted board */
-            g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);
+            g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);             /* painted board */
             g.fillStyle = C(8); g.fillRect(px, py + 18, BEK_T_SRC, 2);
             if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 5, 9, 8);
               g.fillStyle = C(15); g.fillRect(px + 4, py + 4, 11, 1); g.fillRect(px + 9, py + 5, 1, 8); }
@@ -1177,18 +1374,19 @@ export default {
         }
         if (c === 'R') {
           if (rustic()) {
-            g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);                                   /* torvtak: turf */
-            g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, 13);
-            g.fillStyle = C(10); g.fillRect(px + 2, py + 2, 2, 1); g.fillRect(px + 9, py + 5, 2, 1); g.fillRect(px + 15, py + 3, 2, 1); g.fillRect(px + 6, py + 9, 2, 1);
-            g.fillStyle = C(14); g.fillRect(px + 12, py + 8, 1, 1);
+            g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, 13);                                  /* torvtak: turf */
+            g.fillStyle = C(10);
+            g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, 12, 1), 2, 1);
+            g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, 12, 1), 2, 1);
+            g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, 12, 1), 2, 1);
+            g.fillStyle = C(14); g.fillRect(px + spot(o.fx, BEK_T_SRC, 1), py + spot(o.fy, 12, 1), 1, 1);
             g.fillStyle = C(8); g.fillRect(px, py + 13, BEK_T_SRC, 2);
           } else {
-            g.fillStyle = C(4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
             g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 3); g.fillRect(px, py + 12, BEK_T_SRC, 3);
             g.fillStyle = C(8); g.fillRect(px, py + 18, BEK_T_SRC, 2);
           }
         }
-        if (c === 'D') { g.fillStyle = C(rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); g.fillStyle = C(6); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(8); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(14); g.fillRect(px + 12, py + 11, 2, 2); }
+        if (c === 'D') { g.fillStyle = C(6); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(8); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(14); g.fillRect(px + 12, py + 11, 2, 2); }
         if (c === 'b') {
           g.fillStyle = C(6); g.fillRect(px + 1, py + 1, 18, 18);
           g.fillStyle = C(8); g.fillRect(px + 1, py + 1, 18, 2); g.fillRect(px + 1, py + 17, 18, 2);
@@ -1198,8 +1396,8 @@ export default {
         }
         if (c === 'o') { g.fillStyle = C(8); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(9); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(11); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(6); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
         if (c === 'S') { g.fillStyle = C(6); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(14); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(0); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
-        if (c === 'L') { g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
-        if (c === 'f') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); g.fillStyle = C(8); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
+        if (c === 'L') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
+        if (c === 'f') { g.fillStyle = C(8); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
         /* ---- indoors, and the benches ---------------------------------- */
         if (c === 'z') {                                                     /* a rag rug, walked on */
           g.fillStyle = C(4); g.fillRect(px + 1, py + 1, 18, 18);
@@ -1224,21 +1422,58 @@ export default {
           g.fillStyle = C(14); g.fillRect(px + 1, py + 8, 18, 1);
           g.fillStyle = C(8); g.fillRect(px + 2, py + 12, 3, 6); g.fillRect(px + 15, py + 12, 3, 6); g.fillRect(px + 2, py + 3, 2, 6); g.fillRect(px + 16, py + 3, 2, 6);
         }
-        if (c === 'v') {                                                     /* the hearth, alight */
-          const fl = Math.floor(t * 6) % 3;
-          g.fillStyle = C(8); g.fillRect(px + 2, py + 2, 16, 16);
-          g.fillStyle = C(0); g.fillRect(px + 5, py + 5, 10, 11);
-          g.fillStyle = C(4); g.fillRect(px + 7, py + 9, 6, 7);
-          g.fillStyle = C(12); g.fillRect(px + 8, py + 8 - fl, 4, 6 + fl);
-          g.fillStyle = C(14); g.fillRect(px + 9, py + 7 - fl, 2, 3);
-          g.fillStyle = C(15); g.fillRect(px + 9, py + 6 - fl, 1, 1);
-        }
         if (c === 'c') {                                                     /* a crate */
           g.fillStyle = C(6); g.fillRect(px + 2, py + 4, 16, 14);
           g.fillStyle = C(8); g.fillRect(px + 2, py + 4, 16, 1); g.fillRect(px + 2, py + 10, 16, 1); g.fillRect(px + 9, py + 4, 1, 14);
           g.fillStyle = C(14); g.fillRect(px + 4, py + 6, 2, 1);
         }
         if (rim) edgeMark(px, py, x, y);
+      }
+
+      function tileLive(c, x, y, t) {
+        if (c === 'W') { waterTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
+        if (c === '~') { waterEdgeTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
+        if (c === 'v') hearthTile(x, y, t);                                  /* the hearth, alight */
+      }
+      const LIVE = 'W~v';
+
+      /* ---- the terrain cache ----------------------------------------------
+         The two passes above used to be one function run for all 360 tiles
+         every single frame, which is what kept the per-tile detail budget
+         down to a handful of rects. They now render once into an offscreen
+         canvas the size of the whole map and the frame blits that, so the
+         cost of a tile's detail is paid when the map changes rather than
+         sixty times a second — and the ground can afford to be interesting.
+         The key is everything the static passes read: which map, which day
+         (felled/mined/picked all expire against S.day), whether the house is
+         up, and a counter bumped by every mutation to those three tables.
+         `terrLive` is the list the frame still has to draw itself. */
+      const terrCv = document.createElement('canvas');
+      terrCv.width = BEK_MAP_W; terrCv.height = BEK_MAP_H;
+      const terrG = terrCv.getContext('2d');
+      if (terrG) terrG.tag = 'terrain';
+      let terrKey = '', terrLive = [];
+      let terrBump = 0;
+      const terrDirty = () => { terrBump++; };
+      function terrain() {
+        const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump;
+        if (k === terrKey) return terrCv;
+        terrKey = k; terrLive = [];
+        const prev = g;
+        g = terrG;
+        try {
+          g.setTransform(1, 0, 0, 1, 0, 0);
+          g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
+          g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
+          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
+          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+            const c = tileAt(S.map, x, y);
+            tileDetail(c, x, y);
+            if (LIVE.indexOf(c) >= 0) terrLive.push(x, y);
+          }
+          g.restore();
+        } finally { g = prev; }
+        return terrCv;
       }
       /* Ploughed in even rows, so the furrows always run the same way the
          field was worked — horizontal bands that line up tile to tile rather
@@ -1247,14 +1482,20 @@ export default {
          furrow (plus a glint of standing water) so it still reads apart from
          dry soil once the night stipple is over everything. */
       function tilledSoil(x, y, wet) {
-        const px = x * BEK_T, py = y * BEK_T, seed = (x * 7 + y * 13) % 5;
+        const px = x * BEK_T, py = y * BEK_T, v = soilVar(S.map, x, y);
         native(() => {
           g.fillStyle = C(wet ? 8 : 6); g.fillRect(px + 2, py + 2, 36, 36);
           g.fillStyle = C(wet ? 0 : 8);
           g.fillRect(px + 4, py + 9, 32, 2); g.fillRect(px + 4, py + 19, 32, 2); g.fillRect(px + 4, py + 29, 32, 2);
           g.fillStyle = C(7);
           g.fillRect(px + 4, py + 8, 32, 1); g.fillRect(px + 4, py + 18, 32, 1); g.fillRect(px + 4, py + 28, 32, 1);
-          if (wet) { g.fillStyle = C(9); g.fillRect(px + 7 + seed * 6, py + 11, 1, 1); g.fillRect(px + 28 - seed * 4, py + 31, 1, 1); }
+          /* standing water, and it stands where the ground happens to dip,
+             not on a line four pixels wide down the left of every plot */
+          if (wet) {
+            g.fillStyle = C(9);
+            g.fillRect(px + 4 + spot(v.ax, 32, 1), py + 4 + spot(v.ay, 32, 1), 1, 1);
+            g.fillRect(px + 4 + spot(v.bx, 32, 1), py + 4 + spot(v.by, 32, 1), 1, 1);
+          }
         });
       }
       function drawSoil(x, y) {
@@ -1392,13 +1633,20 @@ export default {
         camTrack();
 
         /* The playfield draws in source-art coordinates under one whole-number
-           transform, so drawTile, drawSoil, person, bear and goat kept every
+           transform, so the tile passes, drawSoil, person, bear and goat kept every
            literal they had and still land on exact pixels at the new size. */
         g.save();
         viewClip();
         g.translate(BEK_VIEW_X - camX, BEK_VIEW_Y - camY);
+        /* The whole static ground arrives as one blit at 1:1 — it is already
+           in device pixels, so it goes down before the art transform, not
+           under it. Everything after this line is still source-space art. */
+        g.drawImage(terrain(), 0, 0);
         g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
-        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) drawTile(tileAt(S.map, x, y), x, y, t);
+        for (let i = 0; i < terrLive.length; i += 2) {
+          const lx = terrLive[i], ly = terrLive[i + 1];
+          tileLive(tileAt(S.map, lx, ly), lx, ly, t);
+        }
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) if (tileAt(S.map, x, y) === 'f') drawSoil(x, y);
 
         S.drops.filter(d => d.map === S.map).forEach(d => drawIcon(d.item, d.x * BEK_T_SRC + 3, d.y * BEK_T_SRC + 3));
