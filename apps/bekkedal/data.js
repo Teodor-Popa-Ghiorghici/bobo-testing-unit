@@ -1,4 +1,51 @@
-export const BEK_T = 20, BEK_COLS = 24, BEK_ROWS = 15;   /* 480 x 300 exactly */
+/* ---- geometry -------------------------------------------------------------
+ * The map is 24x15 tiles and that never changes: every row string in
+ * BEK_MAPS, every NPC and goat position, and every per-tile key in S.soil /
+ * S.felled / S.mined / S.picked / S.drops is a grid coordinate, not a pixel.
+ *
+ * Tile art and sprites are still authored on the original 20px tile
+ * (BEK_T_SRC). They reach the screen through a whole-number BEK_ART_SCALE
+ * transform, so nothing in the art had to be redrawn to raise the resolution
+ * and the diff stays readable. Phase 3 redraws them at native density and
+ * BEK_ART_SCALE goes to 1.
+ *
+ * 24 tiles x 40px is exactly the 960px canvas width, so the camera never
+ * scrolls horizontally. 15 tiles x 40px is 600px against a 480px viewport,
+ * which leaves BEK_CAM_MAX_Y of vertical travel — the camera follows the
+ * player down the valley and clamps at both ends.
+ */
+export const BEK_T_SRC = 20;                              /* art authoring tile */
+export const BEK_ART_SCALE = 2;                           /* source px -> screen px */
+export const BEK_T = BEK_T_SRC * BEK_ART_SCALE;           /* 40 — presented tile */
+export const BEK_COLS = 24, BEK_ROWS = 15;                /* the map, untouched */
+
+export const BEK_MAP_W = BEK_COLS * BEK_T;                /* 960 */
+export const BEK_MAP_H = BEK_ROWS * BEK_T;                /* 600 */
+
+export const BEK_W = BEK_MAP_W;                           /* 960 — exact fit */
+export const BEK_H = BEK_W * 9 / 16;                      /* 540 — 16:9 */
+
+/* The two HUD bands are reserved chrome: the playfield no longer draws
+   underneath them, so nothing the player needs is ever hidden by the status
+   strip the way it was when both overlaid the top and bottom map rows. */
+export const BEK_HUD_H = 30;                              /* height of one band */
+export const BEK_VIEW_X = 0;
+export const BEK_VIEW_Y = BEK_HUD_H;
+export const BEK_VIEW_W = BEK_W;                          /* 960 */
+export const BEK_VIEW_H = BEK_H - BEK_HUD_H * 2;          /* 480 */
+export const BEK_CAM_MAX_X = Math.max(0, BEK_MAP_W - BEK_VIEW_W);   /* 0 */
+export const BEK_CAM_MAX_Y = Math.max(0, BEK_MAP_H - BEK_VIEW_H);   /* 120 */
+
+/* Weather. The drop count is a density carried over from the 480x300 build
+   (46 drops over 144000px) rescaled to the viewport; the strides stay 53/91
+   because both are still coprime with the new 960/480 wrap moduli, so the
+   drops scatter instead of banding. */
+export const BEK_RAIN_N = Math.round(46 * (BEK_VIEW_W * BEK_VIEW_H) / (480 * 300));
+export const BEK_RAIN_STRIDE_X = 53, BEK_RAIN_STRIDE_Y = 91;
+export const BEK_RAIN_LEN = 4 * BEK_ART_SCALE;
+export const BEK_RAIN_VX = 120 * BEK_ART_SCALE, BEK_RAIN_VY = 220 * BEK_ART_SCALE;
+export const BEK_DITHER_CELL = 4;                         /* ordered-dither matrix */
+export const BEK_DITHER_PX = BEK_DITHER_CELL * BEK_ART_SCALE;  /* stipple stays as coarse as it looks today */
 export const BEK_SAVE = 'templeos.bekkedal.v2';
 
 /* ---- 27.0 the two tongues ------------------------------------------------
