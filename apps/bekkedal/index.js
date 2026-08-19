@@ -12,6 +12,8 @@ import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVa
          soilVar, objVar, LOW, PATCH, JIT } from './noise.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
+import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT, glow, GLOW_CELL } from './light.js';
+import { rustic, inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { createText } from './text.js';
 import { BORDER, CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -76,10 +78,18 @@ export default {
          argument threaded through. */
       let g = cv.getContext('2d');
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
-      /* One array index per fill. The old helper built 'rgb(r,g,b)' from
-         three numbers every single time, which on a 7800-rect cache rebuild
-         is 7800 string concatenations nobody needed. */
-      const C = i => PAL_CSS[i];
+      /* ---- the active lookup table --------------------------------------
+         `C` is one array index per fill — the old helper built 'rgb(r,g,b)'
+         from three numbers every single time, which on a 7800-rect cache
+         rebuild is 7800 string concatenations nobody needed. What it indexes
+         *into* is the hour's LUT: the playfield sets `LUT_CSS` to the light
+         state's table before it draws and puts it back to daylight after, so
+         night costs no overdraw at all and the two HUD bands, the panels and
+         every glyph of text keep full contrast after dark without anyone
+         having to remember to ask for it. See light.js. */
+      let LUT_CSS = DAY_CSS, LUT_TAG = 'day';
+      const C = i => LUT_CSS[i];
+      const useLut = (css, tag) => { LUT_CSS = css; LUT_TAG = tag; };
       /* The declared mark / shadow / feature tables, unpacked once. Every
          decorative colour decision in the art below comes out of one of
          these, which is what lets palette_check.js assert the contrast rule
@@ -954,25 +964,35 @@ export default {
          apparent size and the night overlay would read as flat grey instead of
          dither — and a larger pattern tile is measurably cheaper to fill,
          because the rasteriser repeats it fewer times across the canvas. */
-      function ditherPat(col, strength) {
-        /* Keyed by the target context as well as the colour: a pattern is
-           made by the context that will fill with it, and the terrain cache
-           fills with the same stipples the screen does. */
-        const k = (g.tag || 'screen') + ':' + col + ':' + strength;
+      function ditherPat(col, strength, day) {
+        /* Keyed by the target context and by the LUT as well as the colour: a
+           pattern is made by the context that will fill with it, and the
+           terrain cache fills with the same stipples the screen does — and a
+           pattern baked at one hour is the wrong colour at the next. Only two
+           LUTs are ever live (daylight and the current hour), and the cache is
+           swept when the hour's changes, so sixty-four indices do not turn
+           this into an unbounded pile of canvases.
+
+           `day` asks for the pattern in daylight colours whatever the hour.
+           That is for light *sources*: a fire is as bright at midnight as at
+           noon, which is the entire reason for lighting it. */
+        const tag = day ? 'day' : LUT_TAG;
+        const k = (g.tag || 'screen') + '|' + tag + '|' + col + '|' + strength;
         if (ditherCache[k]) return ditherCache[k];
         const c = document.createElement('canvas'); c.width = BEK_DITHER_PX; c.height = BEK_DITHER_PX;
-        const q = c.getContext('2d'); q.fillStyle = C(col);
+        const q = c.getContext('2d'); q.fillStyle = day ? DAY_CSS[col] : LUT_CSS[col];
         for (let j = 0; j < BEK_DITHER_CELL; j++) for (let i = 0; i < BEK_DITHER_CELL; i++)
           if (DITHER[j][i] < strength) q.fillRect(i * BEK_ART_SCALE, j * BEK_ART_SCALE, BEK_ART_SCALE, BEK_ART_SCALE);
         ditherCache[k] = g.createPattern(c, 'repeat'); return ditherCache[k];
       }
+      /* drop every pattern baked against an hour that has passed */
+      function sweepDither(live) {
+        for (const k of Object.keys(ditherCache)) {
+          const tag = k.split('|')[1];
+          if (tag !== 'day' && tag !== live) delete ditherCache[k];
+        }
+      }
       function dither(col, strength) { const n = Math.max(0, Math.min(16, Math.round(strength))); if (n <= 0) return; g.fillStyle = ditherPat(col, n); g.fillRect(0, 0, BEK_W, BEK_H); }
-
-      /* Two dressings for a building: log-and-turf out on the farms, at the
-         water and indoors; painted board under clay tile in the town. One
-         palette, two silhouettes, and you can tell where you are by looking. */
-      const rustic = () => S.map === 'farm' || S.map === 'setra' || S.map === 'lake' ||
-                           S.map === 'enga' || S.map === 'farmhouse' || S.map === 'lakehouse';
 
       /* ---- native-resolution terrain (art uplift, batch 1) ---------------
          The grass, cave, path and water-edge tiles and drawSoil's tilled
@@ -1023,9 +1043,9 @@ export default {
          drawn native so it stays exactly as coarse as the night overlay's.
          Call it outside a native() block, never inside one — it opens its
          own, and two of them nested would halve the scale twice. */
-      function wash(px, py, w, h, col, s) {
+      function wash(px, py, w, h, col, s, day) {
         if (s <= 0) return;
-        native(() => { g.fillStyle = ditherPat(col, s > 16 ? 16 : s); g.fillRect(px, py, w, h); });
+        native(() => { g.fillStyle = ditherPat(col, s > 16 ? 16 : s, day); g.fillRect(px, py, w, h); });
       }
 
       /* ---- ground: the first cached pass ---------------------------------
@@ -1266,8 +1286,11 @@ export default {
          allow. Both feed the terrain cache and run only when the map, the
          day or the felled/mined/picked state changes. `tileLive` is what is
          left over: the three glyphs whose art reads the clock. */
-      const ins_ = () => !!(BEK_MAPS[S.map] && BEK_MAPS[S.map].inside);
-      const snow_ = () => S.map === 'setra' || S.map === 'vidda';
+      /* which dressing a building wears, whether we are indoors, whether the
+         map is snowed on — all one table now, in surface.js, because
+         palette_check has to read the same answers the art draws from */
+      const ins_ = () => insideMap(S.map);
+      const snow_ = () => snowy(S.map);
       const rim_ = (x, y) => !ins_() && (x === 0 || y === 0 || x === BEK_COLS - 1 || y === BEK_ROWS - 1);
       /* a tile that lays its own ground has no grass or boards under it */
       const ownGround = (c, x, y) => 'W~P.MOQHRDLf '.indexOf(c) >= 0 || (c === 'T' && rim_(x, y));
@@ -1280,12 +1303,12 @@ export default {
         if (c === 'W' || c === '~') { g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (c === '.') { pathGround(x, y); return; }
         if (c === 'M' || c === 'O' || c === 'Q') { rockGround(x, y, snow_()); return; }
-        if (c === 'P') { g.fillStyle = C(TIM[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'f') { g.fillStyle = C(SOI[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'L') { g.fillStyle = C(GRASS[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'H') { g.fillStyle = C(ins_() ? TIM[1] : rustic() ? TIM[2] : WAR[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'R' || c === 'D') { g.fillStyle = C(rustic() ? TIM[2] : WAR[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (ins_()) floorGround(x, y); else if (S.map === 'gruva') caveGround(x, y); else grassGround(x, y);
+        /* the plain fills come straight out of surface.js, so the colour the
+           check reasons about at the darkest hour is the colour that is
+           actually on screen */
+        if (c === 'P' || c === 'f' || c === 'L') { g.fillStyle = C(groundOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'H' || c === 'R' || c === 'D') { g.fillStyle = C(solidOf(S.map, c === 'R' ? 'H' : c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (ins_()) floorGround(x, y); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
       }
 
       function tileDetail(c, x, y) {
@@ -1293,11 +1316,11 @@ export default {
         const ins = ins_(), snow = snow_(), rim = rim_(x, y);
         if (c === ' ' || c === 'W' || c === '~') return;      /* nothing static of their own */
         if (!ownGround(c, x, y)) {
-          if (ins) floorDetail(x, y); else if (S.map === 'gruva') caveDetail(x, y); else grassDetail(x, y);
+          if (ins) floorDetail(x, y); else if (isCave(S.map)) caveDetail(x, y); else grassDetail(x, y);
         }
         const o = objVar(c, S.map, x, y);
         if (c === 'P') {
-          g.fillStyle = C(TIM[3]); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
+          g.fillStyle = C(TIM[2]); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
           g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
           return;
         }
@@ -1384,11 +1407,12 @@ export default {
           if (ins) {
             /* Seen from inside, a wall must not be the same brown as the
                floor or the room has no edges. Dark timber, lighter courses. */
-            g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
-            g.fillStyle = C(TIM[0]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
+            g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
+            g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 2, 18, 1); g.fillRect(px + 1, py + 8, 18, 1); g.fillRect(px + 1, py + 14, 18, 1);
+            g.fillStyle = C(ATMO[0]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
             if (win) { g.fillStyle = C(WAT[5]); g.fillRect(px + 5, py + 5, 9, 8);
               g.fillStyle = C(SNO[1]); g.fillRect(px + 5, py + 5, 9, 1); g.fillRect(px + 9, py + 5, 1, 8); }
-          } else if (rustic()) {
+          } else if (rustic(S.map)) {
             g.fillStyle = C(TIM[3]); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
             g.fillStyle = C(TIM[0]); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
             if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 4, 9, 8);
@@ -1402,7 +1426,7 @@ export default {
           }
         }
         if (c === 'R') {
-          if (rustic()) {
+          if (rustic(S.map)) {
             g.fillStyle = C(GRASS[1]); g.fillRect(px, py, BEK_T_SRC, 13);                     /* torvtak: turf */
             g.fillStyle = C(TURF_ROOF[0]);
             g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, 12, 1), 2, 1);
@@ -1421,10 +1445,10 @@ export default {
           g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 1, 18, 18);
           g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 1, 18, 2); g.fillRect(px + 1, py + 17, 18, 2);
           g.fillStyle = C(SNO[1]); g.fillRect(px + 3, py + 3, 14, 5);                          /* pillow */
-          g.fillStyle = C(WAT[3]); g.fillRect(px + 3, py + 9, 14, 8);                          /* blanket */
-          g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 9, 14, 1); g.fillRect(px + 3, py + 13, 14, 1);
+          g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 9, 14, 8);                          /* blanket */
+          g.fillStyle = C(WAT[2]); g.fillRect(px + 3, py + 9, 14, 1); g.fillRect(px + 3, py + 13, 14, 1);
         }
-        if (c === 'o') { g.fillStyle = C(STO[3]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
+        if (c === 'o') { g.fillStyle = C(STO[4]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 16, 14, 2); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
         if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
         if (c === 'L') { g.fillStyle = C(TIM[3]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
         if (c === 'f') { g.fillStyle = C(SOI[1]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
@@ -1441,19 +1465,19 @@ export default {
           g.fillStyle = C(TIM[1]); g.fillRect(px, py + 10, BEK_T_SRC, 2); g.fillRect(px + 2, py + 12, 3, 7); g.fillRect(px + 15, py + 12, 3, 7);
         }
         if (c === 'u') {                                                     /* a cupboard */
-          g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py, 18, BEK_T_SRC);
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 6, 18, 1); g.fillRect(px + 1, py + 13, 18, 1); g.fillRect(px + 9, py, 1, BEK_T_SRC);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py, 18, BEK_T_SRC);
+          g.fillStyle = C(TIM[3]); g.fillRect(px + 1, py + 6, 18, 1); g.fillRect(px + 1, py + 13, 18, 1); g.fillRect(px + 9, py, 1, BEK_T_SRC);
           g.fillStyle = C(TIM[4]); g.fillRect(px + 6, py + 9, 2, 2); g.fillRect(px + 12, py + 9, 2, 2);
           g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 2, 4, 3);
           g.fillStyle = C(SNO[1]); g.fillRect(px + 12, py + 2, 3, 3);
         }
         if (c === 'J') {                                                     /* a bench, to sit on */
-          g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 3, 18, 3);
+          g.fillStyle = C(TIM[3]); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 3, 18, 3);
           g.fillStyle = C(TIM[4]); g.fillRect(px + 1, py + 8, 18, 1);
           g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 12, 3, 6); g.fillRect(px + 15, py + 12, 3, 6); g.fillRect(px + 2, py + 3, 2, 6); g.fillRect(px + 16, py + 3, 2, 6);
         }
         if (c === 'c') {                                                     /* a crate */
-          g.fillStyle = C(TIM[2]); g.fillRect(px + 2, py + 4, 16, 14);
+          g.fillStyle = C(TIM[3]); g.fillRect(px + 2, py + 4, 16, 14);
           g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 4, 16, 1); g.fillRect(px + 2, py + 10, 16, 1); g.fillRect(px + 9, py + 4, 1, 14);
           g.fillStyle = C(TIM[4]); g.fillRect(px + 4, py + 6, 2, 1);
         }
@@ -1482,13 +1506,122 @@ export default {
       terrCv.width = BEK_MAP_W; terrCv.height = BEK_MAP_H;
       const terrG = terrCv.getContext('2d');
       if (terrG) terrG.tag = 'terrain';
-      let terrKey = '', terrLive = [];
+      let terrKey = '', terrLive = [], terrHearths = [];
       let terrBump = 0;
       const terrDirty = () => { terrBump++; };
+
+      /* ---- the hour ------------------------------------------------------
+         `st0` is the light outside; `st` is what this map actually sits in —
+         a room is sheltered halfway back toward daylight, and the gruva is a
+         hole in a mountain and has no hour at all. `dark` is how hard the
+         fires burn, and it comes off the *unsheltered* state on purpose: a
+         hearth is bright because the valley is dark, not because the room is.
+         Everything here is a pure function of S.map and S.min, so the cache
+         and the frame can both ask and get the same answer. */
+      function lighting() {
+        const cave = isCave(S.map), ins = ins_();
+        const st0 = cave ? CAVE_LIGHT : lightAt(S.min);
+        const st = ins ? shelter(st0, 0.5) : st0;
+        return { st: st, tag: keyOf(st), dark: Math.max(0, Math.min(1, 1 - st0.k)),
+                 key: (cave ? 'cave' : keyOf(st0)) + (ins ? '|in' : '') };
+      }
+
+      /* ---- local light ---------------------------------------------------
+         The lighting curve is what makes night comfortable; this is what
+         makes it inviting, and they are different things. A source pulls the
+         ground near it back toward warm and bright — warm, not merely
+         brighter, or a lit window in a blue valley reads as a hole in the
+         picture rather than as somebody being in. Two passes per source, a
+         wide faint halo and a tight core, so the pool changes colour
+         temperature toward the middle instead of only getting stronger.
+
+         The stipple is taken in *daylight* colours (`wash`'s last argument):
+         a fire is as bright at midnight as at noon, which is the whole
+         reason for lighting one.
+
+         Static sources are painted into the terrain cache, because the light
+         key is already part of the cache key — so a lit window costs nothing
+         per frame. Only what moves or flickers is redrawn live. */
+      /* Two passes, and the outer one is a *deeper* colour rather than a
+         weaker one. Light gets redder as it dims — a fire's reach is amber in
+         the middle and rust at the edge — so the pool changes temperature
+         outward and not only strength. Pull the outer pass toward yellow
+         instead and it reads as a spotlight. */
+      const GLOW_HALO = 1.35;
+      function pool(px, py, r, peak) {
+        if (peak < 2) return 0;
+        let n = 0;
+        n += glow((gx, gy, w, h, sN) => wash(gx, gy, w, h, WAR[1], sN, true), px, py, r * GLOW_HALO, Math.round(peak * 0.45));
+        n += glow((gx, gy, w, h, sN) => wash(gx, gy, w, h, WAR[3], sN, true), px, py, r, peak);
+        return n;
+      }
+
+      /* ---- the moon ------------------------------------------------------
+         One cool key light, from above and a little to the left, put on as a
+         two-pixel rim along the top of anything solid and a one-pixel lick
+         down its left side. It costs a wash per solid tile in a pass that is
+         cached, and it is what stops a night reading as one flat sheet of
+         dark: without it every silhouette has the same value all the way
+         round and the scene has no direction in it at all.
+
+         Drawn through the hour's own table rather than in daylight, because
+         moonlight is the ambient — it is not a lamp somebody lit. */
+      function moonKey(dark) {
+        if (dark < 0.25) return;
+        const top = Math.round(5 * dark), side = Math.round(2.5 * dark);
+        if (top < 2) return;
+        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+          const c = tileAt(S.map, x, y);
+          if (c === ' ' || c === 'W' || c === '~' || BEK_SOLID.indexOf(c) < 0) continue;
+          /* Never on the border ring. A whole row of it lit at one strength
+             is not moonlight, it is a dotted line ruled across the picture —
+             and the border is a wall of the same glyph all the way along, so
+             that is exactly what it would be. */
+          if (rim_(x, y)) continue;
+          /* and one step of jitter per tile off a channel that is already
+             declared and tested, so a long run of wall does not come out as
+             one drawn edge either. groundVar is free here: the tiles this
+             touches are solid, so nothing else on them reads from it. */
+          const j = groundVar(S.map, x, y).c1 & 1;
+          const px = x * BEK_T, py = y * BEK_T;
+          if (BEK_SOLID.indexOf(tileAt(S.map, x, y - 1)) < 0) wash(px, py, BEK_T, 2 * BEK_ART_SCALE, SNO[1], top - j);
+          if (BEK_SOLID.indexOf(tileAt(S.map, x - 1, y)) < 0) wash(px, py, BEK_ART_SCALE, BEK_T, SNO[1], side - j);
+        }
+      }
+
+      /* Which tiles are giving light, found once while the map is being
+         rasterised rather than searched for every frame. A window only counts
+         if it has somewhere to spill: a wall with another wall in front of it
+         is lighting the inside of a wall. */
+      function lightSources(dark) {
+        const out = [];
+        if (dark <= 0.02) return out;
+        const ins = ins_();
+        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+          const c = tileAt(S.map, x, y);
+          if (c === 'v') { out.push({ x: x, y: y, dy: 0.1, r: 2.7 * BEK_T, peak: Math.round(12 * dark), hearth: 1 }); continue; }
+          if (c !== 'H') continue;
+          if (objVar('H', S.map, x, y).win >= 2) continue;            /* no window in this course */
+          /* A window that is drawn is a window that lights. If the wall
+             carries on below it the pool falls on the wall face, which is
+             what a lit window actually does to the boards under it. Only the
+             dead margin outside a room gets nothing, because there is
+             nothing out there to light. */
+          if (tileAt(S.map, x, y + 1) === ' ') continue;
+          out.push({ x: x, y: y, dy: 0.9, r: (ins ? 1.5 : 1.9) * BEK_T, peak: Math.round((ins ? 7 : 8) * dark) });
+        }
+        return out;
+      }
+
+      /* rebuild cost, so the numbers in the docs are measured and not guessed */
+      const perf = { rects: 0, ms: 0, rebuilds: 0, key: '' };
       function terrain() {
-        const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump;
+        const L = lighting();
+        const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump + '|' + L.key;
         if (k === terrKey) return terrCv;
-        terrKey = k; terrLive = [];
+        terrKey = k; terrLive = []; terrHearths = [];
+        const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+        let rects = 0;
         const prev = g;
         g = terrG;
         try {
@@ -1501,8 +1634,24 @@ export default {
             tileDetail(c, x, y);
             if (LIVE.indexOf(c) >= 0) terrLive.push(x, y);
           }
+          moonKey(L.dark);
+          lightSources(L.dark).forEach(sc => {
+            const px = (sc.x + 0.5) * BEK_T, py = (sc.y + sc.dy) * BEK_T;
+            rects += pool(px, py, sc.r, sc.peak);
+            if (sc.hearth) terrHearths.push(px, py);
+          });
+          /* Light does not spill into the void. The margin outside a room's
+             walls is deliberate dead black and a warm pool creeping out over
+             it reads as the room leaking, so it is painted back afterwards
+             rather than the glow being clipped to a shape. */
+          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+            if (tileAt(S.map, x, y) !== ' ') continue;
+            g.fillStyle = C(0); g.fillRect(x * BEK_T_SRC, y * BEK_T_SRC, BEK_T_SRC, BEK_T_SRC);
+          }
           g.restore();
         } finally { g = prev; }
+        perf.rects = rects; perf.key = k; perf.rebuilds++;
+        perf.ms = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0) - t0;
         return terrCv;
       }
       /* Ploughed in even rows, so the furrows always run the same way the
@@ -1566,8 +1715,21 @@ export default {
         else R(4, 4, 8, 8, col);
       }
 
+      /* Everything the sprite is drawn from, so palette_check can ask whether
+         any part of a person separates from the ground they are standing on
+         — which is the question that matters, not whether one garment does. */
+      const PERSON_INK = ATMO[0];
       function person(px, py, dir, step, hair, shirt, pants) {
         const bob = (step === 1 || step === 3) ? 1 : 0, y = py + bob;
+        /* The same trick the fir uses on a field of the same green: stamp the
+           silhouette once in ink, one pixel proud, and draw the body inside
+           it. Three rects, and a person reads on grass, on a plank pier, on
+           snow and at midnight without any of those needing to be tuned
+           around the colour of a shirt. */
+        g.fillStyle = C(PERSON_INK);
+        g.fillRect(px + 1, y - 1, 11, 10);         /* head                 */
+        g.fillRect(px - 1, y + 6, 15, 9);          /* torso and arms       */
+        g.fillRect(px + 2, y + 12, 9, 8);          /* legs                 */
         g.fillStyle = C(pants); g.fillRect(px + 3, y + 13, 3, 5); g.fillRect(px + 7, y + 13, 3, 5);
         g.fillStyle = C(TIM[0]);
         if (step === 1) g.fillRect(px + 3, y + 17, 3, 2); else if (step === 3) g.fillRect(px + 7, y + 17, 3, 2); else { g.fillRect(px + 3, y + 17, 3, 2); g.fillRect(px + 7, y + 17, 3, 2); }
@@ -1658,9 +1820,16 @@ export default {
       }
 
       /* ---- the frame ---------------------------------------------------- */
+      let litTag = '';
       function draw(t) {
         const m = M(), inside = !!m.inside;
         camTrack();
+        /* Everything from here to the HUD resolves its colours through the
+           hour's table. Night is not painted on top of the picture any more;
+           the picture is rasterised in night colours. */
+        const L = lighting();
+        if (L.tag !== litTag) { litTag = L.tag; sweepDither(L.tag); }
+        useLut(cssFor(L.st), L.tag);
 
         /* The playfield draws in source-art coordinates under one whole-number
            transform, so the tile passes, drawSoil, person, bear and goat kept every
@@ -1679,6 +1848,19 @@ export default {
         }
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) if (tileAt(S.map, x, y) === 'f') drawSoil(x, y);
 
+        /* The moving half of the light. The pools themselves are in the cache;
+           these are the two things that cannot be: a fire whose reach breathes
+           on the same cycle as its flame, and a lamp that walks. Both are
+           small — a couple of dozen stipple cells — because the expensive part
+           was paid at the last rebuild. */
+        if (L.dark > 0.02) {
+          const fl = 1 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 11.7);
+          for (let i = 0; i < terrHearths.length; i += 2)
+            pool(terrHearths[i], terrHearths[i + 1], 1.25 * BEK_T * fl, Math.round(5 * L.dark));
+          if (isCave(S.map) && has('lykt'))
+            pool(S.px * BEK_T + BEK_T / 2, S.py * BEK_T + BEK_T / 2, 2.4 * BEK_T, 10);
+        }
+
         S.drops.filter(d => d.map === S.map).forEach(d => drawIcon(d.item, d.x * BEK_T_SRC + 3, d.y * BEK_T_SRC + 3));
         BEK_GOATS.filter(gt => gt.map === S.map).forEach(gt => goat(gt.x * BEK_T_SRC + 1, gt.y * BEK_T_SRC + 1, t));
 
@@ -1695,8 +1877,12 @@ export default {
         if (S.map === 'lake' && S.flag.lot && !S.built) { g.fillStyle = C(SAN[2]); g.fillRect(3 * BEK_T_SRC, 3 * BEK_T_SRC, 5 * BEK_T_SRC, 1); g.fillRect(3 * BEK_T_SRC, 6 * BEK_T_SRC - 1, 5 * BEK_T_SRC, 1); }
         g.restore();
 
-        /* Weather and the hour of the day sit over the playfield only; the HUD
-           bands are chrome and stay at full contrast through the night. */
+        /* Weather sits over the playfield only, and it is the last thing that
+           still composites: fog really is a sheet of something between you
+           and the valley, which is exactly what an overlay is for. The hour
+           is no longer here at all — it went into the palette. Both still
+           draw through the hour's LUT, so fog at midnight is night fog and
+           rain at dusk catches the last of the light. */
         g.save();
         viewClip();
         if (!inside) {
@@ -1708,14 +1894,11 @@ export default {
               g.fillRect(BEK_VIEW_X + rx, BEK_VIEW_Y + ry, BEK_ART_SCALE, BEK_RAIN_LEN);
             }
           } else if (S.weather === 'take') dither(STO[4], 4);
-          if (night()) dither(1, 9); else if (dusk()) dither(1, 5); else if (dawn()) dither(6, 3);
-        } else {
-          /* A room is not exempt from the evening. It is lit by its hearth, so
-             it goes about half as dark as the valley outside — but it goes. */
-          if (night()) dither(1, 5); else if (dusk()) dither(1, 3); else if (dawn()) dither(6, 2);
         }
         g.restore();
 
+        /* the chrome, from here down: two HUD bands, panels, menus, text */
+        useLut(DAY_CSS, 'day');
         drawHud(m);
 
         /* crop tooltip when you face growing soil */
@@ -1960,6 +2143,22 @@ export default {
       try { hymnWas = Music.on; if (Music.on) Music.stop(); } catch (e) {}
       Song.sync();
 
+      /* A hatch for the screenshot harness (scripts/bekkedal_shots.mjs) to
+         read real numbers out of a running game instead of guessing them.
+         Nothing in the game reads it, it is deleted when the window closes,
+         and no gameplay path goes through it. */
+      let drawMs = 0;
+      const dbg = {
+        perf: () => ({
+          rebuilds: perf.rebuilds, rebuildRects: perf.rects,
+          rebuildMs: Math.round(perf.ms * 100) / 100,
+          drawMs: Math.round(drawMs * 100) / 100,
+          ditherPatterns: Object.keys(ditherCache).length,
+          map: S.map, min: Math.floor(S.min), key: perf.key
+        })
+      };
+      window.__bekDebug = dbg;
+
       let acc = 0;
       function frame(ts) {
         if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); return; }
@@ -1972,7 +2171,13 @@ export default {
         autoT += dt; if (autoT > 6) { autoT = 0; autoSave(); }
         speechTick();
         Song.rotStep(dt); Song.sync();
-        acc += dt; if (acc >= 1 / 30) { acc = 0; draw(ts / 1000); }
+        acc += dt;
+        if (acc >= 1 / 30) {
+          acc = 0;
+          const t0 = performance.now();
+          draw(ts / 1000);
+          drawMs = drawMs * 0.9 + (performance.now() - t0) * 0.1;
+        }
       }
       raf = requestAnimationFrame(frame);
 
@@ -1988,6 +2193,7 @@ export default {
       /* the fullscreen listener lives on `document`, not on the canvas, so it
          outlives the window's own DOM removal and must be torn down here */
       this._cleanup = () => {
+        if (window.__bekDebug === dbg) { try { delete window.__bekDebug; } catch (e) { window.__bekDebug = null; } }
         ro.disconnect();
         document.removeEventListener('fullscreenchange', onFSChange);
         if (document.fullscreenElement === wrap) document.exitFullscreen().catch(() => {});

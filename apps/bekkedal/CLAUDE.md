@@ -38,6 +38,12 @@ scripts that check them:
   declared decorative tables (`MARKS` / `SHADOWS` / `FEATURES`) that say what
   may be drawn on what. No functions that draw, no state. See **Palette**
   below.
+- `light.js` — the hour of the day as a transform of the palette, the
+  anchors it is interpolated between, and the falloff a local light source
+  is painted with. See **Light and the hour** below.
+- `surface.js` — what a tile is made of: which glyph reads as which palette
+  entry, on which map. The ground pass fills from it and `palette_check.js`
+  walks every map through it, which is the point — one table, two readers.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
@@ -327,6 +333,112 @@ and a pickup is supposed to pop. `panel`, `text` and `drawHud` are chrome
 too. Everything in the playfield — ground, tiles, buildings, furniture,
 crops, people, animals, weather and the ending painting — comes off the
 ramps.
+
+## Light and the hour
+
+### Night is a palette, not an overlay
+
+It used to be one line — `if (night()) dither(1, 9)` — a full-viewport
+stipple of index 1, pure `(0,0,170)`, at strength 9 of 16. That failed three
+ways at once and all three were the bug report: it did not darken the
+picture but *replaced* 56% of it with one saturated blue; the stipple cell
+is `BEK_DITHER_PX` (eight device pixels) so across 960×540 the ordered
+matrix read as a static high-frequency crosshatch over everything, which is
+genuinely fatiguing to sit in; and it snapped from strength 5 to strength 9
+between two frames at 20:00 exactly.
+
+What replaces it draws nothing. `light.js` gives every palette index a
+variant for the hour and `C(i)` resolves through it, so the terrain cache
+rasterises in night colours directly. Zero overdraw, no stipple, and the
+image keeps its *structure* — a grass tile is still readable as grass at
+midnight, it is just night-grass.
+
+A light state is `{ k, sat, a }`, applied to every entry as: desaturate
+toward the entry's own luminance by `1 - sat`, scale all three channels by
+the scalar `k`, add the tint `a`. **`k` is a scalar and not a per-channel
+multiplier, and that is load-bearing**: work the luminance through and
+
+    lum(out) = k · lum(in) + (0.2126·aR + 0.7152·aG + 0.0722·aB)
+
+— the saturation term cancels exactly and what remains is affine and
+increasing, so no hour can reorder two entries by luminance. That is why a
+night ground still reads as ground and not as the wall beside it, and it
+holds for any anchor anyone adds later rather than because the current
+numbers happen to work. A per-channel multiplier buys a slightly prettier
+midnight and loses the guarantee. `palette_check.js` asserts the
+consequence directly.
+
+Eleven anchors around the clock are interpolated between, not switched at.
+**Midday is exactly the identity** and the check asserts it: what the art
+was authored in has to be what the art looks like at noon.
+
+Two states are not on the clock. A room is `shelter`ed halfway back toward
+daylight (four walls and a fire), and the gruva uses `CAVE_LIGHT` — a hole
+in a mountain does not have an hour.
+
+### Why the state is quantised
+
+The terrain cache has to rebuild whenever the LUT changes, so the LUT must
+not change every frame. `lightAt` quantises `k`, `sat` and `a`, and the LUT
+is built from the *quantised* numbers — so two minutes with the same
+`lightKey` have byte-identical LUTs, which is the whole contract between
+`light.js` and the cache. Quantising the state rather than the clock is
+what makes the flat stretches free: 10:00 to 16:00 is one key and never
+rebuilds.
+
+Both halves of that trade are asserted rather than asserted-in-a-commit-
+message: the check measures the largest ten-minute channel step (a coarse
+quantum makes the day turn over in visible jumps) and the number of keys a
+day resolves to (each one is a rebuild). Measured on this machine a rebuild
+is 5–12ms and there are ~300 a day, nearly all of them inside the ~90 real
+seconds of dawn and dusk — about 2% of a frame budget, and never a visible
+hitch. If you make the quanta coarser, say why.
+
+### Local light
+
+The curve is what makes night *comfortable*; local light is what makes it
+*inviting*, and they are different things. Sources are the hearth `v`, every
+window actually drawn on an `H` wall, and a lantern the player carries in
+the gruva. Each is two ordered-dither passes — a wide outer pool of `WAR[1]`
+and a tighter core of `WAR[3]` — so the pool changes colour *temperature*
+outward and not only strength. Light gets redder as it dims; pull the outer
+pass toward yellow instead and it reads as a spotlight. The stipple is taken
+in **daylight** colours (`wash`'s last argument, `ditherPat`'s `day` flag),
+because a fire is as bright at midnight as at noon.
+
+Two details worth keeping:
+
+- The falloff is flat-topped and steep at the rim (`1 - u³`), and anything
+  below strength 2 is dropped. A smooth bell spends most of its *area* in
+  the outer ring where the strength is 1–3 out of 16, and at an eight-pixel
+  stipple cell that is not a soft edge — it is a spray of loose orange
+  squares over the grass.
+- **Static sources are painted into the terrain cache**, because the light
+  key is already part of the cache key, so a lit window costs nothing per
+  frame. Only what moves or flickers is redrawn live: the hearth's reach
+  breathing on the same cycle as its flame, and the lantern.
+
+Light does not spill into the void: the ` ` margin outside a room's walls is
+repainted black after the light pass.
+
+`moonKey` is the other half — one cool key light from above and a little to
+the left, as a two-pixel rim along the top of anything solid and a
+one-pixel lick down its left side, drawn through the *hour's* table because
+moonlight is ambient and not a lamp somebody lit. It is what stops a night
+reading as one flat sheet of dark. It skips the border ring and jitters one
+step per tile off an already-declared channel, because a long run of the
+same glyph lit at one strength is not moonlight, it is a dotted line ruled
+across the picture.
+
+### The chrome stays out of it
+
+`useLut` swaps the active table: the playfield draws through the hour's,
+and everything from `drawHud` down draws through `DAY_CSS`. The two HUD
+bands, the panels, the menus and every glyph of text keep full contrast
+after dark without any of them having to ask. `ditherPat`'s cache is keyed
+by the LUT as well as by the context, colour and strength, and swept when
+the hour's table changes, so patterns baked at one hour are never filled
+with at the next.
 
 ## Autosave
 
