@@ -705,6 +705,31 @@ export const BEK_MAPS = {
 };
 
 /* ==========================================================================
+   27.2a WHAT GROWS ROUND THE EDGE
+   --------------------------------------------------------------------------
+   The mix of species in each map's treeline, and how thick it stands. Weights
+   are relative and the bag is expanded once per cache rebuild (see
+   `forest.js`); `density` under 1 spaces the trunks out and shortens them,
+   which is what a treeline does as the ground gets higher and poorer.
+
+   This is why the valley does not look the same in nine places. Birch round
+   the farm and the meadow, dense dark spruce closing in on the mine, wind-bent
+   and thinning on the vidda, snow-loaded at the setra.
+   ========================================================================== */
+export const BEK_TREES = {
+  default:  { mix: { fir: 5, spruce: 2, birch: 2, snag: 1 }, density: 1 },
+  farm:     { mix: { birch: 5, fir: 3, spruce: 1, stump: 1 }, density: 1 },
+  town:     { mix: { birch: 4, fir: 4, spruce: 1, stump: 1 }, density: 0.95 },
+  lake:     { mix: { fir: 4, birch: 3, spruce: 2, fallen: 1 }, density: 1 },
+  forest:   { mix: { spruce: 6, fir: 4, snag: 2, fallen: 1, stump: 1 }, density: 1.25 },
+  enga:     { mix: { birch: 6, fir: 2, stump: 2, fallen: 1 }, density: 0.9 },
+  setra:    { mix: { fir: 5, spruce: 3, snag: 2, stump: 1 }, density: 0.95 },
+  vidda:    { mix: { fir: 3, snag: 4, stump: 3, fallen: 1 }, density: 0.6 },
+  gruva:    { mix: { spruce: 7, fir: 3, snag: 2 }, density: 1.3 },
+  fjord:    { mix: { fir: 5, spruce: 2, snag: 2, fallen: 1 }, density: 1 }
+};
+
+/* ==========================================================================
    27.2b WHO LIVES HERE
    --------------------------------------------------------------------------
    Where the things in a room stand. `kind` names a drawing in `decor.js`;

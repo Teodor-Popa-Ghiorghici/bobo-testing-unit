@@ -9,11 +9,12 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
          BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
-         soilVar, objVar, seamVar, LOW, PATCH, JIT } from './noise.js';
+         soilVar, objVar, seamVar, treeVar, LOW, PATCH, JIT } from './noise.js';
 import { createShore } from './shore.js';
 import { createWater } from './water.js';
 import { createRock, oreKind } from './rock.js';
 import { createInterior } from './interior.js';
+import { createForest } from './forest.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
@@ -1158,22 +1159,11 @@ export default {
         });
       }
 
-      /* The outer ring of every map, drawn as a hard black frame with a grey
-         lip on the inward side. The treeline alone never read as a limit —
-         this does, and it stops at anything you can actually walk through, so
-         the gaps in the border are the exits. */
+      /* The world's edge. What used to be a hard 4px black frame with a grey
+         lip is now a vignette that dithers away into the wood, plus a pair of
+         timber posts wherever the ring is open — see forest.js. */
       function edgeMark(px, py, x, y) {
-        const L = x === 0, R = x === BEK_COLS - 1, U = y === 0, D = y === BEK_ROWS - 1;
-        g.fillStyle = C(ATMO[0]);
-        if (U) g.fillRect(px, py, BEK_T_SRC, 4);
-        if (D) g.fillRect(px, py + BEK_T_SRC - 4, BEK_T_SRC, 4);
-        if (L) g.fillRect(px, py, 4, BEK_T_SRC);
-        if (R) g.fillRect(px + BEK_T_SRC - 4, py, 4, BEK_T_SRC);
-        g.fillStyle = C(STO[2]);
-        if (U) g.fillRect(px, py + 4, BEK_T_SRC, 1);
-        if (D) g.fillRect(px, py + BEK_T_SRC - 5, BEK_T_SRC, 1);
-        if (L) g.fillRect(px + 4, py, 1, BEK_T_SRC);
-        if (R) g.fillRect(px + BEK_T_SRC - 5, py, 1, BEK_T_SRC);
+        native(() => forest.edge(x, y, tileAt(S.map, x, y) !== 'T'));
       }
 
       /* ---- the animated tiles, drawn live over the cache ------------------ */
@@ -1227,6 +1217,21 @@ export default {
         const fn = PROP[d.kind];
         if (fn) native(() => fn(propArt, x * BEK_T, y * BEK_T, hLowV(x, y, mapSalt(S.map) + 4090, 1, 3), t));
       }
+
+      /* The ring of trees around every outdoor map, as one continuous strip
+         rather than seventy stamps of the same fir on a 40px cadence. See
+         forest.js; the species mix is content, in BEK_TREES. */
+      const forest = createForest({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        tree: (i, layer) => treeVar(S.map, i, layer),
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        map: () => S.map,
+        snowy: () => snow_()
+      });
 
       const rock = createRock({
         fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
@@ -1355,43 +1360,11 @@ export default {
         /* A dark fir is the same green as the grass it stands on, so without a
            black silhouette behind it a tree in a field is invisible. Draw the
            shape once in ink, one pixel proud, then the tree inside it. */
-        if (c === 'T') {
-          const ln = o.lean, lit = o.lit === 0 ? CON[3] : CON[1];
-          g.fillStyle = C(TREE_INK[1]);
-          g.fillRect(px + 2, py + 11, 16, 5); g.fillRect(px + 3, py + 7, 14, 6); g.fillRect(px + 5, py + 3 - ln, 10, 7);
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 9, py + 14, 2, 5);
-          g.fillStyle = C(CON[2]); g.fillRect(px + 3, py + 12, 14, 3); g.fillRect(px + 4, py + 8, 12, 4); g.fillRect(px + 6, py + 4 - ln, 8, 5);
-          g.fillStyle = C(TREE_INK[0]); g.fillRect(px + 3, py + 14, 14, 1);
-          g.fillStyle = C(lit); g.fillRect(px + 6, py + 9, 3, 1); g.fillRect(px + 8, py + 5 - ln, 2, 1);
-          if (o.bare === 5) { g.fillStyle = C(DRY[0]); g.fillRect(px + 4 + spot(o.bx, 12, 2), py + 8 + spot(o.by, 6, 1), 2, 1); }
-          if (snow) {
-            g.fillStyle = C(SNO[1]);
-            g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 4 - ln + spot(o.sy, 4, 1), 3, 1);
-            g.fillRect(px + 4 + spot(o.tx, 10, 3), py + 8 + spot(o.ty, 4, 1), 3, 1);
-          }
-        }
-        if (c === 'G') {
-          g.fillStyle = C(TREE_INK[1]);
-          g.fillRect(px + 1, py + 12, 18, 5); g.fillRect(px + 2, py + 7, 16, 6); g.fillRect(px + 4, py + 2, 12, 7); g.fillRect(px + 6, py, 8, 4);
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 9, py + 15, 3, 4);
-          g.fillStyle = C(CON[2]); g.fillRect(px + 2, py + 13, 16, 4); g.fillRect(px + 3, py + 8, 14, 5); g.fillRect(px + 5, py + 3, 10, 6); g.fillRect(px + 7, py, 6, 4);
-          g.fillStyle = C(TREE_INK[0]); g.fillRect(px + 2, py + 15, 16, 1);
-          g.fillStyle = C(o.lit === 0 ? CON[3] : CON[1]);
-          g.fillRect(px + 4 + spot(o.lx, 10, 4), py + 9 + spot(o.ly, 4, 1), 4, 1);
-          g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 3 + spot(o.sy, 4, 1), 3, 1);
-          g.fillStyle = C(CON[1]); g.fillRect(px + 6 + spot(o.lx, 10, 2), py + 8 + spot(o.ly, 5, 1), 2, 1);
-          if (snow) { g.fillStyle = C(SNO[1]); g.fillRect(px + 6 + spot(o.sx, 8, 4), py, 4, 1); }
-        }
-        if (c === 'Y') {
-          g.fillStyle = C(SNO[0]); g.fillRect(px + 8, py + 10, 3, 9);                      /* birch bark */
-          g.fillStyle = C(STO[2]); g.fillRect(px + 8, py + 12, 3, 1); g.fillRect(px + 8, py + 15, 3, 1);
-          g.fillStyle = C(GRASS[3]); g.fillRect(px + 3, py + 3, 13, 8);
-          g.fillStyle = C(GRASS[2]);
-          g.fillRect(px + 4 + spot(o.lx, 11, 3), py + 4 + spot(o.ly, 6, 3), 3, 3);
-          g.fillRect(px + 4 + spot(o.mx, 11, 3), py + 4 + spot(o.my, 6, 2), 3, 2);
-          g.fillStyle = C(GRASS[4]); g.fillRect(px + 4 + spot(o.mx, 11, 2), py + 4 + spot(o.ly, 6, 2), 2, 2);
-          if (o.turn === 3) { g.fillStyle = C(DRY[2]); g.fillRect(px + 4 + spot(o.lx, 11, 2), py + 4 + spot(o.my, 6, 2), 2, 2); }   /* one turning early */
-        }
+        /* A `T` on the ring belongs to the treeline strip, which is drawn
+           over the whole band after this pass. Only the handful of firs that
+           stand inside a map are still stamped per tile. */
+        if (c === 'T') { if (!rim) native(() => forest.loneTree(c, x, y, o, snow)); }
+        if (c === 'G' || c === 'Y') native(() => forest.loneTree(c, x, y, o, snow));
         if (c === '^') {
           g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 6, 14, 11);
           g.fillStyle = C(STO[3]); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
@@ -1616,7 +1589,7 @@ export default {
       /* rebuild cost, so the numbers in the docs are measured and not guessed */
       /* Split three ways, because "the rebuild got slower" is not a finding
          and "the detail pass got slower" is. */
-      const perf = { rects: 0, ms: 0, ground: 0, detail: 0, light: 0, rebuilds: 0, key: '' };
+      const perf = { rects: 0, ms: 0, ground: 0, detail: 0, forest: 0, light: 0, rebuilds: 0, key: '' };
       const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       function terrain() {
         const L = lighting();
@@ -1630,7 +1603,8 @@ export default {
         try {
           g.setTransform(1, 0, 0, 1, 0, 0);
           g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
-          shore.prepare(k); water.prepare(k); rock.prepare(k); interior.prepare(k); propsPrepare();
+          shore.prepare(k); water.prepare(k); rock.prepare(k); interior.prepare(k);
+          forest.prepare(k); propsPrepare();
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
           const tA = now();
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
@@ -1642,6 +1616,9 @@ export default {
           }
           const tC = now();
           perf.ground = tB - tA; perf.detail = tC - tB;
+          const tD = now();
+          if (!ins_()) native(() => forest.draw(snow_()));
+          perf.forest = now() - tD;
           moonKey(L.dark);
           lightSources(L.dark).forEach(sc => {
             const px = (sc.x + 0.5) * BEK_T, py = (sc.y + sc.dy) * BEK_T;
@@ -1658,7 +1635,7 @@ export default {
           }
           g.restore();
         } finally { g = prev; }
-        perf.light = now() - t0 - perf.ground - perf.detail;
+        perf.light = now() - t0 - perf.ground - perf.detail - perf.forest;
         perf.rects = rects; perf.key = k; perf.rebuilds++;
         perf.ms = now() - t0;
         return terrCv;
@@ -2165,6 +2142,7 @@ export default {
           rebuildMs: Math.round(perf.ms * 100) / 100,
           groundMs: Math.round(perf.ground * 100) / 100,
           detailMs: Math.round(perf.detail * 100) / 100,
+          forestMs: Math.round(perf.forest * 100) / 100,
           lightMs: Math.round(perf.light * 100) / 100,
           drawMs: Math.round(drawMs * 100) / 100,
           ditherPatterns: Object.keys(ditherCache).length,

@@ -55,6 +55,9 @@ scripts that check them:
   **The veins** below.
 - `interior.js` — the inside of a house: boards, volume, wear, the rug and
   the wall seen from within. See **Inside a house** below.
+- `forest.js` — the ring of trees round every outdoor map, as one continuous
+  strip. Also the lone trees inside a map, so a tree in a field and a tree in
+  the wall are the same tree. See **The treeline** below.
 - `decor.js` — the things in a room. The five pieces of glyph furniture, and
   a *kind* per prop; where each prop stands is content, in `BEK_DECOR`
   (`data.js`).
@@ -486,6 +489,60 @@ expectation (0.6 × 220 + 0.4 × 110 = 176 kr) a rich-vein swing is now worth
 a rules change and both are properties of *this* map — if the mix wants
 tuning, move a tile rather than putting the randomness back, because the
 randomness is what made the art a lie.
+
+## The treeline
+
+The outer ring of all nine outdoor maps is `T`, and it used to be seventy
+stamps of one 20×20 fir on a 40px cadence with nine variants between them
+(`lean` 0–2 × `lit` 0–2) arranged in a perfect grid, and flat black in the
+gaps. It frames every scene in the game and its left and right columns are on
+screen at all times.
+
+The fix starts by refusing the tile. A treeline is a band, not a row of
+squares, so `forest.js` draws it as one continuous strip per side and
+**nothing in it lands on a 40px cadence** — trunks are spaced eleven to
+twenty-nine pixels apart off `treeVar` (a declared channel indexed by
+distance *along* the band, not by tile) and overlap freely. The grid
+disappears the moment nothing is aligned to it, and no number of extra
+variants on a stamped tile would have done that.
+
+On top of that:
+
+- **Three depth layers, and value carries the depth.** A far canopy at low
+  contrast, a mid layer, and a near layer of dark boughs that overhang the
+  playfield by a few pixels. All three are steps of the *conifer* ramp, and
+  deliberately not the atmosphere ramp: distance pulls a thing toward the
+  colour of the air when there is sky behind it, and behind this band there
+  is forest, so the first pass's blue-grey far layer read as rubble.
+  Atmospheric perspective here means less contrast against the dark, and the
+  dark is green.
+- **Species, weighted per map**, from `BEK_TREES` in `data.js` — birch-heavy
+  at the farm and the meadow, dense dark spruce closing in on the mine and
+  the forest, stunted and thinned on the poor ground, snow-loaded at the
+  setra. `density` under 1 spaces the trunks and shortens them.
+- **Something in the gaps.** Forest floor and undergrowth where there was flat
+  black. That was half the complaint.
+- **The corners are the deepest part of it.** Three overlapping washes down
+  each arm, because a corner is where two bands of wood meet and the least
+  light gets in. They used to place the same tree twice at right angles.
+
+`edgeMark`'s hard 4px black frame with a grey lip is gone: with a real band
+behind it that is a drawn line around a picture that no longer needs one.
+What is left is a vignette dithering away into the wood, plus **timber posts
+only where the ring is open** — an exit should be more legible than the wall
+around it, so the trees and the undergrowth both stop at a gap and the map's
+own ground runs into the mouth of it.
+
+Birch is the one broadleaf, so it is the one that must not read as a fir:
+lighter foliage off the *grass* ramp, and a crown of four courses of
+different widths. A single rectangle of green on a white stick is a lollipop,
+which is exactly what the first pass looked like.
+
+**No motion.** The near boughs could sway, and the brief that asked for this
+allowed it — but it would move the whole band out of the terrain cache for
+one or two pixels of amplitude, and a permanently animated border is the
+opposite of the soothing thing that was asked for. If you add it, measure the
+rebuild first: the band alone is 12ms of a 24–29ms rebuild.
 
 ## Inside a house
 
