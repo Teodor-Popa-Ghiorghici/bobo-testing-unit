@@ -26,6 +26,13 @@ export const inside = mapId => !!(BEK_MAPS[mapId] && BEK_MAPS[mapId].inside);
 export const isCave = mapId => mapId === 'gruva';
 export const snowy  = mapId => mapId === 'setra' || mapId === 'vidda';
 
+/* Water, and what counts as a shore's land. A cliff (`M`) and a pier (`P`)
+   are neither: a cliff goes straight into the water with no beach under it,
+   and a pier is over the water rather than beside it — naming either as land
+   would put sand under both. The dead margin is nothing at all. */
+export const isWater = c => c === 'W' || c === '~';
+export const isShoreLand = c => c !== 'W' && c !== '~' && c !== 'M' && c !== 'P' && c !== ' ';
+
 /* the ground a map lays under anything that does not bring its own */
 export const defaultGround = mapId => inside(mapId) ? TIM[2] : isCave(mapId) ? STO[0] : GRASS[2];
 

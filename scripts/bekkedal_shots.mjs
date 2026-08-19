@@ -71,6 +71,34 @@ shot('farm_fog_night', { map: 'farm', px: 12, py: 8, min: 23 * 60, weather: 'tak
 shot('farm_rain_dusk', { map: 'farm', px: 12, py: 8, min: 19 * 60, weather: 'regn' });
 /* the lake house, which only exists once it is built */
 shot('lake_built_night', { map: 'lake', px: 6, py: 6, min: 22 * 60, built: 1, houseBuilt: true });
+/* A coastline the shipped maps do not contain. The lake has a south shore
+   and two tiles of it; the fjord has a channel behind a cliff. Neither shows
+   a headland, a cove, a spit or an isolated tile, and those are most of what
+   an autotiler has to get right — so build one and look at it rather than
+   hoping. BEK_MAPS is a live module object, so the rows can be replaced in
+   the page before the app is opened. */
+const SHORE_LAB = [
+  'TTTTTTTTTTTTTTTTTTTTTTTT',
+  'TggggggggggggWWWWWWWWWWT',
+  'Tgggggggggggg~WWWWWWWWWT',
+  'Tggg~~~~~gggg~~gggg~WWWT',
+  'Tggg~WWW~gggg~gggggg~WWT',
+  'Tggg~WWW~gggg~~~~~~~~~WT',
+  'Tggg~WWW~ggggg~WWWWWWWWT',
+  'Tggg~~~~~gggggg~WWWWWWWT',
+  'Tggggggggggggggg~WWWWWWT',
+  'Tgggggggggggggggg~WWWWWT',
+  'Tgggg~gggggggggggg~WWWWT',
+  'Tgggggggggggggggggg~WWWT',
+  'Tggggggggggggggggggg~WWT',
+  'Tgggggggggggggggggggg~WT',
+  'TTTTTTTTTTTTTTTTTTTTTTTT'
+];
+/* flag.lot off: the lake draws the surveyor's lines for a bought plot, and
+   they run straight across the lab */
+shot('shorelab_noon', { map: 'lake', px: 10, py: 8, min: 12 * 60, flag: { boat: 1 } }, { rows: SHORE_LAB });
+shot('shorelab_dusk', { map: 'lake', px: 10, py: 8, min: 19 * 60, flag: { boat: 1 } }, { rows: SHORE_LAB });
+
 /* the four treeline corners, camera clamped to each end of its travel */
 shot('farm_corner_top', { map: 'farm', px: 1, py: 0, min: 12 * 60 });
 shot('farm_corner_bot', { map: 'farm', px: 22, py: 14, min: 12 * 60 });
@@ -122,6 +150,17 @@ for (const s of shots) {
   await page.evaluate(() => document.querySelectorAll('.win').forEach(w => w.remove()));
   await page.waitForTimeout(950);
   await page.evaluate(([k, v]) => localStorage.setItem(k, v), [SAVE_KEY, JSON.stringify(s.save)]);
+  await page.evaluate(async (rows) => {
+    const d = await import('/apps/bekkedal/data.js');
+    if (!window.__bekRows) window.__bekRows = d.BEK_MAPS[Object.keys(d.BEK_MAPS)[0]] && JSON.parse(JSON.stringify(
+      Object.fromEntries(Object.keys(d.BEK_MAPS).map(k => [k, d.BEK_MAPS[k].rows]))));
+    Object.keys(window.__bekRows).forEach(k => { d.BEK_MAPS[k].rows = window.__bekRows[k].slice(); });
+    if (!rows) return;
+    const bad = rows.filter(r => r.length !== 24);
+    if (bad.length) throw new Error('lab rows must be 24 wide: ' + bad.join(' | '));
+    if (rows.length !== 15) throw new Error('lab needs 15 rows, got ' + rows.length);
+    d.BEK_MAPS.lake.rows = rows.slice();
+  }, s.opts.rows || null);
   await page.evaluate(() => import('/kernel/wm.js').then(m => m.openWindow('bekkedal')));
   await page.waitForSelector('canvas.bekcv', { state: 'visible', timeout: 15000 });
   /* let the app settle: the terrain cache builds on the first draw and the

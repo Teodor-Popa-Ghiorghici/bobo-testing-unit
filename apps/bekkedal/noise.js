@@ -193,6 +193,17 @@ const R_SOIL = [                                 /* standing water in a furrow *
   F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT)
 ];
 
+/* The one stream that is not indexed by a grid square. A shore's foam used to
+   break per tile, which drew a visible 40px rhythm along any straight stretch
+   of it; the breaks come off the distance *along the seam* now, so a run of
+   shore is one line of surf however many tiles it crosses. Indexed by that
+   distance in `i`, with y pinned to 0 — still the same hash, still salted per
+   map, and still declared here so `tile_check.js` tests it. */
+const R_SEAM = [
+  F('foam', 0, 5),                               /* where the surf breaks   */
+  F('crest', 1, 7)                               /* and where it catches    */
+];
+
 /* One block per glyph, so a fir and a birch on the same square would not be
    making the same decision twice. */
 const OBJ_BASE = 128, OBJ_SPAN = 16;
@@ -214,7 +225,7 @@ const R_OBJ = {
 };
 
 const GROUND_BASE = 0, ROCK_BASE = 16, PATH_BASE = 40, WATER_BASE = 56,
-      EDGE_BASE = 68, SOIL_BASE = 76;
+      EDGE_BASE = 68, SOIL_BASE = 76, SEAM_BASE = 84;
 
 /* ---- reading a recipe ---------------------------------------------------- */
 function roll(recipe, base, mapId, x, y) {
@@ -229,6 +240,7 @@ export const waterVar = (mapId, x, y) => roll(R_WATER, WATER_BASE, mapId, x, y);
 export const edgeVar = (mapId, x, y) => roll(R_EDGE, EDGE_BASE, mapId, x, y);
 export const soilVar = (mapId, x, y) => roll(R_SOIL, SOIL_BASE, mapId, x, y);
 export const objVar = (c, mapId, x, y) => (R_OBJ[c] ? roll(R_OBJ[c], objBase(c), mapId, x, y) : {});
+export const seamVar = (mapId, i) => roll(R_SEAM, SEAM_BASE, mapId, i, 0);
 
 /* ---- the tuple the checks compare ----------------------------------------
    Every high-frequency decision a tile of char `c` makes, flattened in
@@ -261,6 +273,7 @@ export function channels() {
   add('water', R_WATER, WATER_BASE);
   add('edge', R_EDGE, EDGE_BASE);
   add('soil', R_SOIL, SOIL_BASE);
+  add('seam', R_SEAM, SEAM_BASE);
   Object.keys(R_OBJ).forEach(c => add('obj[' + c + ']', R_OBJ[c], objBase(c)));
   return out;
 }

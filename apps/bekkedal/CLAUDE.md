@@ -44,6 +44,12 @@ scripts that check them:
 - `surface.js` — what a tile is made of: which glyph reads as which palette
   entry, on which map. The ground pass fills from it and `palette_check.js`
   walks every map through it, which is the point — one table, two readers.
+- `autotile.js` — neighbour masks, a distance field, and the rounded-union
+  signed distance that lets a transition be authored once and sampled in
+  whichever direction the neighbours say. Knows nothing about water.
+- `shore.js` — the shoreline: the profile, the surf, the bank. See
+  **The shore** below.
+- `water.js` — deep water and its depth ramp.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
@@ -333,6 +339,87 @@ and a pickup is supposed to pop. `panel`, `text` and `drawHud` are chrome
 too. Everything in the playfield — ground, tiles, buildings, furniture,
 crops, people, animals, weather and the ending painting — comes off the
 ramps.
+
+## The shore
+
+`waterEdgeTile` used to be a hardcoded stack, top to bottom: deep water, a
+`C(3)` band to y+16, a `C(9)` band to y+8, ripples, a foam line at exactly
+`py + 28`, sand at `py + 30`, bank at `py + 34`. It had no idea where the
+water was, so every `~` on every map drew that same north-facing beach. On
+the lake, whose water is to the **south**, the sand was in the water.
+
+The fix is not four rotations of the art. Four rotations is four times the
+drawing to maintain, four chances to get one wrong, and it still says
+nothing about the corners — which are most of a coastline. The profile is
+authored **once** in `shoreBand`, as a one-dimensional function of signed
+distance from the waterline, and `autotile.js`'s `profileT` samples it along
+whichever direction the neighbour mask says the land lies.
+
+`profileT` combines the named directions as a **rounded union**: inside any
+named half-plane take the largest `t` (the exact signed distance, a mitre at
+an inner corner — and an inner corner of a coastline is a cove, which does
+have a corner), outside all of them take the negative *length* of the vector
+of misses rather than the nearest single one. Where two adjacent sides are
+named, that turns a right-angle contour into a quarter-circle arc, so the
+bands wrap a headland instead of mitring two straight beaches together — a
+mitre joint reads as a drawn line, an arc reads as a beach. The same formula
+covers one named side (exact), two opposite (a channel), three (a spit) and
+four (an island), so there is no sixteen-case table to get one entry of
+wrong.
+
+Three things follow that the old tile could not do:
+
+- **The seam is continuous.** Foam breaks used to come from
+  `edgeVar(map, x, y)` — per tile — so the surf restarted at every boundary
+  and a straight shore showed a visible 40px rhythm. They come off
+  `seamVar`, indexed by distance *along* the seam (a declared channel in
+  `noise.js`, tested like every other), so a stretch of shore is one line of
+  surf.
+- **The tide breathes.** The foam band's position oscillates on a slow cycle
+  keyed to the same seam coordinate. It costs a sine.
+- **Ripples drift along the shore's own normal**, not always down the
+  screen. They are hash-placed dashes, deliberately: they were briefly
+  iso-contours of the profile, which drew concentric rings around a pond and
+  made the lake read as a contour map.
+
+### The shoreline the maps actually have
+
+Only the lake and the fjord carry `~`, and between them there are ten tiles
+of it. Most of this valley's coastline is a `g` sitting flat against a `W`.
+Neither side of that boundary is a shore tile, so neither gets the full
+profile — but each gets **its own half**, sampled the same way and meeting
+at the tile edge: `bank()` on the land side (a short strip of wet sand and
+dry sand up the beach), `nearShore()` on the water side (the shallows, with
+the waterline one pixel in so the surf has something to break on).
+
+The two halves wander *different* things, and that distinction matters.
+Inside a `~` the waterline is in the middle of the tile and is free to move,
+so it does — a beach that is the tile's outline offset by a constant is a
+picture frame. On a plain boundary the waterline is pinned by geometry:
+moving it would put sand in the water or water on the grass. So there the
+wander moves how far the sand runs *up* the beach instead, which is free to
+move and breaks up the coastline just as well without lying about where the
+water is.
+
+`LAND_REACH` and `BANK_REACH` must stay in step, or a `~` next to a `g`
+steps its waterline sideways at the join.
+
+### Cost
+
+The neighbour mask does not change while you are standing on a map, so it is
+computed once per cache rebuild and everything static — the bands, the sand,
+the depth ramp — is rasterised into the cache. Only the surf and the ripples
+are per frame, and the live scan is bounded to the strip a wave can reach
+(`lim`), which on a plain boundary is five pixels of forty. The seam stream
+is memoised per map: it is asked about the same hundred indices hundreds of
+times a frame and `seamVar` allocates an object for each.
+
+Measured: a lake rebuild is 10–23ms (the depth ramp is most of it), and the
+live pass costs about +2ms a frame over open water. Deep water grades across
+each tile as well as between tiles — an integer distance field steps a whole
+ramp entry at a tile boundary, and a lake made of flat rectangles of blue is
+what that looks like — but at two sub-cells a side, not four: four measured
+34ms on the rebuild and the difference is invisible under the dither.
 
 ## Light and the hour
 

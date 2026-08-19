@@ -9,7 +9,9 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
          BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
-         soilVar, objVar, LOW, PATCH, JIT } from './noise.js';
+         soilVar, objVar, seamVar, LOW, PATCH, JIT } from './noise.js';
+import { createShore } from './shore.js';
+import { createWater } from './water.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
 import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT, glow, GLOW_CELL } from './light.js';
@@ -1228,43 +1230,41 @@ export default {
       }
 
       /* ---- the animated tiles, drawn live over the cache ------------------ */
-      function waterTile(x, y, t) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, w = Math.floor(t * 2 + x + y) % 4;
-        const v = waterVar(S.map, x, y);
-        g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        g.fillStyle = C(WATER_DEEP[0]); g.fillRect(px, py + 6 + v.sw, BEK_T_SRC, 2);   /* the swell */
-        /* the ripple bands drift +/-3 with `w`, so their placement is held
-           three pixels clear of both edges to keep them inside the tile */
-        g.fillRect(px + spot(v.ax, BEK_T_SRC, 8), py + 3 + spot(v.ay, 14, 1) + w, 8, 1);
-        g.fillStyle = C(WATER_DEEP[1]);
-        g.fillRect(px + spot(v.bx, BEK_T_SRC, 7), py + 3 + spot(v.by, 14, 1) - w, 7, 1);
-        if (v.foam === 0) { g.fillStyle = C(WATER_SUN[0]); g.fillRect(px + spot(v.bx, BEK_T_SRC, 4), py + spot(v.ay, BEK_T_SRC, 1), 4, 1); }
-        if (v.glint === 3) { g.fillStyle = C(WATER_SUN[1]); g.fillRect(px + spot(v.ax, BEK_T_SRC, 2), py + 3 + spot(v.by, 14, 1) + w, 2, 1); }
-      }
+      /* The shore's whole profile lives in shore.js and is sampled along
+         whichever direction autotile.js says the land lies, so one drawing
+         serves a north shore, a south shore, a cove, a headland and a spit.
+         See shore.js for why that is one drawing and not four rotations. */
+      const waterArt = {
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        /* the stipple, for callers that are *already* inside a native() block
+           — `wash` opens one of its own and two nested would halve the scale
+           twice, so shore.js gets this shape instead */
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        seam: i => seamVar(S.map, i),
+        spot: spot,
+        tileAt: (x, y) => tileAt(S.map, x, y)
+      };
+      const shore = createShore(waterArt);
+      const water = createWater(waterArt);
 
-      /* the shallow shore: mostly water, a foam seam where it meets the bank,
-         then the strip of sand and turf that the deep-water 'W' tile doesn't
-         carry. Ripple bands still drift with `t` the way they always did. */
-      function waterEdgeTile(x, y, t) {
+      /* deep water: the depth ramp is in the cache, and what is left per frame
+         is two short ripple bands and the odd catch of light */
+      function waterTile(x, y, t) {
         const px = x * BEK_T, py = y * BEK_T, w = Math.floor(t * 2 + x + y) % 4;
-        const v = edgeVar(S.map, x, y);
+        const v = waterVar(S.map, x, y);
         native(() => {
-          g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T, BEK_T);
-          g.fillStyle = C(WAT[2]); g.fillRect(px, py, BEK_T, 16);
-          g.fillStyle = C(WAT[3]); g.fillRect(px, py, BEK_T, 8);
-          g.fillStyle = C(WAT[4]);
-          g.fillRect(px + spot(v.ax, BEK_T, 12), py + 4 + spot(v.ay, 18, 2) + w, 12, 2);
-          g.fillRect(px + spot(v.bx, BEK_T, 10), py + 4 + spot(v.by, 18, 2) - w, 10, 2);
-          g.fillRect(px + spot(v.fx, BEK_T, 8), py + 18 + spot(v.ay, 9, 1), 8, 1);
-          g.fillRect(px + spot(v.gx, BEK_T, 10), py + 18 + spot(v.by, 9, 1), 10, 1);
-          g.fillStyle = C(FOAM[0]); g.fillRect(px, py + 28, BEK_T, 1);                    /* foam, water meets sand */
-          g.fillStyle = C(FOAM[1]);
-          g.fillRect(px + spot(v.fx, BEK_T, 6), py + 29, 6, 1); g.fillRect(px + spot(v.gx, BEK_T, 8), py + 29, 8, 1);
-          g.fillStyle = C(SAN[1]); g.fillRect(px, py + 30, BEK_T, 4);                     /* sand */
-          g.fillStyle = C(SOI[2]); g.fillRect(px, py + 34, BEK_T, 6);                     /* bank */
-          g.fillStyle = C(SOI[1]);
-          g.fillRect(px + spot(v.sx, BEK_T, 2), py + 34 + spot(v.sy, 6, 2), 2, 2);
-          g.fillRect(px + spot(v.bx, BEK_T, 2), py + 34 + spot(v.ax, 6, 1), 2, 1);
+          /* a deep tile that happens to touch land carries the surf, because
+             on nine maps out of eleven that boundary is where the water ends */
+          shore.live(x, y, t, v, -1);
+          g.fillStyle = C(WATER_DEEP[0]);
+          g.fillRect(px + spot(v.ax, BEK_T, 16), py + 6 + spot(v.ay, 28, 2) + w * 2, 16, 2);
+          g.fillStyle = C(WATER_DEEP[1]);
+          g.fillRect(px + spot(v.bx, BEK_T, 14), py + 6 + spot(v.by, 28, 2) - w * 2, 14, 2);
+          if (v.foam === 0) { g.fillStyle = C(WATER_SUN[0]); g.fillRect(px + spot(v.bx, BEK_T, 8), py + spot(v.ay, BEK_T, 2), 8, 2); }
+          if (v.glint === 3) { g.fillStyle = C(WATER_SUN[1]); g.fillRect(px + spot(v.ax, BEK_T, 4), py + 6 + spot(v.by, 28, 2) + w * 2, 4, 2); }
         });
       }
 
@@ -1300,7 +1300,13 @@ export default {
         /* the dead margin outside a room's walls: not floor, not field, nothing */
         if (c === ' ') { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (c === 'T' && rim_(x, y)) { g.fillStyle = C(ATMO[0]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }   /* the wall of wood is solid dark behind */
-        if (c === 'W' || c === '~') { g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        /* Deep water takes its colour from how far it is from any land, so a
+           lake has a middle. A shore tile is the whole rotated profile, and
+           both of them are static: only the ripples and the surf are not. */
+        /* a deep tile that touches land carries the shallows instead of the
+           depth ramp, so the two halves of the waterline meet */
+        if (c === 'W') { native(() => (shore.maskOf(x, y) ? shore.nearShore(x, y) : water.deep(x, y))); return; }
+        if (c === '~') { native(() => shore.ground(x, y)); return; }
         if (c === '.') { pathGround(x, y); return; }
         if (c === 'M' || c === 'O' || c === 'Q') { rockGround(x, y, snow_()); return; }
         /* the plain fills come straight out of surface.js, so the colour the
@@ -1314,10 +1320,13 @@ export default {
       function tileDetail(c, x, y) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         const ins = ins_(), snow = snow_(), rim = rim_(x, y);
-        if (c === ' ' || c === 'W' || c === '~') return;      /* nothing static of their own */
+        if (c === ' ' || c === 'W') return;                  /* nothing static of its own */
+        if (c === '~') { native(() => shore.detail(x, y, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(px, py, x, y); return; }
         if (!ownGround(c, x, y)) {
           if (ins) floorDetail(x, y); else if (isCave(S.map)) caveDetail(x, y); else grassDetail(x, y);
         }
+        /* the land half of a waterline, on whichever edges face water */
+        if (!ins && c !== 'W' && c !== '~') native(() => shore.bank(x, y));
         const o = objVar(c, S.map, x, y);
         if (c === 'P') {
           g.fillStyle = C(TIM[2]); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
@@ -1486,7 +1495,7 @@ export default {
 
       function tileLive(c, x, y, t) {
         if (c === 'W') { waterTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
-        if (c === '~') { waterEdgeTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
+        if (c === '~') { native(() => shore.live(x, y, t, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
         if (c === 'v') hearthTile(x, y, t);                                  /* the hearth, alight */
       }
       const LIVE = 'W~v';
@@ -1627,6 +1636,7 @@ export default {
         try {
           g.setTransform(1, 0, 0, 1, 0, 0);
           g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
+          shore.prepare(k); water.prepare(k);
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
