@@ -9,6 +9,8 @@
    3. every dialogue node's friendship gate (`when: S => S.fr.x >= N`) has N
       inside the 0-5 range documented in .claude/rules/content.md
    4. every map a door/exit/boat travels to exists in BEK_MAPS
+   5. every repeatable quest template (BEK_QUEST_TEMPLATES) references real,
+      non-seed item ids and a sane quantity range
 
    Run: node scripts/lint-content.mjs
 */
@@ -18,7 +20,7 @@ import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const data = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/data.js')));
-const { BEK_ITEMS, BEK_MAPS, BEK_TALK, BEK_QUESTS } = data;
+const { BEK_ITEMS, BEK_MAPS, BEK_TALK, BEK_QUESTS, BEK_QUEST_TEMPLATES } = data;
 
 const failures = [];
 function fail(check, id, where) { failures.push({ check, id, where }); }
@@ -80,13 +82,26 @@ function checkFastTravelMaps() {
   });
 }
 
+/* ---- 5: quest template items are real, non-seed ids, in a sane range ----- */
+function checkQuestTemplateItems() {
+  BEK_QUEST_TEMPLATES.forEach(tpl => {
+    tpl.items.forEach(id => {
+      if (!BEK_ITEMS[id]) fail('quest template item', id, 'BEK_QUEST_TEMPLATES.' + tpl.id + '.items');
+      else if (BEK_ITEMS[id].seed) fail('quest template item', id, 'BEK_QUEST_TEMPLATES.' + tpl.id + '.items (a seed, not a holdable good)');
+    });
+    const [lo, hi] = tpl.qty;
+    if (!(lo >= 1 && hi >= lo)) fail('quest template item', tpl.qty.join('..'), 'BEK_QUEST_TEMPLATES.' + tpl.id + '.qty');
+  });
+}
+
 checkQuestItems();
 checkShopItems();
 checkFriendshipGates();
 checkFastTravelMaps();
+checkQuestTemplateItems();
 
 const byCheck = failures.reduce((acc, f) => { (acc[f.check] = acc[f.check] || []).push(f); return acc; }, {});
-const ALL_CHECKS = ['quest requirement', 'shop entry', 'friendship gate', 'fast travel map'];
+const ALL_CHECKS = ['quest requirement', 'shop entry', 'friendship gate', 'fast travel map', 'quest template item'];
 ALL_CHECKS.forEach(check => {
   const fs = byCheck[check] || [];
   if (!fs.length) { console.log('PASS - ' + check); return; }

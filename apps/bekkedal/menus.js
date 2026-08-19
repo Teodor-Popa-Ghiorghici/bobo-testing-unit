@@ -29,8 +29,9 @@
  * drawn zone drifts a pixel off the real one, and the player misses a catch
  * that looked like a hit. `layout_check.js` asserts they agree.
  */
-import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_QUESTS, BEK_RECIPES, AXE_NAME, PICK_NAME, UI,
+import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_RECIPES, AXE_NAME, PICK_NAME, UI,
          BEK_W, BEK_H } from './data.js';
+import { boardRows } from './quests.js';
 import { WAT, TIM, CON, WAR, SAN, SNO, ATMO } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -40,7 +41,7 @@ import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
          OFFER_W, OFFER_H, OFFER_X, OFFER_Y,
          SHOP_ROWS, SHOP_ROW, SHOP_W, SHOP_H, SHOP_X, SHOP_Y, SHOP_COL_W, SHOP_NAME_DX, SHOP_PRICE_DX,
          BAG_COLS, BAG_ROWS, BAG_CAP, BAG_ROW, BAG_W, BAG_H, BAG_X, BAG_Y, BAG_CW, BAG_NAME_DX, BAG_QTY_DX,
-         QUEST_ENTRY, QUEST_W, QUEST_H, QUEST_X, QUEST_Y, QUEST_STATUS_DX,
+         QUEST_VISIBLE_ROWS, QUEST_ENTRY, QUEST_W, QUEST_H, QUEST_X, QUEST_Y, QUEST_STATUS_DX,
          TRAVEL_W, TRAVEL_H, TRAVEL_X, TRAVEL_Y,
          END_SRC_W, END_SRC_H, END_TREES, END_TREE_DX, END_HOUSE_W, END_HOUSE_X,
          END_TEXT_X, END_TEXT_Y } from './layout.js';
@@ -209,21 +210,27 @@ export function createMenus(A, GG, C) {
     const bx = QUEST_X + PAD_SM;
     text(T(UI.board), bx, QUEST_Y + PAD_SM, 14, FONT_SM);
     let y = QUEST_Y + PAD_SM + LINE_SM * 2;
-    const shown = BEK_QUESTS.filter(q => S.q[q.id]);            /* hidden until obtained */
-    if (!shown.length) text(TX('Ingen oppdrag ennå. Snakk med folk.', 'No quests yet. Go and talk to people.'), bx, y, 7, FONT_SM);
-    shown.forEach(q => {
-      const st = S.q[q.id];
-      text(T(q.t), bx, y, st === 'done' ? 8 : 15, FONT_SM);
-      text(st === 'done' ? T(UI.done) : T(UI.active), bx + QUEST_STATUS_DX, y, st === 'done' ? 10 : 11, FONT_SM);
-      text(T(q.d), bx + CELL_SM, y + LINE_SM, 7, FONT_SM);
-      y += QUEST_ENTRY;
-    });
+    /* fixed quests keep first claim on the rows, then the live repeatable
+       ones, then the house — see boardRows() (quests.js) */
+    const rows = boardRows(S);
     if (S.flag.build || S.flag.lot) {
       const c = houseCost();
-      text(TX('HUSET VED VANNET', 'THE HOUSE BY THE WATER'), bx, y, 14, FONT_SM);
-      text(S.built ? TX('BYGGET', 'BUILT') : (S.flag.lot ? TX('TOMT KJØPT', 'LOT BOUGHT') : TX('TOMT 1200 KR', 'LOT 1200 KR')), bx + QUEST_STATUS_DX, y, S.built ? 10 : 11, FONT_SM);
-      if (!S.built) text(c.kr + ' kr + ' + c.tommer + ' ' + iname('tommer') + ' + ' + c.stein + ' ' + iname('stein'), bx + CELL_SM, y + LINE_SM, 7, FONT_SM);
+      rows.push({ t: TX('HUSET VED VANNET', 'THE HOUSE BY THE WATER'), tc: 14,
+        st: S.built ? TX('BYGGET', 'BUILT') : (S.flag.lot ? TX('TOMT KJØPT', 'LOT BOUGHT') : TX('TOMT 1200 KR', 'LOT 1200 KR')),
+        stc: S.built ? 10 : 11,
+        d: S.built ? null : c.kr + ' kr + ' + c.tommer + ' ' + iname('tommer') + ' + ' + c.stein + ' ' + iname('stein') });
     }
+    if (!rows.length) text(TX('Ingen oppdrag ennå. Snakk med folk.', 'No quests yet. Go and talk to people.'), bx, y, 7, FONT_SM);
+    const scroll = Math.max(0, Math.min(A.qScroll(), Math.max(0, rows.length - QUEST_VISIBLE_ROWS)));
+    rows.slice(scroll, scroll + QUEST_VISIBLE_ROWS).forEach(r => {
+      text(T(r.t), bx, y, r.tc || (r.done ? 8 : 15), FONT_SM);
+      text(T(r.st), bx + QUEST_STATUS_DX, y, r.stc || (r.done ? 10 : 11), FONT_SM);
+      if (r.d) text(T(r.d), bx + CELL_SM, y + LINE_SM, 7, FONT_SM);
+      y += QUEST_ENTRY;
+    });
+    if (rows.length > QUEST_VISIBLE_ROWS)
+      text(TX('W/S — RULL  ', 'W/S — SCROLL  ') + (scroll + QUEST_VISIBLE_ROWS) + '/' + rows.length,
+           bx, QUEST_Y + QUEST_H - PAD_SM - GLYPH_SM, 9, FONT_SM);
     text('ESC', QUEST_X + QUEST_W - PAD_SM - textW('ESC', FONT_SM), QUEST_Y + QUEST_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
   }
   function drawTravel() {

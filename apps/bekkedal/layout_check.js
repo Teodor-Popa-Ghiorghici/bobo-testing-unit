@@ -16,6 +16,7 @@
 import * as D from './data.js';
 import * as F from './font.js';
 import * as L from './layout.js';
+import * as Q from './quests.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -203,7 +204,32 @@ ok(w(longestQuestT, F.FONT_SM) <= L.QUEST_TW, 'quest title clears the status col
    w(longestQuestT, F.FONT_SM) + 'px of ' + L.QUEST_TW);
 ok(w(longestQuestD, F.FONT_SM) + L.CELL_SM <= L.QUEST_W - L.PAD_SM * 2, 'quest detail fits the board',
    JSON.stringify(longestQuestD.slice(0, 36)) + ' = ' + w(longestQuestD, F.FONT_SM) + 'px');
-ok(D.BEK_QUESTS.length + 1 <= 8, 'the board has a row for every quest plus the house', D.BEK_QUESTS.length + ' quests');
+
+/* the repeatable board (quests.js) generates its own title/detail strings
+   from whichever item/npc get rolled — the worst case is the longest item
+   name any template can pick times the longest talkable NPC name */
+const worstQtItem = D.BEK_QUEST_TEMPLATES.flatMap(t => t.items).reduce((a, b) =>
+  w(D.BEK_ITEMS[b].name.en, F.FONT_SM) > w(D.BEK_ITEMS[a].name.en, F.FONT_SM) ? b : a);
+const worstNpc = D.BEK_NPCS.filter(n => D.BEK_TALK[n.id]).reduce((a, b) => (b.n.length > a.n.length ? b : a));
+const worstQty = Math.max(...D.BEK_QUEST_TEMPLATES.map(t => t.qty[1]));
+const sampleRQ = { item: worstQtItem, qty: worstQty, who: worstNpc.id, expireDay: 999 };
+const longestRqT = widest(both(Q.questTitle(sampleRQ)));
+const longestRqD = widest(both(Q.questDetail(sampleRQ)));
+ok(w(longestRqT, F.FONT_SM) <= L.QUEST_TW, 'repeatable quest title clears the status column',
+   w(longestRqT, F.FONT_SM) + 'px of ' + L.QUEST_TW);
+ok(w(longestRqD, F.FONT_SM) + L.CELL_SM <= L.QUEST_W - L.PAD_SM * 2, 'repeatable quest detail fits the board',
+   JSON.stringify(longestRqD.slice(0, 36)) + ' = ' + w(longestRqD, F.FONT_SM) + 'px');
+
+/* fixed (up to 7) + live repeatable (up to BEK_QUEST_BOARD_MAX) + the house
+   is more rows than QUEST_VISIBLE_ROWS holds at once — drawQuests() scrolls
+   rather than growing the panel, so the worst case must fit the scroll
+   indicator beside ESC rather than the rows themselves */
+const worstRows = D.BEK_QUESTS.length + D.BEK_QUEST_BOARD_MAX + 1;
+ok(worstRows > L.QUEST_VISIBLE_ROWS, 'the board can exceed one screen and relies on scrolling for it',
+   worstRows + ' worst-case rows over ' + L.QUEST_VISIBLE_ROWS + ' visible');
+const scrollLabel = 'W/S — SCROLL  ' + worstRows + '/' + worstRows;
+ok(w(scrollLabel, F.FONT_SM) + L.CELL_SM + w('ESC', F.FONT_SM) <= L.QUEST_W - L.PAD_SM * 2,
+   'scroll indicator clears the ESC label', w(scrollLabel, F.FONT_SM) + 'px of ' + (L.QUEST_W - L.PAD_SM * 2 - L.CELL_SM - w('ESC', F.FONT_SM)));
 
 ok(w('> ' + longestTitle, F.FONT_SM) <= L.TRAVEL_TW, 'travel list holds the longest map name');
 ok(Object.keys(D.BEK_MAPS).length <= 12, 'travel list has a row per destination', Object.keys(D.BEK_MAPS).length + ' maps');

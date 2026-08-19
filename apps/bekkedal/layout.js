@@ -120,10 +120,16 @@ export const BAG_CW = Math.floor((BAG_W - PAD_SM * 2) / BAG_COLS);
 export const BAG_NAME_DX = ICON_PX + BEK_ART_SCALE * 2;
 export const BAG_QTY_DX = BAG_CW - CELL_SM * 7;
 
-/* ---- the quest board ----------------------------------------------------- */
+/* ---- the quest board -------------------------------------------------------
+   The repeatable layer (BEK_QUEST_TEMPLATES, quests.js) means the board can
+   log more quests than fit on screen at once — up to seven fixed, three live
+   repeatable and the house, eleven rows against eight of headroom — so the
+   panel stays fixed at QUEST_VISIBLE_ROWS and drawQuests() scrolls a window
+   over the rest rather than growing to fit every possible row count. */
+export const QUEST_VISIBLE_ROWS = 8;
 export const QUEST_ENTRY = LINE_SM * 2 + PAD_SM;
 export const QUEST_W = BEK_W - CELL_SM * 4;
-export const QUEST_H = PAD_SM * 2 + LINE_SM * 2 + QUEST_ENTRY * 8 + LINE_SM;
+export const QUEST_H = PAD_SM * 2 + LINE_SM * 2 + QUEST_ENTRY * QUEST_VISIBLE_ROWS + LINE_SM;
 export const QUEST_X = Math.round((BEK_W - QUEST_W) / 2);
 export const QUEST_Y = Math.round((BEK_H - QUEST_H) / 2);
 export const QUEST_STATUS_DX = QUEST_W - PAD_SM * 2 - CELL_SM * 10;
