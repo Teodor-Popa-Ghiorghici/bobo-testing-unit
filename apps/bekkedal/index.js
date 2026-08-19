@@ -12,6 +12,7 @@ import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVa
          soilVar, objVar, seamVar, LOW, PATCH, JIT } from './noise.js';
 import { createShore } from './shore.js';
 import { createWater } from './water.js';
+import { createRock, oreKind } from './rock.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
 import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT, glow, GLOW_CELL } from './light.js';
@@ -598,9 +599,12 @@ export default {
           if (!spend(tool.e)) return;
           S.mined[rkey(S.map, f.x, f.y)] = S.day + 3; terrDirty(); sfx.mine();
           add('stein', 1);
-          let ore;
-          if (t === 'Q') ore = Math.random() < 0.6 ? 'solv' : 'kobber';
-          else { const r = Math.random(); ore = r < 0.55 ? 'jern' : r < 0.85 ? 'kobber' : 'solv'; }
+          /* The metal is the one the tile is drawn as, not a fresh roll. Same
+             weights as the roll it replaces (55/30/15 on a vein, 60/40 on a
+             rich one) so nothing about the economy moves — but a vein you can
+             read is a vein you can choose, and a square you come back to
+             after it regrows is the same square. */
+          const ore = oreKind(rockVar(S.map, f.x, f.y), t === 'Q');
           add(ore, 1); say('+1 ' + iname(ore) + '  +1 ' + iname('stein')); return;
         }
         /* the soil tools */
@@ -1095,15 +1099,6 @@ export default {
         wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DUST));     /* dry and dusty */
       }
 
-      function rockGround(x, y, snow) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        g.fillStyle = C(STO[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        /* Snow is a covering, not a mark: it is allowed to take the surface
-           somewhere else entirely, which is why it paints as a wash. */
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, snow ? SNO[0] : CON[1], pAmt(x, y, PATCH.MOSS));
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, STO[3], pAmt(x, y, PATCH.DAMP));
-      }
-
       /* ---- ground detail: the second cached pass -------------------------- */
       /* four blades, each placed and coloured off its own three channels, so
          no two tiles of grass anywhere on the map put a blade in the same
@@ -1175,42 +1170,6 @@ export default {
         });
       }
 
-      function rockDetail(c, x, y, snow) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, S1 = BEK_T_SRC;
-        const v = rockVar(S.map, x, y);
-        g.fillStyle = C(ROCK_FACE[0]);
-        g.fillRect(px + spot(v.fx, S1, 9), py + spot(v.fy, S1, 6), 9, 6);
-        g.fillRect(px + spot(v.gx, S1, 7), py + spot(v.gy, S1, 6), 7, 6);
-        g.fillStyle = C(ROCK_CRACK);
-        g.fillRect(px + spot(v.ax, S1, 8), py + spot(v.ay, S1, 1), 8, 1);
-        g.fillRect(px + spot(v.bx, S1, 5), py + spot(v.by, S1, 1), 5, 1);
-        if (snow) {
-          g.fillStyle = C(SNO[1]);
-          g.fillRect(px + spot(v.mx, S1, 4), py + spot(v.my, S1, 1), 4, 1);
-          g.fillRect(px + spot(v.jx, S1, 3), py + spot(v.jy, S1, 1), 3, 1);
-        } else if (v.kind === 2) {                                                  /* mineral */
-          g.fillStyle = C(ORE[1]);
-          g.fillRect(px + spot(v.mx, S1, 1), py + spot(v.my, S1, 1), 1, 1);
-          g.fillRect(px + spot(v.jx, S1, 1), py + spot(v.jy, S1, 1), 1, 1);
-        }
-        if (v.kind === 4) { g.fillStyle = C(WAT[3]); g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 3), 1, 3); }   /* seepage */
-        if (c === 'O') {
-          g.fillStyle = C(ORE[0]); g.fillRect(px + spot(v.ix, S1, 3), py + spot(v.iy, S1, 3), 3, 3);
-          g.fillStyle = C(STO[3]); g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
-          g.fillStyle = C(SNO[1]);
-          g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 1), 1, 1);
-          g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
-        }
-        if (c === 'Q') {
-          g.fillStyle = C(SNO[1]);
-          g.fillRect(px + spot(v.ix, S1, 2), py + spot(v.iy, S1, 2), 2, 2);
-          g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
-          g.fillStyle = C(ORE[1]); g.fillRect(px + spot(v.hx, S1, 2), py + spot(v.hy, S1, 2), 2, 2);
-          g.fillStyle = C(SNO[0]); g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
-          g.fillStyle = C(ORE[1]); g.fillRect(px + spot(v.fx, S1, 1), py + spot(v.gy, S1, 1), 1, 1);
-        }
-      }
-
       /* The outer ring of every map, drawn as a hard black frame with a grey
          lip on the inward side. The treeline alone never read as a limit —
          this does, and it stops at anything you can actually walk through, so
@@ -1249,6 +1208,22 @@ export default {
       };
       const shore = createShore(waterArt);
       const water = createWater(waterArt);
+      /* The mountain and what is in it. Everything the ore does — the recess
+         it is bitten out of, the seam, the body, the faces, the traces that
+         thicken in the wall as you get closer to one — is in rock.js, and so
+         is `oreKind`, which `act()` below reads so the drop is the metal the
+         tile was drawn as. */
+      const rock = createRock({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        rockVar: (x, y) => rockVar(S.map, x, y),
+        patch: (x, y, name) => pAmt(x, y, PATCH[name]),
+        spot: spot,
+        tileAt: (x, y) => tileAt(S.map, x, y)
+      });
 
       /* deep water: the depth ramp is in the cache, and what is left per frame
          is two short ripple bands and the odd catch of light */
@@ -1308,7 +1283,7 @@ export default {
         if (c === 'W') { native(() => (shore.maskOf(x, y) ? shore.nearShore(x, y) : water.deep(x, y))); return; }
         if (c === '~') { native(() => shore.ground(x, y)); return; }
         if (c === '.') { pathGround(x, y); return; }
-        if (c === 'M' || c === 'O' || c === 'Q') { rockGround(x, y, snow_()); return; }
+        if (c === 'M' || c === 'O' || c === 'Q') { native(() => rock.ground(c, x, y, snow_())); return; }
         /* the plain fills come straight out of surface.js, so the colour the
            check reasons about at the darkest hour is the colour that is
            actually on screen */
@@ -1334,7 +1309,7 @@ export default {
           return;
         }
         if (c === '.') { pathDetail(x, y); if (rim) edgeMark(px, py, x, y); return; }
-        if (c === 'M' || c === 'O' || c === 'Q') { rockDetail(c, x, y, snow); if (rim) edgeMark(px, py, x, y); return; }
+        if (c === 'M' || c === 'O' || c === 'Q') { native(() => rock.detail(c, x, y, snow)); if (rim) edgeMark(px, py, x, y); return; }
         if (c === ',') {
           g.fillStyle = C(GRASS[3]);
           g.fillRect(px + spot(o.ax, BEK_T_SRC, 1), py + spot(o.ay, BEK_T_SRC, 8), 1, 8);
@@ -1496,9 +1471,12 @@ export default {
       function tileLive(c, x, y, t) {
         if (c === 'W') { waterTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
         if (c === '~') { native(() => shore.live(x, y, t, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
+        if (c === 'O' || c === 'Q') { native(() => rock.live(c, x, y, t)); return; }
         if (c === 'v') hearthTile(x, y, t);                                  /* the hearth, alight */
       }
-      const LIVE = 'W~v';
+      /* the glyphs whose art reads the clock: water, the hearth, and the
+         catch of light travelling across a crystal face */
+      const LIVE = 'W~vOQ';
 
       /* ---- the terrain cache ----------------------------------------------
          The two passes above used to be one function run for all 360 tiles
@@ -1636,7 +1614,7 @@ export default {
         try {
           g.setTransform(1, 0, 0, 1, 0, 0);
           g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
-          shore.prepare(k); water.prepare(k);
+          shore.prepare(k); water.prepare(k); rock.prepare(k);
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {

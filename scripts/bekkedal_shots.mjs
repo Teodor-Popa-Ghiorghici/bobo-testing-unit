@@ -122,7 +122,10 @@ mkdirSync(OUT, { recursive: true });
 const CHROME = process.env.BEK_CHROME || '/opt/pw-browsers/chromium';
 const browser = await chromium.launch({ executablePath: existsSync(CHROME) ? CHROME : undefined });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
-page.on('pageerror', e => console.error('  PAGE ERROR:', e.message));
+/* A thrown draw call leaves a half-painted canvas that looks plausible in a
+   thumbnail, so an error is a failed run and not a log line. */
+let pageErrors = 0;
+page.on('pageerror', e => { pageErrors++; console.error('  PAGE ERROR:', e.message); });
 /* One init script for the whole run — addInitScript accumulates, so the save
    goes in through localStorage between two loads instead of through here. */
 await page.addInitScript(() => {
@@ -177,9 +180,19 @@ for (const s of shots) {
       const q = o.getContext('2d');
       q.drawImage(cv, 0, 0);
       const d = q.getImageData(0, 0, o.width, o.height);
+      /* Threshold at the image's own median rather than at a number picked in
+         advance. A fixed cut is a test of how bright the map happens to be
+         (the mine sits at a fixed dim exposure of its own) instead of a test
+         of whether the veins have a silhouette, which is the question. */
+      const hist = new Uint32Array(256);
+      for (let i = 0; i < d.data.length; i += 4) {
+        hist[Math.round(0.2126 * d.data[i] + 0.7152 * d.data[i + 1] + 0.0722 * d.data[i + 2])]++;
+      }
+      let acc = 0, half = (d.data.length / 4) / 2, cut = 128;
+      for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= half) { cut = v; break; } }
       for (let i = 0; i < d.data.length; i += 4) {
         const l = 0.2126 * d.data[i] + 0.7152 * d.data[i + 1] + 0.0722 * d.data[i + 2];
-        const b = l > 70 ? 255 : 0;
+        const b = l > cut ? 255 : 0;
         d.data[i] = d.data[i + 1] = d.data[i + 2] = b;
       }
       q.putImageData(d, 0, 0);
@@ -199,3 +212,4 @@ if (perf) console.log('\nperf: ' + JSON.stringify(perf, null, 2));
 
 await browser.close();
 console.log('\n' + n + ' shots -> ' + OUT);
+if (pageErrors) { console.error(pageErrors + ' page error(s) — the shots are not trustworthy.'); process.exit(1); }

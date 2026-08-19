@@ -192,5 +192,14 @@ export const FEATURES = {
   WATER_SUN:  { on: WAT[1],   cols: [WAT[5], SNO[1]] },
   FOAM:       { on: WAT[3],   cols: [SNO[1], WAT[5]] },
   ORE_GLINT:  { on: STO[2],   cols: [ORE[0], ORE[1], SNO[1], SNO[0]] },
+  /* The three metals, each as matrix-shadow / body / lit face / catch of
+     light, on the darkened matrix a vein sits in. Declared here rather than
+     in rock.js so the check reads the same four colours the art draws, and
+     so it is obvious at a glance that no two of the three share a hue —
+     which is the whole point of them: you can tell what you are about to
+     mine before you swing at it. */
+  ORE_IRON:   { on: STO[1],   cols: [WAR[0], ORE[0], WAR[3], SAN[2]] },
+  ORE_COPPER: { on: STO[1],   cols: [CON[1], ORE[1], WAT[5], SNO[1]] },
+  ORE_SILVER: { on: STO[1],   cols: [STO[2], STO[4], SNO[0], SNO[1]] },
   HEARTH:     { on: TIM[2],   cols: [WAR[1], WAR[2], WAR[3], WAR[4]] }
 };

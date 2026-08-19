@@ -162,7 +162,11 @@ const R_ROCK = [
   F('ix', 11, JIT), F('iy', 12, JIT),            /* four inclusions, for the */
   F('jx', 13, JIT), F('jy', 14, JIT),            /* ore and crystal faces    */
   F('hx', 15, JIT), F('hy', 16, JIT),
-  F('lx', 17, JIT), F('ly', 18, JIT)
+  F('lx', 17, JIT), F('ly', 18, JIT),
+  /* Which metal this square carries. Twenty values rather than five because
+     the weights it stands in for are 55/30/15, and rounding those to fifths
+     would move the economy — see `oreKind` in rock.js. */
+  F('ore', 19, 20)
 ];
 
 const R_PATH = [

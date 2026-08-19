@@ -50,6 +50,9 @@ scripts that check them:
 - `shore.js` — the shoreline: the profile, the surf, the bank. See
   **The shore** below.
 - `water.js` — deep water and its depth ramp.
+- `rock.js` — the mountain and the ore in it, including `oreKind`, which
+  `act()` reads so the drop is the metal the tile was drawn as. See
+  **The veins** below.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
@@ -420,6 +423,64 @@ each tile as well as between tiles — an integer distance field steps a whole
 ramp entry at a tile boundary, and a lake made of flat rectangles of blue is
 what that looks like — but at two sub-cells a side, not four: four measured
 34ms on the rebuild and the difference is invisible under the dither.
+
+## The veins
+
+The report was that the ore in the gruva is almost impossible to spot, and
+the old `rockDetail` next to the old `rockGround` says why in one line: the
+ore's largest bright mark was a 2×2 of `C(7)`, and `C(7)` was the *exact*
+colour of the 9×6 and 7×6 lit faces the same function stamped on every
+ordinary rock tile. The one mark meant to say "ore" was the same colour as
+the noise it had to compete with, and smaller than it. Everything else
+compounded that: an L\*46 brown on an L\*36 base is a ten-point step where
+the plain faces already jumped thirty-four; there was no hue contrast
+because the whole scene is grey; there was no silhouette difference because
+an ore tile was a wall tile with different pixels on it; and the only
+genuinely bright marks were the two smallest objects on the tile.
+
+`rock.js` fixes it in the order the eye works in, and the order matters:
+
+1. **Silhouette.** A vein breaks the rock face — a shadowed recess bitten
+   into the stone (stepped, not rectangular), a cracked seam stepping right
+   across the tile, crystal faces standing off the plane. The test is
+   literal: `gruva_1bit` in the screenshot harness thresholds the mine at its
+   own median luminance, and you can still find every vein.
+2. **Value.** The matrix around a vein is `STO[1]`, *darker* than plain rock's
+   `STO[2]`. You do not get contrast by adding bright pixels to a mid-grey
+   field; you get it by putting bright pixels against dark ones.
+3. **Mass.** One coherent body, not specks. Specks read as noise, which is
+   what the rest of a rock tile already is.
+4. **Hue.** Iron is rust ochre, copper is verdigris, silver is a cool white —
+   three families declared in `palette.js` as `FEATURES.ORE_*` that no other
+   ramp carries. `Q` is a different hue *and* a bigger body *and* more faces
+   *and* satellite crystals, because walking to a vein you cannot mine yet is
+   a small avoidable frustration the art can fix.
+5. **Light.** Ore is specular. A single bright pair of pixels travels across
+   the faces on a seven-second cycle, offset per tile so a wall of veins does
+   not flash in unison, and it is the only part of a vein that is not in the
+   terrain cache.
+
+And one change that is a gameplay improvement rather than a picture: the
+wall *around* a vein carries mineral traces that thicken as you get closer,
+in that vein's own colour. One speck three tiles out, a run of them at one.
+The rock tells you where to look.
+
+### The die is rolled once per square, not once per swing
+
+`act()` used to roll the metal on every mining: 55/30/15 iron/copper/silver
+on `O`, 60/40 silver/copper on `Q`. `oreKind` applies **the same weights** to
+a declared channel of the tile hash instead, so the vein you can see is the
+vein you get and a square you come back to after it regrows is the same
+square. No weight changed; what changed is *when* the die is rolled.
+
+That has one consequence worth knowing before you change a map: on the gruva
+as shipped, the four `Q` tiles all land on silver. Against the old
+expectation (0.6 × 220 + 0.4 × 110 = 176 kr) a rich-vein swing is now worth
+220 kr, about +25%; the twelve `O` tiles come out 9 iron / 1 copper /
+2 silver, which averages 98 kr against an expected 104, about −6%. Neither is
+a rules change and both are properties of *this* map — if the mix wants
+tuning, move a tile rather than putting the randomness back, because the
+randomness is what made the art a lie.
 
 ## Light and the hour
 
