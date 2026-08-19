@@ -1,0 +1,162 @@
+#!/usr/bin/env node
+/* Bekkedal screenshot harness — `node scripts/bekkedal_shots.mjs [outdir]`
+ *
+ * Everything about this app's look is judged by eye, and you cannot judge by
+ * eye what you have not rendered. This drives the real app in real Chromium
+ * and writes the whole matrix — eleven maps, several hours, both interiors,
+ * the mine with and without a lamp, every tool mid-swing — in one pass.
+ *
+ * The trick that makes it quick: the save is plain JSON under BEK_SAVE in
+ * localStorage and its shape is exactly what `fresh()` returns, so a crafted
+ * save written *before* the page boots teleports the player anywhere at any
+ * hour. The clock runs 4 in-game minutes per real second, so waiting from the
+ * 06:00 start to 22:00 would cost four real minutes per frame grabbed.
+ *
+ * Pixels come out of the canvas itself (toDataURL at the native 960x540),
+ * not out of an element screenshot, so what lands on disk is exactly what the
+ * game rasterised — no page zoom, no scaling, no CSS in the way.
+ *
+ * Requires the static server (`npm start`) on :3000 and the pre-installed
+ * Chromium at PLAYWRIGHT_BROWSERS_PATH; never run `playwright install`.
+ */
+import { chromium } from 'playwright';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+
+const OUT = path.resolve(process.argv[2] || '/tmp/bekshots');
+const URL_BASE = process.env.BEK_URL || 'http://localhost:3000/';
+const SAVE_KEY = 'templeos.bekkedal.v2';
+const ONLY = process.env.BEK_ONLY ? new RegExp(process.env.BEK_ONLY) : null;
+
+/* fresh() with everything unlocked, so no shot is blocked behind a quest */
+const BASE = {
+  ver: 4, lang: 'en', fullscreen: 0,
+  map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
+  day: 3, min: 12 * 60, kr: 9000, en: 120, enMax: 120,
+  water: 20, waterMax: 20,
+  tools: { spade: 1, kanne: 1, oks: 1, stang: 1, hakke: 1 },
+  tool: 0, axeLv: 2, pickLv: 2, seedIx: 0,
+  bag: { potetfro: 5, lykt: 1, ullgenser: 1, tommer: 40, stein: 30 },
+  soil: {}, felled: {}, mined: {}, picked: {}, drops: [],
+  fr: {}, met: {}, seen: {}, flag: { boat: 1, lot: 1 }, q: {},
+  chatIx: {}, disc: { farm: 1 }, weather: 'klar',
+  built: 0, ending: 0, houseBuilt: false, houseBuiltDay: null, act2Unlocked: false
+};
+
+const HOURS = { morning: 8 * 60, dusk: 19 * 60, night: 23 * 60 };
+const MAPS = ['farm', 'town', 'lake', 'forest', 'enga', 'setra', 'vidda', 'gruva', 'fjord'];
+const INSIDE = ['farmhouse', 'lakehouse'];
+
+/* Where to stand on each map so the shot shows the thing worth looking at. */
+const WHERE = {
+  farm: [12, 8], town: [12, 8], lake: [7, 8], forest: [12, 8], enga: [12, 8],
+  setra: [12, 8], vidda: [12, 8], gruva: [12, 8], fjord: [8, 8],
+  farmhouse: [11, 7], lakehouse: [11, 7]
+};
+
+const shots = [];
+const shot = (name, save, opts) => shots.push({ name, save: Object.assign({}, BASE, save), opts: opts || {} });
+
+for (const mp of MAPS.concat(INSIDE)) {
+  const at = WHERE[mp] || [12, 8];
+  for (const h of Object.keys(HOURS)) shot(mp + '_' + h, { map: mp, px: at[0], py: at[1], min: HOURS[h] });
+}
+/* the mine at its darkest, with and without a lamp to carry */
+shot('gruva_dark_lamp', { map: 'gruva', px: 12, py: 8, min: 2 * 60, bag: Object.assign({}, BASE.bag, { lykt: 1 }) });
+shot('gruva_dark_nolamp', { map: 'gruva', px: 12, py: 8, min: 2 * 60, bag: { potetfro: 5 } });
+/* the mine thresholded to 1-bit: can you still find a vein by shape alone? */
+shot('gruva_1bit', { map: 'gruva', px: 12, py: 8, min: 12 * 60 }, { bits: 1 });
+/* weather over the night, which is the composite that used to fight itself */
+shot('farm_fog_night', { map: 'farm', px: 12, py: 8, min: 23 * 60, weather: 'take' });
+shot('farm_rain_dusk', { map: 'farm', px: 12, py: 8, min: 19 * 60, weather: 'regn' });
+/* the lake house, which only exists once it is built */
+shot('lake_built_night', { map: 'lake', px: 6, py: 6, min: 22 * 60, built: 1, houseBuilt: true });
+/* the four treeline corners, camera clamped to each end of its travel */
+shot('farm_corner_top', { map: 'farm', px: 1, py: 0, min: 12 * 60 });
+shot('farm_corner_bot', { map: 'farm', px: 22, py: 14, min: 12 * 60 });
+/* every tool, at rest and mid-swing, against something it can actually work */
+const SWING = [
+  ['spade', 0, 'farm', 12, 6, 3], ['kanne', 1, 'farm', 12, 6, 3],
+  ['oks', 2, 'forest', 12, 8, 0], ['stang', 3, 'lake', 8, 8, 3], ['hakke', 4, 'gruva', 12, 8, 3]
+];
+for (const [id, ix, mp, x, y, dir] of SWING) {
+  for (const ph of [0, 1, 2, 3]) {
+    shot('swing_' + id + '_' + ph, { map: mp, px: x, py: y, dir: dir, tool: ix, min: 12 * 60 },
+         { swing: ph, till: id === 'kanne' });
+  }
+}
+
+mkdirSync(OUT, { recursive: true });
+
+/* The pre-installed Chromium is not necessarily the build this playwright
+   version pins, so point at it explicitly rather than letting the launcher
+   go looking for one to download. */
+const CHROME = process.env.BEK_CHROME || '/opt/pw-browsers/chromium';
+const browser = await chromium.launch({ executablePath: existsSync(CHROME) ? CHROME : undefined });
+const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+page.on('pageerror', e => console.error('  PAGE ERROR:', e.message));
+/* One init script for the whole run — addInitScript accumulates, so the save
+   goes in through localStorage between two loads instead of through here. */
+await page.addInitScript(() => {
+  /* silence the machine's own audio graph: nothing here needs a speaker and
+     an autoplay-blocked AudioContext throws on some launches */
+  window.AudioContext = window.webkitAudioContext = function () { throw new Error('no audio'); };
+});
+/* The machine boots with the set switched off, and the splash sits over the
+   shell until something clicks it away — so power on, wait for the boot lines
+   to run out, and dismiss it. Once. Every shot after this reuses the booted
+   page and only closes and reopens the app window, which is the difference
+   between three seconds a shot and one. */
+await page.goto(URL_BASE, { waitUntil: 'domcontentloaded' });
+await page.evaluate(() => { if (window.powerOn) window.powerOn(); });
+await page.waitForSelector('#bootcursor', { timeout: 30000 });
+await page.evaluate(() => document.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await page.waitForSelector('#shell', { state: 'visible', timeout: 15000 });
+
+let n = 0;
+for (const s of shots) {
+  if (ONLY && !ONLY.test(s.name)) continue;
+  /* Close first, *then* seed: the app's unmount watchdog autosaves on its own
+     800ms tick, and a save written before that fires would be overwritten by
+     whatever the previous shot left in S. */
+  await page.evaluate(() => document.querySelectorAll('.win').forEach(w => w.remove()));
+  await page.waitForTimeout(950);
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [SAVE_KEY, JSON.stringify(s.save)]);
+  await page.evaluate(() => import('/kernel/wm.js').then(m => m.openWindow('bekkedal')));
+  await page.waitForSelector('canvas.bekcv', { state: 'visible', timeout: 15000 });
+  /* let the app settle: the terrain cache builds on the first draw and the
+     30fps frame gate means a couple of rAFs is not a couple of draws */
+  await page.waitForTimeout(400);
+
+  const png = await page.evaluate(async (opts) => {
+    const cv = document.querySelector('canvas.bekcv');
+    if (opts.swing != null && window.__bekDebug) window.__bekDebug.swing(opts.swing, opts.till);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    if (opts.bits === 1) {
+      const o = document.createElement('canvas');
+      o.width = cv.width; o.height = cv.height;
+      const q = o.getContext('2d');
+      q.drawImage(cv, 0, 0);
+      const d = q.getImageData(0, 0, o.width, o.height);
+      for (let i = 0; i < d.data.length; i += 4) {
+        const l = 0.2126 * d.data[i] + 0.7152 * d.data[i + 1] + 0.0722 * d.data[i + 2];
+        const b = l > 70 ? 255 : 0;
+        d.data[i] = d.data[i + 1] = d.data[i + 2] = b;
+      }
+      q.putImageData(d, 0, 0);
+      return o.toDataURL('image/png');
+    }
+    return cv.toDataURL('image/png');
+  }, s.opts);
+
+  writeFileSync(path.join(OUT, s.name + '.png'), Buffer.from(png.split(',')[1], 'base64'));
+  n++;
+  process.stdout.write('  ' + s.name + '\n');
+}
+
+/* one timing run: the numbers the brief asks to be measured rather than assumed */
+const perf = await page.evaluate(() => (window.__bekDebug ? window.__bekDebug.perf() : null));
+if (perf) console.log('\nperf: ' + JSON.stringify(perf, null, 2));
+
+await browser.close();
+console.log('\n' + n + ' shots -> ' + OUT);

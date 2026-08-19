@@ -16,7 +16,8 @@ state, input, drawing, audio, save/load. When adding content, it goes in
 `data.js`; when adding behavior, it goes in `index.js`. Don't let either drift
 into the other.
 
-Four siblings carry what used to be tangled into the draw calls:
+The siblings carry what used to be tangled into the draw calls, plus the
+scripts that check them:
 
 - `font.js` — the 5x8 bitmap glyph table and its metrics. Uppercase sits on the
   row-6 baseline, lowercase x-height runs rows 2-6 on the same baseline, and the
@@ -33,8 +34,13 @@ Four siblings carry what used to be tangled into the draw calls:
 - `noise.js` — every "which tuft, what colour, where does the grit sit"
   decision the terrain art makes. Pure functions of `(mapId, x, y)`; no state,
   nothing seeded, nothing saved. See **Terrain variation** below.
+- `palette.js` — the sixty-four colours, as twelve material ramps, plus the
+  declared decorative tables (`MARKS` / `SHADOWS` / `FEATURES`) that say what
+  may be drawn on what. No functions that draw, no state. See **Palette**
+  below.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
+- `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
 
 ## Why the font is a bitmap
 
@@ -199,6 +205,14 @@ spend 20-60 rects on looking like something.
   nine ways 20% is 1.6 standard deviations, which a perfectly good hash fails
   about half the time. Run it after touching `noise.js` or any tile art that
   draws from it.
+- `node apps/bekkedal/palette_check.js` — the colour contract. Asserts that
+  0–15 are still bit-exact `VGA16`, that no two of the sixty-four entries are
+  the same colour, that every index above 15 belongs to a declared ramp (an
+  entry no ramp claims is a swatch, and a swatch is budget nothing tests),
+  that every ramp climbs in luminance with no step too wide to dither across,
+  that every ramp shifts hue as well as value, and that every declared mark,
+  shadow and feature obeys the contrast rule above. Run it after touching
+  `palette.js` or any table the art picks colours out of.
 - `node apps/bekkedal/layout_check.js` — geometry invariants (canvas, viewport,
   camera clamp range, every panel on screen, all 11 maps still 24×15), the
   fishing reel zone's agreement with its hit test, and text fitting for every
@@ -213,23 +227,106 @@ spend 20-60 rects on looking like something.
 
 ## Palette
 
-All color must come from `VGA16` (`kernel/god.js`) through the local `C(index)`
-helper — never a literal `rgb()`/hex string in a draw call. Any blended or
-partial-coverage effect (weather overlay, day/night tinting, soil-wet shading)
-must go through `dither()`/`ditherPat()`, which stipples between two `VGA16`
-indices using the `DITHER` ordered-dither matrix — there is no alpha
-compositing anywhere in this app. The stipple cell is drawn at
-`BEK_DITHER_PX` (`BEK_DITHER_CELL * BEK_ART_SCALE`), not one device pixel: left
-at 1px it would halve in apparent size and the night overlay would read as flat
-grey instead of dither. The coarser pattern is also the faster one — the
-rasteriser repeats it fewer times across the canvas — so the full-screen
-fog-plus-night composite costs about 0.59ms at 960×540, against 0.31ms for the
-old 480×300 build at a third of the pixels. This applies to every function under "the
-speaker" section's sibling drawing code: `tileGround`, `tileDetail`,
-`tileLive`, `drawSoil`, `drawIcon`, `person`, `bear`, `goat`, `panel`, `text`,
-and `draw` itself. `wash()` is the patch-shaped case of it — it is
-`ditherPat` clipped to a rect, and it must be called outside a `native()`
-block, never inside one, because it opens its own.
+### Sixty-four, in ramps
+
+Colour comes from `palette.js` and nothing else. Never a literal
+`rgb()`/hex string in a draw call, and never a bare index either: the art
+says `C(GRASS[2])`, not `C(21)`.
+
+The app used to draw out of `VGA16` (`kernel/god.js`). Sixteen is not a
+small palette so much as a palette with no mid-tones, and the cost of that
+showed up everywhere at once. A blade of grass was picked from
+`TUFT = [10, 2, 10, 14, 10, 2, 3]` — luminances 0.86, 0.53, 0.93, 0.55, and
+two of the four are not green. That is not variation *within* a material,
+it is four unrelated materials fighting each other at one-pixel scale, and
+it is why a field read as confetti. `noise.js` was never the problem; it
+was dealing from a deck with nothing between `(0,170,0)` and `(85,255,85)`
+to vary inside.
+
+So: sixty-four indices.
+
+- **0–15 are bit-exact VGA16, in the original order.** Every draw call that
+  existed before the palette landed kept working the day it landed, the HUD
+  and the menus stay TempleOS, and any regression stayed bisectable. Do not
+  renumber them.
+- **16–63 are twelve ramps**, three to six steps each, darkest first:
+  `ATMO` (the air — vignette, far canopy, unlit ground), `GRASS`, `DRY`,
+  `CON` (fir and spruce), `TIM` (timber), `STO` (stone, above ground and
+  below), `SOI`, `WAT`, `SAN`, `SNO`, `WAR` (the emission ramp: falu red,
+  ember, flame, lamplight — which is also the town's painted board, because
+  that paint is iron oxide), and `ORE` (two hues no other ramp carries, so
+  you can tell iron from copper before you swing).
+
+Two rules the ramps are built to, both asserted:
+
+- **Hue-shift, don't scale.** A shadow step leans blue or violet and drops a
+  little saturation; a highlight step leans yellow. Scaling one hue's value
+  up and down is exactly the flat look sixteen colours already gave us. This
+  is most of the difference between "sixty-four colours" and "looks better".
+- **Adjacent steps stay close enough to dither across.** Sixty-four indices
+  plus the 4×4 ordered dither between any two of them is an enormous
+  effective gamut — but only where a 50% stipple of two steps reads as a
+  clean intermediate rather than as texture, which needs the two steps close
+  in hue as well as in value. `RAMP_STEP_MAX` is the ceiling (`WAR` carries
+  its own, wider one: its steps are colour temperatures and nothing dithers
+  between them).
+
+### The contrast rule
+
+The tables the art draws its decoration from are declared in `palette.js`,
+not scattered through `index.js`, because the check has to read the same
+tables the art does. Three groups:
+
+- `MARKS` — decoration on a surface: a blade of grass, a scuff of grit, a
+  course in a plank. A mark stays within `MARK_BAND` (±0.12 relative
+  luminance) of its surface's base. **One exemption**, and it is the
+  important one: a colour that is the surface's own immediate neighbour in
+  its own ramp is always allowed however wide that step is, because it is
+  not a second material — it is the same material lit a little more or less.
+  Everything crossing from one ramp to another has to earn its place inside
+  the band.
+- `SHADOWS` — an absence of light rather than a mark, so it may go darker
+  than the band, but only darker and not past `SHADOW_MAX`.
+- `FEATURES` — the exception the band exists to make meaningful: a flower
+  head, an ore glint, a catch of sun on water. Features break the band on
+  purpose, so they are declared apart, and the check fails a "feature" that
+  turns out to sit quietly inside the band — that is a mark filed in the
+  wrong table.
+
+The result is a field that reads as one living green from three feet back
+and resolves into detail up close. That is the whole exercise. If a change
+makes the picture *busier*, it has made the original complaint worse.
+
+### No alpha, still
+
+Any blended or partial-coverage effect (weather, patches, soil wetting)
+still goes through `dither()`/`ditherPat()`, which stipples between two
+palette indices using the `DITHER` ordered matrix. There is no alpha
+compositing anywhere in this app and there must not be — no `globalAlpha`,
+no `rgba()`, no `ctx.filter`. A blend you cannot express as a stipple is a
+blend you may not use. The stipple cell is drawn at `BEK_DITHER_PX`
+(`BEK_DITHER_CELL * BEK_ART_SCALE`), not one device pixel: left at 1px it
+would halve in apparent size and read as flat grey instead of dither. The
+coarser pattern is also the faster one — the rasteriser repeats it fewer
+times across the canvas.
+
+`ditherPat` caches its patterns keyed by the target context as well as the
+colour and strength, because a pattern must be created by the context that
+will fill with it and the terrain canvas fills with the same stipples the
+screen does. Sixty-four indices multiply that cache; keep an eye on it.
+
+`wash()` is the patch-shaped case of the same thing — `ditherPat` clipped to
+a rect — and it must be called *outside* a `native()` block, never inside
+one, because it opens its own.
+
+### Where the palette does not reach
+
+`BEK_ITEMS[].col` and `drawIcon` are still VGA16 by choice. Item icons are
+menu chrome that happens to also appear in the world as a dropped pickup,
+and a pickup is supposed to pop. `panel`, `text` and `drawHud` are chrome
+too. Everything in the playfield — ground, tiles, buildings, furniture,
+crops, people, animals, weather and the ending painting — comes off the
+ramps.
 
 ## Autosave
 

@@ -1,6 +1,5 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
-import { VGA16 } from '../../kernel/god.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
@@ -11,6 +10,8 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_
          BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
          soilVar, objVar, LOW, PATCH, JIT } from './noise.js';
+import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
+         MARKS, SHADOWS, FEATURES } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { createText } from './text.js';
 import { BORDER, CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -75,7 +76,25 @@ export default {
          argument threaded through. */
       let g = cv.getContext('2d');
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
-      const C = i => { const p = VGA16[i]; return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; };
+      /* One array index per fill. The old helper built 'rgb(r,g,b)' from
+         three numbers every single time, which on a 7800-rect cache rebuild
+         is 7800 string concatenations nobody needed. */
+      const C = i => PAL_CSS[i];
+      /* The declared mark / shadow / feature tables, unpacked once. Every
+         decorative colour decision in the art below comes out of one of
+         these, which is what lets palette_check.js assert the contrast rule
+         against the very tables the art draws from. */
+      const TUFT = MARKS.TUFT.cols, TUFT_DRY = MARKS.TUFT_DRY.cols, BLADE = MARKS.BLADE.cols,
+            PATH_GRIT = MARKS.PATH_GRIT.cols, CAVE_GRIT = MARKS.CAVE_GRIT.cols,
+            ROCK_FACE = MARKS.ROCK_FACE.cols, FLOOR_GRAIN = MARKS.FLOOR_GRAIN.cols,
+            TURF_ROOF = MARKS.TURF_ROOF.cols, WATER_DEEP = MARKS.WATER_DEEP.cols;
+      const PATH_CRACK = SHADOWS.PATH_CRACK.cols[0], ROCK_CRACK = SHADOWS.ROCK_CRACK.cols[0],
+            FLOOR_JOINT = SHADOWS.FLOOR_JOINT.cols[0], TREE_INK = SHADOWS.TREE_INK.cols;
+      /* the player, who has no entry in BEK_NPCS because there is only one */
+      const PLAYER_HAIR = TIM[1], PLAYER_SHIRT = WAT[4], PLAYER_PANTS = ATMO[2];
+      const FLOWER = FEATURES.FLOWER.cols, PICKABLE = FEATURES.PICKABLE.cols,
+            WATER_SUN = FEATURES.WATER_SUN.cols, FOAM = FEATURES.FOAM.cols,
+            ORE_GLINT = FEATURES.ORE_GLINT.cols, HEARTH = FEATURES.HEARTH.cols;
       const TX = (no, en) => BEK_LANG === 'en' ? en : no;      /* resolve a dynamic pair now */
       const iname = id => T(BEK_ITEMS[id].name);
       const refreshBar = () => {
@@ -1009,29 +1028,28 @@ export default {
         native(() => { g.fillStyle = ditherPat(col, s > 16 ? 16 : s); g.fillRect(px, py, w, h); });
       }
 
-      /* seven tuft colours instead of one, so a field of grass stops reading
-         as a single flat green */
-      /* Mostly greens with the odd dry or flowering blade — enough to break up
-         a field, not so much that the grass turns to confetti. */
-      const TUFT = [10, 2, 10, 14, 10, 2, 3];
-      /* the same seven where the coarse patch has taken the field over to straw */
-      const TUFT_DRY = [14, 3, 14, 6, 2, 3, 14];
-
       /* ---- ground: the first cached pass ---------------------------------
          Fills, and the patches that tint them. Nothing here reaches past its
-         own tile, because every tile's ground is laid before any detail is. */
+         own tile, because every tile's ground is laid before any detail is.
+
+         Every colour below is a step of a ramp in palette.js, addressed by
+         name. The rule the ramps are built around — a decorative mark stays
+         inside its surface's contrast band, and only a *feature* may break it
+         — is declared there in MARKS / SHADOWS / FEATURES and asserted by
+         palette_check.js, so the tables the art reads and the tables the
+         check reads are the same tables. */
       function grassGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => { g.fillStyle = C(2); g.fillRect(px, py, BEK_T, BEK_T); });
-        wash(px, py, BEK_T, BEK_T, 6, pAmt(x, y, PATCH.DRY));       /* a corner gone to straw */
-        wash(px, py, BEK_T, BEK_T, 10, pAmt(x, y, PATCH.LUSH));     /* a wetter, greener run  */
+        native(() => { g.fillStyle = C(GRASS[2]); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DRY));      /* a corner gone to straw */
+        wash(px, py, BEK_T, BEK_T, GRASS[3], pAmt(x, y, PATCH.LUSH));   /* a wetter, greener run  */
       }
 
       /* the floor of a room: boards, never grass */
       function floorGround(x, y) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, 8, pAmt(x, y, PATCH.WORN, 3));   /* where feet go */
+        g.fillStyle = C(TIM[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
+        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, TIM[1], pAmt(x, y, PATCH.WORN, 3));   /* where feet go */
       }
 
       /* the floor of the gruva: it is a hole in a mountain, so it is gravel.
@@ -1040,9 +1058,9 @@ export default {
          disappear into the stone they are cut through. */
       function caveGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => { g.fillStyle = C(0); g.fillRect(px, py, BEK_T, BEK_T); });
-        wash(px, py, BEK_T, BEK_T, 2, pAmt(x, y, PATCH.MOSS));      /* moss where the air moves */
-        wash(px, py, BEK_T, BEK_T, 1, pAmt(x, y, PATCH.DAMP));      /* and where the water does */
+        native(() => { g.fillStyle = C(STO[0]); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, CON[1], pAmt(x, y, PATCH.MOSS));     /* moss where the air moves */
+        wash(px, py, BEK_T, BEK_T, WAT[1], pAmt(x, y, PATCH.DAMP));     /* and where the water does */
       }
 
       /* a worn trail: no directional art (the same glyph does every bend and
@@ -1050,16 +1068,18 @@ export default {
          implying a direction the tile can't back up */
       function pathGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => { g.fillStyle = C(6); g.fillRect(px, py, BEK_T, BEK_T); });
-        wash(px, py, BEK_T, BEK_T, 8, pAmt(x, y, PATCH.WORN));      /* trodden hard */
-        wash(px, py, BEK_T, BEK_T, 14, pAmt(x, y, PATCH.DUST));     /* dry and dusty */
+        native(() => { g.fillStyle = C(SOI[2]); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, SOI[1], pAmt(x, y, PATCH.WORN));     /* trodden hard */
+        wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DUST));     /* dry and dusty */
       }
 
       function rockGround(x, y, snow) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        g.fillStyle = C(8); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, snow ? 15 : 2, pAmt(x, y, PATCH.MOSS));
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, 7, pAmt(x, y, PATCH.DAMP));
+        g.fillStyle = C(STO[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
+        /* Snow is a covering, not a mark: it is allowed to take the surface
+           somewhere else entirely, which is why it paints as a wash. */
+        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, snow ? SNO[0] : CON[1], pAmt(x, y, PATCH.MOSS));
+        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, STO[3], pAmt(x, y, PATCH.DAMP));
       }
 
       /* ---- ground detail: the second cached pass -------------------------- */
@@ -1081,9 +1101,11 @@ export default {
           }
           /* a flowering head, but only in the stretch of map that flowers —
              one pixel, so the cell edge of the low-frequency field is
-             invisible and this one does not need feathering */
+             invisible and this one does not need feathering. A flower is a
+             declared feature: it is allowed out of the band precisely
+             because it is one pixel and rare. */
           if (meadow && v.c3 < 3) {
-            g.fillStyle = C(v.c0 % 2 ? 14 : 15);
+            g.fillStyle = C(FLOWER[v.c0 % FLOWER.length]);
             g.fillRect(px + spot(v.x2, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1);
           }
         });
@@ -1092,9 +1114,9 @@ export default {
       function floorDetail(x, y) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         const v = groundVar(S.map, x, y);
-        g.fillStyle = C(8); g.fillRect(px, py + 9, BEK_T_SRC, 1);
+        g.fillStyle = C(FLOOR_JOINT); g.fillRect(px, py + 9, BEK_T_SRC, 1);
         for (let i = 0; i < BEK_T_SRC; i += 10) g.fillRect(px + i, py, 1, BEK_T_SRC);
-        if (v.c2 === 2) { g.fillStyle = C(8); g.fillRect(px + spot(v.x0, BEK_T_SRC, 2), py + spot(v.y1, BEK_T_SRC, 1), 2, 1); }
+        if (v.c2 === 2) { g.fillStyle = C(FLOOR_GRAIN[1]); g.fillRect(px + spot(v.x0, BEK_T_SRC, 2), py + spot(v.y1, BEK_T_SRC, 1), 2, 1); }
       }
 
       function caveDetail(x, y) {
@@ -1102,16 +1124,16 @@ export default {
         const v = groundVar(S.map, x, y);
         const vein = pLow(x, y, LOW.VEIN, 4, 4) === 0;
         native(() => {
-          g.fillStyle = C(8);
+          g.fillStyle = C(CAVE_GRIT[0]);
           g.fillRect(px + spot(v.x0, BEK_T, 6), py + spot(v.y0, BEK_T, 4), 6, 4);
           g.fillRect(px + spot(v.x1, BEK_T, 8), py + spot(v.y1, BEK_T, 4), 8, 4);
-          g.fillStyle = C(7);
+          g.fillStyle = C(CAVE_GRIT[3]);
           g.fillRect(px + spot(v.x2, BEK_T, 4), py + spot(v.y2, BEK_T, 2), 4, 2);
           g.fillRect(px + spot(v.x3, BEK_T, 2), py + spot(v.y3, BEK_T, 2), 2, 2);
           /* rare extras only, so the gravel stays sparse rather than static */
-          if (v.c0 === 3) { g.fillStyle = C(6); g.fillRect(px + spot(v.x3, BEK_T, 4), py + spot(v.y0, BEK_T, 4), 4, 4); }
-          if (v.c1 === 4) { g.fillStyle = C(6); g.fillRect(px + spot(v.x0, BEK_T, 3), py + spot(v.y2, BEK_T, 3), 3, 3); }
-          if (vein && v.c2 < 2) { g.fillStyle = C(15); g.fillRect(px + spot(v.x1, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1); }
+          if (v.c0 === 3) { g.fillStyle = C(CAVE_GRIT[2]); g.fillRect(px + spot(v.x3, BEK_T, 4), py + spot(v.y0, BEK_T, 4), 4, 4); }
+          if (v.c1 === 4) { g.fillStyle = C(CAVE_GRIT[1]); g.fillRect(px + spot(v.x0, BEK_T, 3), py + spot(v.y2, BEK_T, 3), 3, 3); }
+          if (vein && v.c2 < 2) { g.fillStyle = C(ORE_GLINT[2]); g.fillRect(px + spot(v.x1, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1); }
         });
       }
 
@@ -1119,51 +1141,51 @@ export default {
         const px = x * BEK_T, py = y * BEK_T;
         const v = pathVar(S.map, x, y);
         native(() => {
-          g.fillStyle = C(8);
+          g.fillStyle = C(PATH_GRIT[0]);
           g.fillRect(px + spot(v.ax, BEK_T, 4), py + spot(v.ay, BEK_T, 2), 4, 2);
           g.fillRect(px + spot(v.bx, BEK_T, 4), py + spot(v.by, BEK_T, 2), 4, 2);
-          g.fillStyle = C(7);
+          g.fillStyle = C(PATH_GRIT[1]);
           g.fillRect(px + spot(v.cx, BEK_T, 4), py + spot(v.cy, BEK_T, 2), 4, 2);
           g.fillRect(px + spot(v.dx, BEK_T, 2), py + spot(v.dy, BEK_T, 2), 2, 2);
-          g.fillStyle = C(0);
+          g.fillStyle = C(PATH_CRACK);
           g.fillRect(px + spot(v.kx, BEK_T, 2), py + spot(v.ky, BEK_T, 1), 2, 1);   /* a crack in the hardpack */
-          if (v.peb === 1) { g.fillStyle = C(14); g.fillRect(px + spot(v.px, BEK_T, 2), py + spot(v.py, BEK_T, 2), 2, 2); }
+          if (v.peb === 1) { g.fillStyle = C(PATH_GRIT[2]); g.fillRect(px + spot(v.px, BEK_T, 2), py + spot(v.py, BEK_T, 2), 2, 2); }
         });
       }
 
       function rockDetail(c, x, y, snow) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC, S1 = BEK_T_SRC;
         const v = rockVar(S.map, x, y);
-        g.fillStyle = C(7);
+        g.fillStyle = C(ROCK_FACE[0]);
         g.fillRect(px + spot(v.fx, S1, 9), py + spot(v.fy, S1, 6), 9, 6);
         g.fillRect(px + spot(v.gx, S1, 7), py + spot(v.gy, S1, 6), 7, 6);
-        g.fillStyle = C(0);
+        g.fillStyle = C(ROCK_CRACK);
         g.fillRect(px + spot(v.ax, S1, 8), py + spot(v.ay, S1, 1), 8, 1);
         g.fillRect(px + spot(v.bx, S1, 5), py + spot(v.by, S1, 1), 5, 1);
         if (snow) {
-          g.fillStyle = C(15);
+          g.fillStyle = C(SNO[1]);
           g.fillRect(px + spot(v.mx, S1, 4), py + spot(v.my, S1, 1), 4, 1);
           g.fillRect(px + spot(v.jx, S1, 3), py + spot(v.jy, S1, 1), 3, 1);
         } else if (v.kind === 2) {                                                  /* mineral */
-          g.fillStyle = C(5);
+          g.fillStyle = C(ORE[1]);
           g.fillRect(px + spot(v.mx, S1, 1), py + spot(v.my, S1, 1), 1, 1);
           g.fillRect(px + spot(v.jx, S1, 1), py + spot(v.jy, S1, 1), 1, 1);
         }
-        if (v.kind === 4) { g.fillStyle = C(9); g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 3), 1, 3); }   /* seepage */
+        if (v.kind === 4) { g.fillStyle = C(WAT[3]); g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 3), 1, 3); }   /* seepage */
         if (c === 'O') {
-          g.fillStyle = C(6); g.fillRect(px + spot(v.ix, S1, 3), py + spot(v.iy, S1, 3), 3, 3);
-          g.fillStyle = C(7); g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
-          g.fillStyle = C(14);
+          g.fillStyle = C(ORE[0]); g.fillRect(px + spot(v.ix, S1, 3), py + spot(v.iy, S1, 3), 3, 3);
+          g.fillStyle = C(STO[3]); g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
+          g.fillStyle = C(SNO[1]);
           g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 1), 1, 1);
           g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
         }
         if (c === 'Q') {
-          g.fillStyle = C(15);
+          g.fillStyle = C(SNO[1]);
           g.fillRect(px + spot(v.ix, S1, 2), py + spot(v.iy, S1, 2), 2, 2);
           g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
-          g.fillStyle = C(11); g.fillRect(px + spot(v.hx, S1, 2), py + spot(v.hy, S1, 2), 2, 2);
-          g.fillStyle = C(13); g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
-          g.fillStyle = C(5); g.fillRect(px + spot(v.fx, S1, 1), py + spot(v.gy, S1, 1), 1, 1);
+          g.fillStyle = C(ORE[1]); g.fillRect(px + spot(v.hx, S1, 2), py + spot(v.hy, S1, 2), 2, 2);
+          g.fillStyle = C(SNO[0]); g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
+          g.fillStyle = C(ORE[1]); g.fillRect(px + spot(v.fx, S1, 1), py + spot(v.gy, S1, 1), 1, 1);
         }
       }
 
@@ -1173,12 +1195,12 @@ export default {
          the gaps in the border are the exits. */
       function edgeMark(px, py, x, y) {
         const L = x === 0, R = x === BEK_COLS - 1, U = y === 0, D = y === BEK_ROWS - 1;
-        g.fillStyle = C(0);
+        g.fillStyle = C(ATMO[0]);
         if (U) g.fillRect(px, py, BEK_T_SRC, 4);
         if (D) g.fillRect(px, py + BEK_T_SRC - 4, BEK_T_SRC, 4);
         if (L) g.fillRect(px, py, 4, BEK_T_SRC);
         if (R) g.fillRect(px + BEK_T_SRC - 4, py, 4, BEK_T_SRC);
-        g.fillStyle = C(8);
+        g.fillStyle = C(STO[2]);
         if (U) g.fillRect(px, py + 4, BEK_T_SRC, 1);
         if (D) g.fillRect(px, py + BEK_T_SRC - 5, BEK_T_SRC, 1);
         if (L) g.fillRect(px + 4, py, 1, BEK_T_SRC);
@@ -1189,15 +1211,15 @@ export default {
       function waterTile(x, y, t) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC, w = Math.floor(t * 2 + x + y) % 4;
         const v = waterVar(S.map, x, y);
-        g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        g.fillStyle = C(3); g.fillRect(px, py + 6 + v.sw, BEK_T_SRC, 2);              /* the swell */
+        g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
+        g.fillStyle = C(WATER_DEEP[0]); g.fillRect(px, py + 6 + v.sw, BEK_T_SRC, 2);   /* the swell */
         /* the ripple bands drift +/-3 with `w`, so their placement is held
            three pixels clear of both edges to keep them inside the tile */
-        g.fillStyle = C(9);
         g.fillRect(px + spot(v.ax, BEK_T_SRC, 8), py + 3 + spot(v.ay, 14, 1) + w, 8, 1);
+        g.fillStyle = C(WATER_DEEP[1]);
         g.fillRect(px + spot(v.bx, BEK_T_SRC, 7), py + 3 + spot(v.by, 14, 1) - w, 7, 1);
-        if (v.foam === 0) { g.fillStyle = C(11); g.fillRect(px + spot(v.bx, BEK_T_SRC, 4), py + spot(v.ay, BEK_T_SRC, 1), 4, 1); }
-        if (v.glint === 3) { g.fillStyle = C(15); g.fillRect(px + spot(v.ax, BEK_T_SRC, 2), py + 3 + spot(v.by, 14, 1) + w, 2, 1); }
+        if (v.foam === 0) { g.fillStyle = C(WATER_SUN[0]); g.fillRect(px + spot(v.bx, BEK_T_SRC, 4), py + spot(v.ay, BEK_T_SRC, 1), 4, 1); }
+        if (v.glint === 3) { g.fillStyle = C(WATER_SUN[1]); g.fillRect(px + spot(v.ax, BEK_T_SRC, 2), py + 3 + spot(v.by, 14, 1) + w, 2, 1); }
       }
 
       /* the shallow shore: mostly water, a foam seam where it meets the bank,
@@ -1207,20 +1229,20 @@ export default {
         const px = x * BEK_T, py = y * BEK_T, w = Math.floor(t * 2 + x + y) % 4;
         const v = edgeVar(S.map, x, y);
         native(() => {
-          g.fillStyle = C(1); g.fillRect(px, py, BEK_T, BEK_T);
-          g.fillStyle = C(3); g.fillRect(px, py, BEK_T, 16);
-          g.fillStyle = C(9); g.fillRect(px, py, BEK_T, 8);
-          g.fillStyle = C(11);
+          g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T, BEK_T);
+          g.fillStyle = C(WAT[2]); g.fillRect(px, py, BEK_T, 16);
+          g.fillStyle = C(WAT[3]); g.fillRect(px, py, BEK_T, 8);
+          g.fillStyle = C(WAT[4]);
           g.fillRect(px + spot(v.ax, BEK_T, 12), py + 4 + spot(v.ay, 18, 2) + w, 12, 2);
           g.fillRect(px + spot(v.bx, BEK_T, 10), py + 4 + spot(v.by, 18, 2) - w, 10, 2);
           g.fillRect(px + spot(v.fx, BEK_T, 8), py + 18 + spot(v.ay, 9, 1), 8, 1);
           g.fillRect(px + spot(v.gx, BEK_T, 10), py + 18 + spot(v.by, 9, 1), 10, 1);
-          g.fillStyle = C(15); g.fillRect(px, py + 28, BEK_T, 1);                         /* foam, water meets sand */
-          g.fillStyle = C(11);
+          g.fillStyle = C(FOAM[0]); g.fillRect(px, py + 28, BEK_T, 1);                    /* foam, water meets sand */
+          g.fillStyle = C(FOAM[1]);
           g.fillRect(px + spot(v.fx, BEK_T, 6), py + 29, 6, 1); g.fillRect(px + spot(v.gx, BEK_T, 8), py + 29, 8, 1);
-          g.fillStyle = C(14); g.fillRect(px, py + 30, BEK_T, 4);                         /* sand */
-          g.fillStyle = C(6); g.fillRect(px, py + 34, BEK_T, 6);                          /* bank */
-          g.fillStyle = C(8);
+          g.fillStyle = C(SAN[1]); g.fillRect(px, py + 30, BEK_T, 4);                     /* sand */
+          g.fillStyle = C(SOI[2]); g.fillRect(px, py + 34, BEK_T, 6);                     /* bank */
+          g.fillStyle = C(SOI[1]);
           g.fillRect(px + spot(v.sx, BEK_T, 2), py + 34 + spot(v.sy, 6, 2), 2, 2);
           g.fillRect(px + spot(v.bx, BEK_T, 2), py + 34 + spot(v.ax, 6, 1), 2, 1);
         });
@@ -1228,12 +1250,12 @@ export default {
 
       function hearthTile(x, y, t) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC, fl = Math.floor(t * 6) % 3;
-        g.fillStyle = C(8); g.fillRect(px + 2, py + 2, 16, 16);
-        g.fillStyle = C(0); g.fillRect(px + 5, py + 5, 10, 11);
-        g.fillStyle = C(4); g.fillRect(px + 7, py + 9, 6, 7);
-        g.fillStyle = C(12); g.fillRect(px + 8, py + 8 - fl, 4, 6 + fl);
-        g.fillStyle = C(14); g.fillRect(px + 9, py + 7 - fl, 2, 3);
-        g.fillStyle = C(15); g.fillRect(px + 9, py + 6 - fl, 1, 1);
+        g.fillStyle = C(STO[3]); g.fillRect(px + 2, py + 2, 16, 16);
+        g.fillStyle = C(ATMO[0]); g.fillRect(px + 5, py + 5, 10, 11);
+        g.fillStyle = C(HEARTH[0]); g.fillRect(px + 7, py + 9, 6, 7);
+        g.fillStyle = C(HEARTH[1]); g.fillRect(px + 8, py + 8 - fl, 4, 6 + fl);
+        g.fillStyle = C(HEARTH[2]); g.fillRect(px + 9, py + 7 - fl, 2, 3);
+        g.fillStyle = C(HEARTH[3]); g.fillRect(px + 9, py + 6 - fl, 1, 1);
       }
 
       /* ---- the three passes ------------------------------------------------
@@ -1254,14 +1276,15 @@ export default {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         /* the dead margin outside a room's walls: not floor, not field, nothing */
         if (c === ' ') { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'T' && rim_(x, y)) { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }   /* the wall of wood is solid black behind */
-        if (c === 'W' || c === '~') { g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'T' && rim_(x, y)) { g.fillStyle = C(ATMO[0]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }   /* the wall of wood is solid dark behind */
+        if (c === 'W' || c === '~') { g.fillStyle = C(WAT[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (c === '.') { pathGround(x, y); return; }
         if (c === 'M' || c === 'O' || c === 'Q') { rockGround(x, y, snow_()); return; }
-        if (c === 'P' || c === 'f') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'L') { g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'H') { g.fillStyle = C(ins_() ? 8 : rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'R' || c === 'D') { g.fillStyle = C(rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'P') { g.fillStyle = C(TIM[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'f') { g.fillStyle = C(SOI[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'L') { g.fillStyle = C(GRASS[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'H') { g.fillStyle = C(ins_() ? TIM[1] : rustic() ? TIM[2] : WAR[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'R' || c === 'D') { g.fillStyle = C(rustic() ? TIM[2] : WAR[1]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (ins_()) floorGround(x, y); else if (S.map === 'gruva') caveGround(x, y); else grassGround(x, y);
       }
 
@@ -1274,158 +1297,165 @@ export default {
         }
         const o = objVar(c, S.map, x, y);
         if (c === 'P') {
-          g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
-          g.fillStyle = C(6); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
+          g.fillStyle = C(TIM[3]); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
           return;
         }
         if (c === '.') { pathDetail(x, y); if (rim) edgeMark(px, py, x, y); return; }
         if (c === 'M' || c === 'O' || c === 'Q') { rockDetail(c, x, y, snow); if (rim) edgeMark(px, py, x, y); return; }
         if (c === ',') {
-          g.fillStyle = C(10);
+          g.fillStyle = C(GRASS[3]);
           g.fillRect(px + spot(o.ax, BEK_T_SRC, 1), py + spot(o.ay, BEK_T_SRC, 8), 1, 8);
           g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 10);
           g.fillRect(px + spot(o.cx, BEK_T_SRC, 1), py + spot(o.cy, BEK_T_SRC, 7), 1, 7);
           g.fillRect(px + spot(o.dx, BEK_T_SRC, 1), py + spot(o.dy, BEK_T_SRC, 9), 1, 9);
-          g.fillStyle = C(TUFT[o.c]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 2);
+          g.fillStyle = C(BLADE[o.c]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 2);
         }
         if (c === 'F') {
-          const fc = [15, 14, 13, 5, 11];
-          g.fillStyle = C(fc[o.ac]); g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, BEK_T_SRC, 2), 2, 2);
-          g.fillStyle = C(fc[o.bc]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, BEK_T_SRC, 2), 2, 2);
-          g.fillStyle = C(fc[o.cc]); g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, BEK_T_SRC, 2), 2, 2);
+          /* Three heads on three stems. The stem is what stops a flower bed
+             reading as three coloured pixels dropped on the grass: a 2x2 of
+             an out-of-band colour with nothing under it is a defect, and the
+             same 2x2 sitting on a dark green stalk is a flower. */
+          const bloom = (sx, sy, col) => {
+            const bx = px + spot(sx, BEK_T_SRC, 2), by = py + spot(sy, BEK_T_SRC, 5);
+            g.fillStyle = C(GRASS[1]); g.fillRect(bx, by + 2, 1, 3);
+            g.fillStyle = C(col); g.fillRect(bx, by, 2, 2);
+          };
+          bloom(o.ax, o.ay, FLOWER[o.ac]); bloom(o.bx, o.by, FLOWER[o.bc]); bloom(o.cx, o.cy, FLOWER[o.cc]);
         }
         if (c === 'p') {
-          const cols = [9, 14, 13, 5], h = 5 + o.h;
+          const h = 5 + o.h;
           const bx = px + spot(o.x, BEK_T_SRC, 5), by = py + spot(o.y, BEK_T_SRC, h + 4);
-          g.fillStyle = C(2); g.fillRect(bx + 2, by + 4, 1, h);
-          g.fillStyle = C(cols[o.c]); g.fillRect(bx, by, 5, 4);
-          g.fillStyle = C(15); g.fillRect(bx + 2, by + 1, 1, 1);
+          g.fillStyle = C(GRASS[2]); g.fillRect(bx + 2, by + 4, 1, h);
+          g.fillStyle = C(PICKABLE[o.c]); g.fillRect(bx, by, 5, 4);
+          g.fillStyle = C(SNO[1]); g.fillRect(bx + 2, by + 1, 1, 1);
         }
         /* A dark fir is the same green as the grass it stands on, so without a
            black silhouette behind it a tree in a field is invisible. Draw the
-           shape once in black, one pixel proud, then the tree inside it. */
+           shape once in ink, one pixel proud, then the tree inside it. */
         if (c === 'T') {
-          const ln = o.lean, lit = o.lit === 0 ? 10 : 2;
-          g.fillStyle = C(0);
+          const ln = o.lean, lit = o.lit === 0 ? CON[3] : CON[1];
+          g.fillStyle = C(TREE_INK[1]);
           g.fillRect(px + 2, py + 11, 16, 5); g.fillRect(px + 3, py + 7, 14, 6); g.fillRect(px + 5, py + 3 - ln, 10, 7);
-          g.fillStyle = C(6); g.fillRect(px + 9, py + 14, 2, 5);
-          g.fillStyle = C(2); g.fillRect(px + 3, py + 12, 14, 3); g.fillRect(px + 4, py + 8, 12, 4); g.fillRect(px + 6, py + 4 - ln, 8, 5);
-          g.fillStyle = C(0); g.fillRect(px + 3, py + 14, 14, 1);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 9, py + 14, 2, 5);
+          g.fillStyle = C(CON[2]); g.fillRect(px + 3, py + 12, 14, 3); g.fillRect(px + 4, py + 8, 12, 4); g.fillRect(px + 6, py + 4 - ln, 8, 5);
+          g.fillStyle = C(TREE_INK[0]); g.fillRect(px + 3, py + 14, 14, 1);
           g.fillStyle = C(lit); g.fillRect(px + 6, py + 9, 3, 1); g.fillRect(px + 8, py + 5 - ln, 2, 1);
-          if (o.bare === 5) { g.fillStyle = C(3); g.fillRect(px + 4 + spot(o.bx, 12, 2), py + 8 + spot(o.by, 6, 1), 2, 1); }
+          if (o.bare === 5) { g.fillStyle = C(DRY[0]); g.fillRect(px + 4 + spot(o.bx, 12, 2), py + 8 + spot(o.by, 6, 1), 2, 1); }
           if (snow) {
-            g.fillStyle = C(15);
+            g.fillStyle = C(SNO[1]);
             g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 4 - ln + spot(o.sy, 4, 1), 3, 1);
             g.fillRect(px + 4 + spot(o.tx, 10, 3), py + 8 + spot(o.ty, 4, 1), 3, 1);
           }
         }
         if (c === 'G') {
-          g.fillStyle = C(0);
+          g.fillStyle = C(TREE_INK[1]);
           g.fillRect(px + 1, py + 12, 18, 5); g.fillRect(px + 2, py + 7, 16, 6); g.fillRect(px + 4, py + 2, 12, 7); g.fillRect(px + 6, py, 8, 4);
-          g.fillStyle = C(6); g.fillRect(px + 9, py + 15, 3, 4);
-          g.fillStyle = C(2); g.fillRect(px + 2, py + 13, 16, 4); g.fillRect(px + 3, py + 8, 14, 5); g.fillRect(px + 5, py + 3, 10, 6); g.fillRect(px + 7, py, 6, 4);
-          g.fillStyle = C(0); g.fillRect(px + 2, py + 15, 16, 1);
-          g.fillStyle = C(o.lit === 0 ? 10 : 2);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 9, py + 15, 3, 4);
+          g.fillStyle = C(CON[2]); g.fillRect(px + 2, py + 13, 16, 4); g.fillRect(px + 3, py + 8, 14, 5); g.fillRect(px + 5, py + 3, 10, 6); g.fillRect(px + 7, py, 6, 4);
+          g.fillStyle = C(TREE_INK[0]); g.fillRect(px + 2, py + 15, 16, 1);
+          g.fillStyle = C(o.lit === 0 ? CON[3] : CON[1]);
           g.fillRect(px + 4 + spot(o.lx, 10, 4), py + 9 + spot(o.ly, 4, 1), 4, 1);
           g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 3 + spot(o.sy, 4, 1), 3, 1);
-          g.fillStyle = C(3); g.fillRect(px + 6 + spot(o.lx, 10, 2), py + 8 + spot(o.ly, 5, 1), 2, 1);
-          if (snow) { g.fillStyle = C(15); g.fillRect(px + 6 + spot(o.sx, 8, 4), py, 4, 1); }
+          g.fillStyle = C(CON[1]); g.fillRect(px + 6 + spot(o.lx, 10, 2), py + 8 + spot(o.ly, 5, 1), 2, 1);
+          if (snow) { g.fillStyle = C(SNO[1]); g.fillRect(px + 6 + spot(o.sx, 8, 4), py, 4, 1); }
         }
         if (c === 'Y') {
-          g.fillStyle = C(15); g.fillRect(px + 8, py + 10, 3, 9);
-          g.fillStyle = C(8); g.fillRect(px + 8, py + 12, 3, 1); g.fillRect(px + 8, py + 15, 3, 1);
-          g.fillStyle = C(10); g.fillRect(px + 3, py + 3, 13, 8);
-          g.fillStyle = C(2);
+          g.fillStyle = C(SNO[0]); g.fillRect(px + 8, py + 10, 3, 9);                      /* birch bark */
+          g.fillStyle = C(STO[2]); g.fillRect(px + 8, py + 12, 3, 1); g.fillRect(px + 8, py + 15, 3, 1);
+          g.fillStyle = C(GRASS[3]); g.fillRect(px + 3, py + 3, 13, 8);
+          g.fillStyle = C(GRASS[2]);
           g.fillRect(px + 4 + spot(o.lx, 11, 3), py + 4 + spot(o.ly, 6, 3), 3, 3);
           g.fillRect(px + 4 + spot(o.mx, 11, 3), py + 4 + spot(o.my, 6, 2), 3, 2);
-          g.fillStyle = C(14); g.fillRect(px + 4 + spot(o.mx, 11, 2), py + 4 + spot(o.ly, 6, 2), 2, 2);
-          if (o.turn === 3) { g.fillStyle = C(14); g.fillRect(px + 4 + spot(o.lx, 11, 2), py + 4 + spot(o.my, 6, 2), 2, 2); }   /* one turning early */
+          g.fillStyle = C(GRASS[4]); g.fillRect(px + 4 + spot(o.mx, 11, 2), py + 4 + spot(o.ly, 6, 2), 2, 2);
+          if (o.turn === 3) { g.fillStyle = C(DRY[2]); g.fillRect(px + 4 + spot(o.lx, 11, 2), py + 4 + spot(o.my, 6, 2), 2, 2); }   /* one turning early */
         }
         if (c === '^') {
-          g.fillStyle = C(8); g.fillRect(px + 3, py + 6, 14, 11);
-          g.fillStyle = C(7); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
-          g.fillStyle = C(0); g.fillRect(px + 4, py + 15, 12, 1);
-          if (o.cap === 1) { g.fillStyle = C(10); g.fillRect(px + 4 + spot(o.mx, 12, 3), py + 7 + spot(o.my, 8, 2), 3, 2); }
+          g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 6, 14, 11);
+          g.fillStyle = C(STO[3]); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
+          g.fillStyle = C(ROCK_CRACK); g.fillRect(px + 4, py + 15, 12, 1);
+          if (o.cap === 1) { g.fillStyle = C(CON[2]); g.fillRect(px + 4 + spot(o.mx, 12, 3), py + 7 + spot(o.my, 8, 2), 3, 2); }
         }
-        if (c === '=') { g.fillStyle = C(6); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(14); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
-        if (c === 'x') { g.fillStyle = C(6); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }
+        if (c === '=') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(TIM[4]); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
+        if (c === 'x') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(TIM[1]); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }
         if (c === 'H') {
           /* not every course of logs has a window cut in it */
           const win = o.win < 2;
           if (ins) {
             /* Seen from inside, a wall must not be the same brown as the
                floor or the room has no edges. Dark timber, lighter courses. */
-            g.fillStyle = C(6); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
-            g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
-            if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 5, 9, 8);
-              g.fillStyle = C(15); g.fillRect(px + 5, py + 5, 9, 1); g.fillRect(px + 9, py + 5, 1, 8); }
+            g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
+            g.fillStyle = C(TIM[0]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
+            if (win) { g.fillStyle = C(WAT[5]); g.fillRect(px + 5, py + 5, 9, 8);
+              g.fillStyle = C(SNO[1]); g.fillRect(px + 5, py + 5, 9, 1); g.fillRect(px + 9, py + 5, 1, 8); }
           } else if (rustic()) {
-            g.fillStyle = C(8); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
-            g.fillStyle = C(0); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
-            if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 4, 9, 8);
-              g.fillStyle = C(15); g.fillRect(px + 5, py + 4, 9, 1); g.fillRect(px + 9, py + 4, 1, 8); }
-            else { g.fillStyle = C(0); g.fillRect(px + spot(o.kx, BEK_T_SRC, 2), py + spot(o.ky, BEK_T_SRC, 2), 2, 2); }   /* a knot in a log */
+            g.fillStyle = C(TIM[3]); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
+            g.fillStyle = C(TIM[0]); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
+            if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 4, 9, 8);
+              g.fillStyle = C(SNO[0]); g.fillRect(px + 5, py + 4, 9, 1); g.fillRect(px + 9, py + 4, 1, 8); }
+            else { g.fillStyle = C(TIM[0]); g.fillRect(px + spot(o.kx, BEK_T_SRC, 2), py + spot(o.ky, BEK_T_SRC, 2), 2, 2); }   /* a knot in a log */
           } else {
-            g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);             /* painted board */
-            g.fillStyle = C(8); g.fillRect(px, py + 18, BEK_T_SRC, 2);
-            if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 5, 9, 8);
-              g.fillStyle = C(15); g.fillRect(px + 4, py + 4, 11, 1); g.fillRect(px + 9, py + 5, 1, 8); }
+            g.fillStyle = C(WAR[2]); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);             /* painted board */
+            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 18, BEK_T_SRC, 2);
+            if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 5, 9, 8);
+              g.fillStyle = C(SNO[1]); g.fillRect(px + 4, py + 4, 11, 1); g.fillRect(px + 9, py + 5, 1, 8); }
           }
         }
         if (c === 'R') {
           if (rustic()) {
-            g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, 13);                                  /* torvtak: turf */
-            g.fillStyle = C(10);
+            g.fillStyle = C(GRASS[1]); g.fillRect(px, py, BEK_T_SRC, 13);                     /* torvtak: turf */
+            g.fillStyle = C(TURF_ROOF[0]);
             g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, 12, 1), 2, 1);
             g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, 12, 1), 2, 1);
+            g.fillStyle = C(TURF_ROOF[1]);
             g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, 12, 1), 2, 1);
-            g.fillStyle = C(14); g.fillRect(px + spot(o.fx, BEK_T_SRC, 1), py + spot(o.fy, 12, 1), 1, 1);
-            g.fillStyle = C(8); g.fillRect(px, py + 13, BEK_T_SRC, 2);
+            g.fillStyle = C(TURF_ROOF[2]); g.fillRect(px + spot(o.fx, BEK_T_SRC, 1), py + spot(o.fy, 12, 1), 1, 1);
+            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 13, BEK_T_SRC, 2);
           } else {
-            g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 3); g.fillRect(px, py + 12, BEK_T_SRC, 3);
-            g.fillStyle = C(8); g.fillRect(px, py + 18, BEK_T_SRC, 2);
+            g.fillStyle = C(WAR[1]); g.fillRect(px, py + 4, BEK_T_SRC, 3); g.fillRect(px, py + 12, BEK_T_SRC, 3);
+            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 18, BEK_T_SRC, 2);
           }
         }
-        if (c === 'D') { g.fillStyle = C(6); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(8); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(14); g.fillRect(px + 12, py + 11, 2, 2); }
+        if (c === 'D') { g.fillStyle = C(TIM[2]); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(TIM[1]); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(WAR[4]); g.fillRect(px + 12, py + 11, 2, 2); }
         if (c === 'b') {
-          g.fillStyle = C(6); g.fillRect(px + 1, py + 1, 18, 18);
-          g.fillStyle = C(8); g.fillRect(px + 1, py + 1, 18, 2); g.fillRect(px + 1, py + 17, 18, 2);
-          g.fillStyle = C(15); g.fillRect(px + 3, py + 3, 14, 5);                                   /* pillow */
-          g.fillStyle = C(9); g.fillRect(px + 3, py + 9, 14, 8);                                    /* blanket */
-          g.fillStyle = C(11); g.fillRect(px + 3, py + 9, 14, 1); g.fillRect(px + 3, py + 13, 14, 1);
+          g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 1, 18, 18);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 1, 18, 2); g.fillRect(px + 1, py + 17, 18, 2);
+          g.fillStyle = C(SNO[1]); g.fillRect(px + 3, py + 3, 14, 5);                          /* pillow */
+          g.fillStyle = C(WAT[3]); g.fillRect(px + 3, py + 9, 14, 8);                          /* blanket */
+          g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 9, 14, 1); g.fillRect(px + 3, py + 13, 14, 1);
         }
-        if (c === 'o') { g.fillStyle = C(8); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(9); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(11); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(6); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
-        if (c === 'S') { g.fillStyle = C(6); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(14); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(0); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
-        if (c === 'L') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
-        if (c === 'f') { g.fillStyle = C(8); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
+        if (c === 'o') { g.fillStyle = C(STO[3]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
+        if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
+        if (c === 'L') { g.fillStyle = C(TIM[3]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
+        if (c === 'f') { g.fillStyle = C(SOI[1]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
         /* ---- indoors, and the benches ---------------------------------- */
         if (c === 'z') {                                                     /* a rag rug, walked on */
-          g.fillStyle = C(4); g.fillRect(px + 1, py + 1, 18, 18);
-          g.fillStyle = C(12); g.fillRect(px + 3, py + 3, 14, 14);
-          g.fillStyle = C(6); g.fillRect(px + 3, py + 7, 14, 2); g.fillRect(px + 3, py + 12, 14, 2);
-          g.fillStyle = C(14); g.fillRect(px + 8, py + 3, 2, 14);
+          g.fillStyle = C(WAR[0]); g.fillRect(px + 1, py + 1, 18, 18);
+          g.fillStyle = C(WAR[2]); g.fillRect(px + 3, py + 3, 14, 14);
+          g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 7, 14, 2); g.fillRect(px + 3, py + 12, 14, 2);
+          g.fillStyle = C(SAN[1]); g.fillRect(px + 8, py + 3, 2, 14);
         }
         if (c === 'n') {                                                     /* a table */
-          g.fillStyle = C(14); g.fillRect(px, py + 3, BEK_T_SRC, 7);
-          g.fillStyle = C(8); g.fillRect(px, py + 3, BEK_T_SRC, 1);
-          g.fillStyle = C(6); g.fillRect(px, py + 10, BEK_T_SRC, 2); g.fillRect(px + 2, py + 12, 3, 7); g.fillRect(px + 15, py + 12, 3, 7);
+          g.fillStyle = C(TIM[4]); g.fillRect(px, py + 3, BEK_T_SRC, 7);
+          g.fillStyle = C(TIM[2]); g.fillRect(px, py + 3, BEK_T_SRC, 1);
+          g.fillStyle = C(TIM[1]); g.fillRect(px, py + 10, BEK_T_SRC, 2); g.fillRect(px + 2, py + 12, 3, 7); g.fillRect(px + 15, py + 12, 3, 7);
         }
         if (c === 'u') {                                                     /* a cupboard */
-          g.fillStyle = C(6); g.fillRect(px + 1, py, 18, BEK_T_SRC);
-          g.fillStyle = C(8); g.fillRect(px + 1, py + 6, 18, 1); g.fillRect(px + 1, py + 13, 18, 1); g.fillRect(px + 9, py, 1, BEK_T_SRC);
-          g.fillStyle = C(14); g.fillRect(px + 6, py + 9, 2, 2); g.fillRect(px + 12, py + 9, 2, 2);
-          g.fillStyle = C(11); g.fillRect(px + 3, py + 2, 4, 3);
-          g.fillStyle = C(15); g.fillRect(px + 12, py + 2, 3, 3);
+          g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py, 18, BEK_T_SRC);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 6, 18, 1); g.fillRect(px + 1, py + 13, 18, 1); g.fillRect(px + 9, py, 1, BEK_T_SRC);
+          g.fillStyle = C(TIM[4]); g.fillRect(px + 6, py + 9, 2, 2); g.fillRect(px + 12, py + 9, 2, 2);
+          g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 2, 4, 3);
+          g.fillStyle = C(SNO[1]); g.fillRect(px + 12, py + 2, 3, 3);
         }
         if (c === 'J') {                                                     /* a bench, to sit on */
-          g.fillStyle = C(6); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 3, 18, 3);
-          g.fillStyle = C(14); g.fillRect(px + 1, py + 8, 18, 1);
-          g.fillStyle = C(8); g.fillRect(px + 2, py + 12, 3, 6); g.fillRect(px + 15, py + 12, 3, 6); g.fillRect(px + 2, py + 3, 2, 6); g.fillRect(px + 16, py + 3, 2, 6);
+          g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 3, 18, 3);
+          g.fillStyle = C(TIM[4]); g.fillRect(px + 1, py + 8, 18, 1);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 12, 3, 6); g.fillRect(px + 15, py + 12, 3, 6); g.fillRect(px + 2, py + 3, 2, 6); g.fillRect(px + 16, py + 3, 2, 6);
         }
         if (c === 'c') {                                                     /* a crate */
-          g.fillStyle = C(6); g.fillRect(px + 2, py + 4, 16, 14);
-          g.fillStyle = C(8); g.fillRect(px + 2, py + 4, 16, 1); g.fillRect(px + 2, py + 10, 16, 1); g.fillRect(px + 9, py + 4, 1, 14);
-          g.fillStyle = C(14); g.fillRect(px + 4, py + 6, 2, 1);
+          g.fillStyle = C(TIM[2]); g.fillRect(px + 2, py + 4, 16, 14);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 4, 16, 1); g.fillRect(px + 2, py + 10, 16, 1); g.fillRect(px + 9, py + 4, 1, 14);
+          g.fillStyle = C(TIM[4]); g.fillRect(px + 4, py + 6, 2, 1);
         }
         if (rim) edgeMark(px, py, x, y);
       }
@@ -1484,15 +1514,15 @@ export default {
       function tilledSoil(x, y, wet) {
         const px = x * BEK_T, py = y * BEK_T, v = soilVar(S.map, x, y);
         native(() => {
-          g.fillStyle = C(wet ? 8 : 6); g.fillRect(px + 2, py + 2, 36, 36);
-          g.fillStyle = C(wet ? 0 : 8);
+          g.fillStyle = C(wet ? SOI[1] : SOI[2]); g.fillRect(px + 2, py + 2, 36, 36);
+          g.fillStyle = C(wet ? SOI[0] : SOI[1]);
           g.fillRect(px + 4, py + 9, 32, 2); g.fillRect(px + 4, py + 19, 32, 2); g.fillRect(px + 4, py + 29, 32, 2);
-          g.fillStyle = C(7);
+          g.fillStyle = C(SOI[3]);
           g.fillRect(px + 4, py + 8, 32, 1); g.fillRect(px + 4, py + 18, 32, 1); g.fillRect(px + 4, py + 28, 32, 1);
           /* standing water, and it stands where the ground happens to dip,
              not on a line four pixels wide down the left of every plot */
           if (wet) {
-            g.fillStyle = C(9);
+            g.fillStyle = C(WAT[3]);
             g.fillRect(px + 4 + spot(v.ax, 32, 1), py + 4 + spot(v.ay, 32, 1), 1, 1);
             g.fillRect(px + 4 + spot(v.bx, 32, 1), py + 4 + spot(v.by, 32, 1), 1, 1);
           }
@@ -1504,9 +1534,9 @@ export default {
         if (!c.seed) return;
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         const spec = BEK_CROPS[c.seed]; const f = Math.min(1, c.age / spec.days); const h = 3 + Math.round(f * 11);
-        g.fillStyle = C(10); g.fillRect(px + 9, py + 18 - h, 2, h);
-        g.fillStyle = C(2); g.fillRect(px + 6, py + 16 - h, 3, 2); g.fillRect(px + 11, py + 14 - h, 3, 2);
-        if (c.ready) { g.fillStyle = C(spec.col); g.fillRect(px + 7, py + 14 - h, 6, 5); g.fillStyle = C(15); g.fillRect(px + 8, py + 15 - h, 2, 1); }
+        g.fillStyle = C(GRASS[3]); g.fillRect(px + 9, py + 18 - h, 2, h);
+        g.fillStyle = C(GRASS[2]); g.fillRect(px + 6, py + 16 - h, 3, 2); g.fillRect(px + 11, py + 14 - h, 3, 2);
+        if (c.ready) { g.fillStyle = C(spec.col); g.fillRect(px + 7, py + 14 - h, 6, 5); g.fillStyle = C(SNO[1]); g.fillRect(px + 8, py + 15 - h, 2, 1); }
       }
 
       function drawIcon(id, x, y) {
@@ -1539,29 +1569,29 @@ export default {
       function person(px, py, dir, step, hair, shirt, pants) {
         const bob = (step === 1 || step === 3) ? 1 : 0, y = py + bob;
         g.fillStyle = C(pants); g.fillRect(px + 3, y + 13, 3, 5); g.fillRect(px + 7, y + 13, 3, 5);
-        g.fillStyle = C(0);
+        g.fillStyle = C(TIM[0]);
         if (step === 1) g.fillRect(px + 3, y + 17, 3, 2); else if (step === 3) g.fillRect(px + 7, y + 17, 3, 2); else { g.fillRect(px + 3, y + 17, 3, 2); g.fillRect(px + 7, y + 17, 3, 2); }
         g.fillStyle = C(shirt); g.fillRect(px + 2, y + 7, 9, 7); g.fillRect(px, y + 8, 2, 5); g.fillRect(px + 11, y + 8, 2, 5);
-        g.fillStyle = C(14); g.fillRect(px, y + 12, 2, 2); g.fillRect(px + 11, y + 12, 2, 2); g.fillRect(px + 3, y + 2, 7, 6);
+        g.fillStyle = C(SAN[2]); g.fillRect(px, y + 12, 2, 2); g.fillRect(px + 11, y + 12, 2, 2); g.fillRect(px + 3, y + 2, 7, 6);
         g.fillStyle = C(hair); g.fillRect(px + 2, y, 9, 3);
         if (dir === 1) g.fillRect(px + 2, y, 9, 7);
-        else { g.fillStyle = C(0); if (dir === 0) { g.fillRect(px + 4, y + 4, 1, 2); g.fillRect(px + 8, y + 4, 1, 2); } if (dir === 2) g.fillRect(px + 3, y + 4, 1, 2); if (dir === 3) g.fillRect(px + 9, y + 4, 1, 2); }
+        else { g.fillStyle = C(TIM[0]); if (dir === 0) { g.fillRect(px + 4, y + 4, 1, 2); g.fillRect(px + 8, y + 4, 1, 2); } if (dir === 2) g.fillRect(px + 3, y + 4, 1, 2); if (dir === 3) g.fillRect(px + 9, y + 4, 1, 2); }
       }
       function bear(px, py, step) {
         const bob = (step === 1 || step === 3) ? 1 : 0, y = py + bob;
-        g.fillStyle = C(6); g.fillRect(px + 1, y + 5, 14, 14); g.fillRect(px + 2, y, 12, 7); g.fillRect(px, y - 1, 4, 4); g.fillRect(px + 12, y - 1, 4, 4);
-        g.fillStyle = C(8); g.fillRect(px + 1, y + 16, 14, 3);
-        g.fillStyle = C(14); g.fillRect(px + 5, y + 4, 6, 4);
-        g.fillStyle = C(0); g.fillRect(px + 4, y + 2, 2, 2); g.fillRect(px + 10, y + 2, 2, 2); g.fillRect(px + 7, y + 5, 2, 2);
-        g.fillStyle = C(6); for (let i = 0; i < 12; i++) g.fillRect(px + 15 + Math.floor(i / 2), y + 4 + i, 2, 2);
-        g.fillStyle = C(14); g.fillRect(px + 19, y + 16, 7, 5); g.fillStyle = C(6); g.fillRect(px + 19, y + 16, 7, 1);
+        g.fillStyle = C(TIM[2]); g.fillRect(px + 1, y + 5, 14, 14); g.fillRect(px + 2, y, 12, 7); g.fillRect(px, y - 1, 4, 4); g.fillRect(px + 12, y - 1, 4, 4);
+        g.fillStyle = C(TIM[1]); g.fillRect(px + 1, y + 16, 14, 3);
+        g.fillStyle = C(SAN[0]); g.fillRect(px + 5, y + 4, 6, 4);
+        g.fillStyle = C(TIM[0]); g.fillRect(px + 4, y + 2, 2, 2); g.fillRect(px + 10, y + 2, 2, 2); g.fillRect(px + 7, y + 5, 2, 2);
+        g.fillStyle = C(TIM[2]); for (let i = 0; i < 12; i++) g.fillRect(px + 15 + Math.floor(i / 2), y + 4 + i, 2, 2);
+        g.fillStyle = C(DRY[2]); g.fillRect(px + 19, y + 16, 7, 5); g.fillStyle = C(TIM[2]); g.fillRect(px + 19, y + 16, 7, 1);
       }
       function goat(px, py, t) {
         const bob = Math.floor(t * 1.5) % 2;
-        g.fillStyle = C(15); g.fillRect(px + 3, py + 6 + bob, 11, 7); g.fillRect(px + 12, py + 3 + bob, 5, 5);
-        g.fillStyle = C(7); g.fillRect(px + 3, py + 11 + bob, 11, 2);
-        g.fillStyle = C(0); g.fillRect(px + 4, py + 13, 1, 4); g.fillRect(px + 12, py + 13, 1, 4); g.fillRect(px + 15, py + 5 + bob, 1, 1);
-        g.fillStyle = C(8); g.fillRect(px + 13, py + 1 + bob, 1, 3); g.fillRect(px + 16, py + 1 + bob, 1, 3);
+        g.fillStyle = C(SNO[1]); g.fillRect(px + 3, py + 6 + bob, 11, 7); g.fillRect(px + 12, py + 3 + bob, 5, 5);
+        g.fillStyle = C(STO[4]); g.fillRect(px + 3, py + 11 + bob, 11, 2);
+        g.fillStyle = C(STO[0]); g.fillRect(px + 4, py + 13, 1, 4); g.fillRect(px + 12, py + 13, 1, 4); g.fillRect(px + 15, py + 5 + bob, 1, 1);
+        g.fillStyle = C(SAN[0]); g.fillRect(px + 13, py + 1 + bob, 1, 3); g.fillRect(px + 16, py + 1 + bob, 1, 3);
       }
       const { text, textW, wrapText } = createText(g, C);
 
@@ -1656,13 +1686,13 @@ export default {
         actors.push({ me: 1, y: S.py });
         actors.sort((a, b) => a.y - b.y);
         actors.forEach(a => {
-          if (a.me) { person(S.px * BEK_T_SRC + 4, S.py * BEK_T_SRC + 2, S.dir, S.step, 6, 11, 1); return; }
+          if (a.me) { person(S.px * BEK_T_SRC + 4, S.py * BEK_T_SRC + 2, S.dir, S.step, PLAYER_HAIR, PLAYER_SHIRT, PLAYER_PANTS); return; }
           const n = a.n;
           if (n.bear) { const sway = Math.floor(t * 1.2) % 2; bear(n.x * BEK_T_SRC + 2 + sway, n.y * BEK_T_SRC + 1, sway * 2); }
           else person(n.x * BEK_T_SRC + 4, n.y * BEK_T_SRC + 2, 0, Math.floor(t) % 2 ? 0 : 2, n.hair, n.shirt, n.pants);
         });
 
-        if (S.map === 'lake' && S.flag.lot && !S.built) { g.fillStyle = C(14); g.fillRect(3 * BEK_T_SRC, 3 * BEK_T_SRC, 5 * BEK_T_SRC, 1); g.fillRect(3 * BEK_T_SRC, 6 * BEK_T_SRC - 1, 5 * BEK_T_SRC, 1); }
+        if (S.map === 'lake' && S.flag.lot && !S.built) { g.fillStyle = C(SAN[2]); g.fillRect(3 * BEK_T_SRC, 3 * BEK_T_SRC, 5 * BEK_T_SRC, 1); g.fillRect(3 * BEK_T_SRC, 6 * BEK_T_SRC - 1, 5 * BEK_T_SRC, 1); }
         g.restore();
 
         /* Weather and the hour of the day sit over the playfield only; the HUD
@@ -1671,13 +1701,13 @@ export default {
         viewClip();
         if (!inside) {
           if (S.weather === 'regn') {
-            g.fillStyle = C(9);
+            g.fillStyle = C(WAT[4]);
             for (let i = 0; i < BEK_RAIN_N; i++) {
               const rx = (i * BEK_RAIN_STRIDE_X + Math.floor(t * BEK_RAIN_VX)) % BEK_VIEW_W;
               const ry = (i * BEK_RAIN_STRIDE_Y + Math.floor(t * BEK_RAIN_VY)) % BEK_VIEW_H;
               g.fillRect(BEK_VIEW_X + rx, BEK_VIEW_Y + ry, BEK_ART_SCALE, BEK_RAIN_LEN);
             }
-          } else if (S.weather === 'take') dither(7, 4);
+          } else if (S.weather === 'take') dither(STO[4], 4);
           if (night()) dither(1, 9); else if (dusk()) dither(1, 5); else if (dawn()) dither(6, 3);
         } else {
           /* A room is not exempt from the evening. It is lit by its hearth, so
@@ -1877,23 +1907,23 @@ export default {
          source-space coordinates and reaches the screen through the same
          whole-number transform the playfield uses. */
       function drawEnd(t) {
-        g.fillStyle = C(1); g.fillRect(0, 0, BEK_W, BEK_H);
-        dither(0, Math.max(0, 16 - S.ending * 6));
+        g.fillStyle = C(WAT[2]); g.fillRect(0, 0, BEK_W, BEK_H);
+        dither(ATMO[0], Math.max(0, 16 - S.ending * 6));
 
         g.save();
         g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
         for (let i = 0; i < END_TREES; i++) {
           const tx = 20 + i * END_TREE_DX, ty = 150 + (i % 2) * 20;
-          g.fillStyle = C(6); g.fillRect(tx + 10, ty + 30, 6, 22);
-          g.fillStyle = C(2); g.fillRect(tx, ty, 26, 34);
-          g.fillStyle = C(10); g.fillRect(tx + 4, ty + 4, 18, 16);
+          g.fillStyle = C(TIM[1]); g.fillRect(tx + 10, ty + 30, 6, 22);
+          g.fillStyle = C(CON[1]); g.fillRect(tx, ty, 26, 34);
+          g.fillStyle = C(CON[2]); g.fillRect(tx + 4, ty + 4, 18, 16);
         }
         const cx = END_HOUSE_X;                                   /* the house, centred */
-        g.fillStyle = C(4); g.fillRect(cx, 90, END_HOUSE_W, 30); g.fillStyle = C(12); g.fillRect(cx, 96, END_HOUSE_W, 4);
-        g.fillStyle = C(7); g.fillRect(cx + 6, 120, 88, 60); g.fillStyle = C(6); g.fillRect(cx + 40, 148, 20, 32);
-        g.fillStyle = C(11); g.fillRect(cx + 14, 130, 16, 14); g.fillRect(cx + 70, 130, 16, 14); g.fillStyle = C(14); g.fillRect(cx + 14, 130, 16, 3);
-        g.fillStyle = C(1); g.fillRect(0, 210, END_SRC_W, END_SRC_H - 210);
-        g.fillStyle = C(9); for (let i = 0; i < 12; i++) g.fillRect(20 + i * 40, 226 + (i % 3) * 14, 22, 1);
+        g.fillStyle = C(WAR[0]); g.fillRect(cx, 90, END_HOUSE_W, 30); g.fillStyle = C(WAR[1]); g.fillRect(cx, 96, END_HOUSE_W, 4);
+        g.fillStyle = C(TIM[3]); g.fillRect(cx + 6, 120, 88, 60); g.fillStyle = C(TIM[1]); g.fillRect(cx + 40, 148, 20, 32);
+        g.fillStyle = C(WAR[4]); g.fillRect(cx + 14, 130, 16, 14); g.fillRect(cx + 70, 130, 16, 14); g.fillStyle = C(SAN[2]); g.fillRect(cx + 14, 130, 16, 3);
+        g.fillStyle = C(WAT[1]); g.fillRect(0, 210, END_SRC_W, END_SRC_H - 210);
+        g.fillStyle = C(WAT[3]); for (let i = 0; i < 12; i++) g.fillRect(20 + i * 40, 226 + (i % 3) * 14, 22, 1);
         if (S.ending > 1.2) bear(END_SRC_W - 80, 168, Math.floor(S.ending * 2) % 4);
         g.restore();
 

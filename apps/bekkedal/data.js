@@ -1,3 +1,5 @@
+import { ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR } from './palette.js';
+
 /* ---- geometry -------------------------------------------------------------
  * The map is 24x15 tiles and that never changes: every row string in
  * BEK_MAPS, every NPC and goat position, and every per-tile key in S.soil /
@@ -144,13 +146,15 @@ export const BEK_ITEMS = {
 /* which items are seeds, in the order the planter cycles them */
 export const BEK_SEED_ORDER = ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro'];
 
+/* `col` is what the ripe head is drawn in — a palette index, and deliberately
+   one per crop you can tell apart across a field at a glance. */
 export const BEK_CROPS = {
-  potet:    { days: 3, out: 'potet',    col: 14 },
-  nepe:     { days: 2, out: 'nepe',     col: 13 },
-  gulrot:   { days: 4, out: 'gulrot',   col: 6  },
-  kal:      { days: 4, out: 'kal',      col: 10 },
-  jordbar:  { days: 5, out: 'jordbar',  col: 12, regrow: 2 },
-  rabarbra: { days: 6, out: 'rabarbra', col: 10, regrow: 3 }
+  potet:    { days: 3, out: 'potet',    col: SAN[1] },
+  nepe:     { days: 2, out: 'nepe',     col: SNO[0] },
+  gulrot:   { days: 4, out: 'gulrot',   col: WAR[3] },
+  kal:      { days: 4, out: 'kal',      col: GRASS[4] },
+  jordbar:  { days: 5, out: 'jordbar',  col: WAR[2], regrow: 2 },
+  rabarbra: { days: 6, out: 'rabarbra', col: WAR[1], regrow: 3 }
 };
 
 /* ---- 27.1b tools ---------------------------------------------------------
@@ -712,18 +716,21 @@ export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJ ';
    ========================================================================== */
 /* voice: the base pitch their blips are built on, so you can tell who is
    speaking with your eyes shut. Low for the old and the large. */
+/* hair / shirt / pants are palette indices. They come off the ramps rather
+   than out of VGA16 now, so a person standing in a field is a person and not
+   a colour swatch — and everyone keeps the silhouette and the read they had. */
 export const BEK_NPCS = [
-  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 4,  y: 4,  hair: 6,  shirt: 12, pants: 1, voice: 620 },
-  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 18, y: 11, hair: 8,  shirt: 2,  pants: 8, voice: 360 },
-  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 7,  y: 8,  hair: 14, shirt: 9,  pants: 1, voice: 700 },
-  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 5,  y: 9,  hair: 7,  shirt: 1,  pants: 8, voice: 330 },
-  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 4,  y: 6,  hair: 15, shirt: 5,  pants: 8, voice: 660 },
-  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 5,  y: 6,  hair: 14, shirt: 13, pants: 7, voice: 560 },
-  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 8,  y: 11, hair: 6,  shirt: 2,  pants: 8, voice: 290 },
+  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 4,  y: 4,  hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620 },
+  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 18, y: 11, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360 },
+  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 7,  y: 8,  hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700 },
+  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 5,  y: 9,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330 },
+  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 4,  y: 6,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660 },
+  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 5,  y: 6,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560 },
+  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 8,  y: 11, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290 },
   /* Lars stands in the alcove cut beside the adit, never on a corridor. Row 7
      of the gruva is the only way in and it is one tile tall, and the shafts
      off it are one tile wide — a man standing on either is a wall. */
-  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 6,  hair: 8,  shirt: 4,  pants: 8, voice: 420 },
+  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 6,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420 },
   { id: 'bjorn',  n: '',       map: 'forest', x: 11, y: 7, bear: true, from: 6 }
 ];
 
