@@ -50,6 +50,7 @@ export function createActors(GG, C) {
     else if (ic === 'stalk') { R(6, 3, 2, 9, col); R(4, 3, 5, 2, 10); R(8, 5, 3, 2, 10); }
     else if (ic === 'lamp') { R(5, 3, 5, 3, 7); R(4, 6, 7, 6, col); R(6, 8, 3, 3, 15); }
     else if (ic === 'shirt') { R(3, 5, 10, 7, col); R(2, 5, 3, 3, col); R(11, 5, 3, 3, col); R(5, 5, 5, 2, 15); }
+    else if (ic === 'sprinkler') { R(7, 4, 2, 9, col); R(3, 3, 10, 2, 7); R(4, 10, 8, 2, col); R(6, 2, 1, 2, 9); R(9, 2, 1, 2, 9); }
     else R(4, 4, 8, 8, col);
   }
 
