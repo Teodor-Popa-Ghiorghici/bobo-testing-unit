@@ -53,6 +53,11 @@ scripts that check them:
 - `rock.js` — the mountain and the ore in it, including `oreKind`, which
   `act()` reads so the drop is the metal the tile was drawn as. See
   **The veins** below.
+- `interior.js` — the inside of a house: boards, volume, wear, the rug and
+  the wall seen from within. See **Inside a house** below.
+- `decor.js` — the things in a room. The five pieces of glyph furniture, and
+  a *kind* per prop; where each prop stands is content, in `BEK_DECOR`
+  (`data.js`).
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
@@ -481,6 +486,82 @@ expectation (0.6 × 220 + 0.4 × 110 = 176 kr) a rich-vein swing is now worth
 a rules change and both are properties of *this* map — if the mix wants
 tuning, move a tile rather than putting the randomness back, because the
 randomness is what made the art a lie.
+
+## Inside a house
+
+A room used to be three tiled textures, and the report said so. `floorGround`
+was a flat `C(6)` fill plus a noise wash. `floorDetail` was one horizontal
+line at y+9, a vertical line every 10px, and — one tile in seven — a single
+2×1 speck. That was the entire floor of every room in the game. The walls
+were three courses and an outline; the furniture was eight glyphs drawn
+byte-identically wherever they appeared.
+
+### Boards, not tiles
+
+`interior.js` lays floorboards **across the room** and reads them per tile,
+which is the whole fix. Varying widths, varying lengths, staggered end
+joints, a nail pair at every joist, and each board a slightly different step
+of the timber ramp because it is a different plank. All of it comes off
+**world position**, never tile position, so boards visibly cross tile
+boundaries — nothing else here would have removed the tiled reading on its
+own.
+
+Two indexes make that affordable: `byCol` per board (which segment a tile
+column starts in) and `rowOf` (which board a device row falls in). Without
+them every floor tile walked all fifty boards and all their segments, which
+was most of a 57ms rebuild.
+
+`FLOOR_GRAIN` is weighted toward the base step on purpose. A board a step up
+or down from its neighbour is a different plank; a floor where every board is
+a different step is a deckchair.
+
+### Volume, and wear that follows use
+
+`volume()` casts a dithered shadow from the foot of every wall onto the
+floor, and a tile touching two walls gets both — which is "the corners are
+darker" without a second rule for corners. A room whose wall and floor are
+both brown has no edges otherwise.
+
+`traceWear()` replaces the old `WORN` patch, which was a low-frequency noise
+field — so the floor was worn in places nobody walks. Wear is now computed
+from the room's own layout: the line from the door to the hearth, to the bed
+and to the table, about two tiles wide and fading out, with a per-tile step
+of jitter so its edge is not a drawn contour.
+
+### The things in a room
+
+`decor.js` holds *kinds*; `BEK_DECOR` in `data.js` holds where each one
+stands. That split is what lets the farm cabin and the house by the water be
+two different people's houses — the cabin is somewhere work happens (kettle,
+woodpile, boots, broom, herbs drying from the beam), the lake house is the
+one you built to be quiet in (lamp, rod, creel, flowers on the sill, which is
+what Marit asked for). Adding a room later costs no code.
+
+Three rules for anything added there:
+
+- **It must not change walkability.** `solid()` reads `BEK_SOLID` against the
+  map glyph and knows nothing about decor. Props on floor squares are squares
+  you can stand on, and the player draws in front of them.
+- **Everything in a room is some shade of timber, the floor included**, so a
+  prop drawn in timber on timber is invisible. Each carries an ink outline, a
+  contact shadow, or a material that is not wood — pale cut log ends, a grey
+  cat, black rubber boots. Value first, then colour; the ore taught the same
+  lesson.
+- **A prop on a tile that is itself redrawn every frame is drawn live too**,
+  or the tile paints over it. That is how the kettle spent its first
+  afternoon invisible behind the fire.
+
+The candle and the lamp are in `LIGHTS`, so the room's light pass finds them
+without a second table. The cat is in `LIVE` and breathes on a slow cycle —
+the only animation in a room, which is the point of it.
+
+### Cost
+
+A lit interior rebuild measured 20–23ms, split roughly ground 5 / detail 5 /
+light 12. The light pass is the expensive half because a pool is several
+hundred stipple cells; batching a whole pool inside **one** `native()` rather
+than letting `wash` open one per cell took it from 25ms to 12. Anything that
+draws hundreds of small rects should do the same.
 
 ## Light and the hour
 

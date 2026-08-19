@@ -164,7 +164,10 @@ export const MARKS = {
   PATH_GRIT:  { on: SOI[2],   cols: [SOI[1], DRY[1], STO[2]] },
   CAVE_GRIT:  { on: STO[0],   cols: [STO[1], ATMO[1], TIM[0], STO[1]] },
   ROCK_FACE:  { on: STO[2],   cols: [STO[3], STO[1]] },
-  FLOOR_GRAIN:{ on: TIM[2],   cols: [TIM[1], TIM[3], TIM[2]] },
+  /* Weighted toward the base on purpose. A board a step up or a step down
+     from its neighbour is a different plank; a floor where every board is a
+     different step is a deckchair. */
+  FLOOR_GRAIN:{ on: TIM[2],   cols: [TIM[2], TIM[2], TIM[3], TIM[2], TIM[1], TIM[2]] },
   TURF_ROOF:  { on: GRASS[1], cols: [GRASS[2], GRASS[0], DRY[0]] },
   SNOW_MARK:  { on: SNO[0],   cols: [STO[5], SAN[2]] },
   WATER_DEEP: { on: WAT[1],   cols: [WAT[2], WAT[0]] },

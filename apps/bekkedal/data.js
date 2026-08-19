@@ -704,6 +704,55 @@ export const BEK_MAPS = {
   }
 };
 
+/* ==========================================================================
+   27.2b WHO LIVES HERE
+   --------------------------------------------------------------------------
+   Where the things in a room stand. `kind` names a drawing in `decor.js`;
+   this table only says where. Keeping it here rather than adding eight more
+   glyphs to `tileDetail` is the file split working as intended — adding a
+   room later costs no code — and it is what lets the two houses be two
+   different people's houses instead of one house drawn twice.
+
+   Decor never changes walkability: `solid()` reads BEK_SOLID against the map
+   glyph and knows nothing about this table. Anything on a floor square is a
+   square you can stand on, and the player draws in front of it.
+
+   The farm cabin is somewhere work happens — a kettle on the fire, wood
+   stacked beside it, boots by the door, a broom in the corner, herbs drying
+   from the beam. The house by the water is the one you built to be quiet in,
+   so it has a lamp and a rod and a creel and flowers on the sill, which is
+   what Marit asked for.
+   ========================================================================== */
+export const BEK_DECOR = {
+  farmhouse: [
+    { x: 14, y: 4,  kind: 'kettle' },
+    { x: 16, y: 4,  kind: 'jars' },
+    { x: 10, y: 7,  kind: 'crockery' },
+    { x: 11, y: 7,  kind: 'candle' },
+    { x: 13, y: 5,  kind: 'firewood' },
+    { x: 13, y: 6,  kind: 'cat' },
+    { x: 10, y: 9,  kind: 'boots' },
+    { x: 7,  y: 9,  kind: 'broom' },
+    { x: 6,  y: 6,  kind: 'coat' },
+    { x: 8,  y: 3,  kind: 'picture' },
+    { x: 12, y: 3,  kind: 'herbs' }
+  ],
+  lakehouse: [
+    { x: 15, y: 4,  kind: 'kettle' },
+    { x: 17, y: 4,  kind: 'lamp' },
+    { x: 9,  y: 7,  kind: 'loaf' },
+    { x: 10, y: 7,  kind: 'crockery' },
+    { x: 14, y: 5,  kind: 'firewood' },
+    { x: 13, y: 5,  kind: 'cat' },
+    { x: 12, y: 10, kind: 'boots' },
+    { x: 13, y: 9,  kind: 'basket' },
+    { x: 5,  y: 7,  kind: 'net' },
+    { x: 18, y: 6,  kind: 'rod' },
+    { x: 7,  y: 3,  kind: 'picture' },
+    { x: 12, y: 3,  kind: 'flowers' }
+  ]
+};
+
 /* D is solid too, but it is knocked on. n table, u cupboard and J bench are
    furniture you walk up to, not through; z is a rug, so it is not here. The
    space is the dead margin beyond a room's walls — nothing should stand in it. */

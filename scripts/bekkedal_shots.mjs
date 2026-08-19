@@ -51,7 +51,8 @@ const INSIDE = ['farmhouse', 'lakehouse'];
 const WHERE = {
   farm: [12, 8], town: [12, 8], lake: [7, 8], forest: [12, 8], enga: [12, 8],
   setra: [12, 8], vidda: [12, 8], gruva: [12, 8], fjord: [8, 8],
-  farmhouse: [11, 7], lakehouse: [11, 7]
+  /* stood out of the way of the table, so the props on it are in the shot */
+  farmhouse: [8, 9], lakehouse: [8, 10]
 };
 
 const shots = [];

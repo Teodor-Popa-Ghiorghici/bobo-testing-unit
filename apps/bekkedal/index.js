@@ -3,7 +3,7 @@ import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
-         BEK_TALK, BEK_QUESTS, BEK_HOUSE,
+         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
@@ -13,6 +13,8 @@ import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVa
 import { createShore } from './shore.js';
 import { createWater } from './water.js';
 import { createRock, oreKind } from './rock.js';
+import { createInterior } from './interior.js';
+import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
 import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT, glow, GLOW_CELL } from './light.js';
@@ -1072,12 +1074,6 @@ export default {
       }
 
       /* the floor of a room: boards, never grass */
-      function floorGround(x, y) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        g.fillStyle = C(TIM[2]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, TIM[1], pAmt(x, y, PATCH.WORN, 3));   /* where feet go */
-      }
-
       /* the floor of the gruva: it is a hole in a mountain, so it is gravel.
          Grass down here was reading as a lawn a hundred feet underground.
          Dark floor, lit rock walls — the other way round and the corridors
@@ -1126,14 +1122,6 @@ export default {
             g.fillRect(px + spot(v.x2, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1);
           }
         });
-      }
-
-      function floorDetail(x, y) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        const v = groundVar(S.map, x, y);
-        g.fillStyle = C(FLOOR_JOINT); g.fillRect(px, py + 9, BEK_T_SRC, 1);
-        for (let i = 0; i < BEK_T_SRC; i += 10) g.fillRect(px + i, py, 1, BEK_T_SRC);
-        if (v.c2 === 2) { g.fillStyle = C(FLOOR_GRAIN[1]); g.fillRect(px + spot(v.x0, BEK_T_SRC, 2), py + spot(v.y1, BEK_T_SRC, 1), 2, 1); }
       }
 
       function caveDetail(x, y) {
@@ -1213,6 +1201,33 @@ export default {
          thicken in the wall as you get closer to one — is in rock.js, and so
          is `oreKind`, which `act()` below reads so the drop is the metal the
          tile was drawn as. */
+      /* The inside of a house: boards laid across the room from world
+         position, the shadow a wall casts on the floor, the wear that follows
+         the traffic, and the rug. Where the *things* in a room stand is
+         content and lives in BEK_DECOR (data.js); decor.js knows how to draw
+         each kind. See interior.js. */
+      const interior = createInterior({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        salt: () => mapSalt(S.map)
+      });
+      /* what decor.js draws with — the same shape the other art modules take */
+      const propArt = { fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); } };
+      /* the props on this map, indexed by square. Rebuilt with the cache. */
+      let propMap = new Map();
+      function propsPrepare() {
+        propMap = new Map();
+        (BEK_DECOR[S.map] || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
+      }
+      function drawProp(d, x, y, t) {
+        const fn = PROP[d.kind];
+        if (fn) native(() => fn(propArt, x * BEK_T, y * BEK_T, hLowV(x, y, mapSalt(S.map) + 4090, 1, 3), t));
+      }
+
       const rock = createRock({
         fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
         wash: (px, py, w, h, col, str) => {
@@ -1289,7 +1304,7 @@ export default {
            actually on screen */
         if (c === 'P' || c === 'f' || c === 'L') { g.fillStyle = C(groundOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (c === 'H' || c === 'R' || c === 'D') { g.fillStyle = C(solidOf(S.map, c === 'R' ? 'H' : c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (ins_()) floorGround(x, y); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
+        if (ins_()) native(() => interior.floor(x, y)); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
       }
 
       function tileDetail(c, x, y) {
@@ -1298,7 +1313,7 @@ export default {
         if (c === ' ' || c === 'W') return;                  /* nothing static of its own */
         if (c === '~') { native(() => shore.detail(x, y, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(px, py, x, y); return; }
         if (!ownGround(c, x, y)) {
-          if (ins) floorDetail(x, y); else if (isCave(S.map)) caveDetail(x, y); else grassDetail(x, y);
+          if (ins) native(() => interior.volume(x, y)); else if (isCave(S.map)) caveDetail(x, y); else grassDetail(x, y);
         }
         /* the land half of a waterline, on whichever edges face water */
         if (!ins && c !== 'W' && c !== '~') native(() => shore.bank(x, y));
@@ -1389,13 +1404,7 @@ export default {
           /* not every course of logs has a window cut in it */
           const win = o.win < 2;
           if (ins) {
-            /* Seen from inside, a wall must not be the same brown as the
-               floor or the room has no edges. Dark timber, lighter courses. */
-            g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
-            g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 2, 18, 1); g.fillRect(px + 1, py + 8, 18, 1); g.fillRect(px + 1, py + 14, 18, 1);
-            g.fillStyle = C(ATMO[0]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
-            if (win) { g.fillStyle = C(WAT[5]); g.fillRect(px + 5, py + 5, 9, 8);
-              g.fillStyle = C(SNO[1]); g.fillRect(px + 5, py + 5, 9, 1); g.fillRect(px + 9, py + 5, 1, 8); }
+            native(() => interior.wall(x, y, o, win));
           } else if (rustic(S.map)) {
             g.fillStyle = C(TIM[3]); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
             g.fillStyle = C(TIM[0]); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
@@ -1425,46 +1434,22 @@ export default {
           }
         }
         if (c === 'D') { g.fillStyle = C(TIM[2]); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(TIM[1]); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(WAR[4]); g.fillRect(px + 12, py + 11, 2, 2); }
-        if (c === 'b') {
-          g.fillStyle = C(TIM[2]); g.fillRect(px + 1, py + 1, 18, 18);
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py + 1, 18, 2); g.fillRect(px + 1, py + 17, 18, 2);
-          g.fillStyle = C(SNO[1]); g.fillRect(px + 3, py + 3, 14, 5);                          /* pillow */
-          g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 9, 14, 8);                          /* blanket */
-          g.fillStyle = C(WAT[2]); g.fillRect(px + 3, py + 9, 14, 1); g.fillRect(px + 3, py + 13, 14, 1);
-        }
         if (c === 'o') { g.fillStyle = C(STO[4]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 16, 14, 2); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
         if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
         if (c === 'L') { g.fillStyle = C(TIM[3]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
         if (c === 'f') { g.fillStyle = C(SOI[1]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
-        /* ---- indoors, and the benches ---------------------------------- */
-        if (c === 'z') {                                                     /* a rag rug, walked on */
-          g.fillStyle = C(WAR[0]); g.fillRect(px + 1, py + 1, 18, 18);
-          g.fillStyle = C(WAR[2]); g.fillRect(px + 3, py + 3, 14, 14);
-          g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 7, 14, 2); g.fillRect(px + 3, py + 12, 14, 2);
-          g.fillStyle = C(SAN[1]); g.fillRect(px + 8, py + 3, 2, 14);
-        }
-        if (c === 'n') {                                                     /* a table */
-          g.fillStyle = C(TIM[4]); g.fillRect(px, py + 3, BEK_T_SRC, 7);
-          g.fillStyle = C(TIM[2]); g.fillRect(px, py + 3, BEK_T_SRC, 1);
-          g.fillStyle = C(TIM[1]); g.fillRect(px, py + 10, BEK_T_SRC, 2); g.fillRect(px + 2, py + 12, 3, 7); g.fillRect(px + 15, py + 12, 3, 7);
-        }
-        if (c === 'u') {                                                     /* a cupboard */
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 1, py, 18, BEK_T_SRC);
-          g.fillStyle = C(TIM[3]); g.fillRect(px + 1, py + 6, 18, 1); g.fillRect(px + 1, py + 13, 18, 1); g.fillRect(px + 9, py, 1, BEK_T_SRC);
-          g.fillStyle = C(TIM[4]); g.fillRect(px + 6, py + 9, 2, 2); g.fillRect(px + 12, py + 9, 2, 2);
-          g.fillStyle = C(WAT[4]); g.fillRect(px + 3, py + 2, 4, 3);
-          g.fillStyle = C(SNO[1]); g.fillRect(px + 12, py + 2, 3, 3);
-        }
-        if (c === 'J') {                                                     /* a bench, to sit on */
-          g.fillStyle = C(TIM[3]); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 3, 18, 3);
-          g.fillStyle = C(TIM[4]); g.fillRect(px + 1, py + 8, 18, 1);
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 12, 3, 6); g.fillRect(px + 15, py + 12, 3, 6); g.fillRect(px + 2, py + 3, 2, 6); g.fillRect(px + 16, py + 3, 2, 6);
-        }
-        if (c === 'c') {                                                     /* a crate */
-          g.fillStyle = C(TIM[3]); g.fillRect(px + 2, py + 4, 16, 14);
-          g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 4, 16, 1); g.fillRect(px + 2, py + 10, 16, 1); g.fillRect(px + 9, py + 4, 1, 14);
-          g.fillStyle = C(TIM[4]); g.fillRect(px + 4, py + 6, 2, 1);
-        }
+        /* ---- indoors, and the benches ----------------------------------
+           The rug and the five pieces of furniture live in interior.js and
+           draw at native density; this is the last of the glyph ladder that
+           still had them. */
+        if (c === 'z') { native(() => interior.rug(x, y)); }
+        else if ('nuJcb'.indexOf(c) >= 0) native(() => furniture(propArt, c, x, y));
+        /* A prop stands on whatever tile the content table put it on, drawn
+           after that tile's own art and before the actors — so the player
+           passes in front of the boots by the door rather than under them.
+           The animated kinds are not here; they are redrawn per frame. */
+        const prp = propMap.get(x + ',' + y);
+        if (prp && !PROP_LIVE[prp.kind] && LIVE.indexOf(c) < 0) drawProp(prp, x, y, 0);
         if (rim) edgeMark(px, py, x, y);
       }
 
@@ -1473,6 +1458,11 @@ export default {
         if (c === '~') { native(() => shore.live(x, y, t, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
         if (c === 'O' || c === 'Q') { native(() => rock.live(c, x, y, t)); return; }
         if (c === 'v') hearthTile(x, y, t);                                  /* the hearth, alight */
+        /* A prop standing on a tile that is itself redrawn every frame has to
+           be redrawn with it, or the tile paints over it — which is how the
+           kettle spent its first afternoon invisible behind the fire. */
+        const lp = propMap.get(x + ',' + y);
+        if (lp) drawProp(lp, x, y, t);
       }
       /* the glyphs whose art reads the clock: water, the hearth, and the
          catch of light travelling across a crystal face */
@@ -1535,11 +1525,19 @@ export default {
          outward and not only strength. Pull the outer pass toward yellow
          instead and it reads as a spotlight. */
       const GLOW_HALO = 1.35;
+      /* One native() for the whole pool, not one per cell. `wash` opens its
+         own, and a pool is several hundred cells — that was several hundred
+         save/scale/restore triples per source and most of the rebuild. */
       function pool(px, py, r, peak) {
         if (peak < 2) return 0;
         let n = 0;
-        n += glow((gx, gy, w, h, sN) => wash(gx, gy, w, h, WAR[1], sN, true), px, py, r * GLOW_HALO, Math.round(peak * 0.45));
-        n += glow((gx, gy, w, h, sN) => wash(gx, gy, w, h, WAR[3], sN, true), px, py, r, peak);
+        native(() => {
+          const put = col => (gx, gy, w, h, sN) => {
+            g.fillStyle = ditherPat(col, sN, true); g.fillRect(gx, gy, w, h);
+          };
+          n += glow(put(WAR[1]), px, py, r * GLOW_HALO, Math.round(peak * 0.45));
+          n += glow(put(WAR[3]), px, py, r, peak);
+        });
         return n;
       }
 
@@ -1554,9 +1552,19 @@ export default {
          Drawn through the hour's own table rather than in daylight, because
          moonlight is the ambient — it is not a lamp somebody lit. */
       function moonKey(dark) {
-        if (dark < 0.25) return;
+        /* and not indoors. There is no moon in a room, and a rim light along
+           the top of every wall from inside reads as a dotted line ruled
+           around the picture rather than as anything lighting anything. */
+        if (dark < 0.25 || ins_()) return;
         const top = Math.round(5 * dark), side = Math.round(2.5 * dark);
         if (top < 2) return;
+        native(() => moonRim(top, side));
+      }
+      function moonRim(top, side) {
+        const put = (px, py, w, h, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(SNO[1], str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        };
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
           const c = tileAt(S.map, x, y);
           if (c === ' ' || c === 'W' || c === '~' || BEK_SOLID.indexOf(c) < 0) continue;
@@ -1571,8 +1579,8 @@ export default {
              touches are solid, so nothing else on them reads from it. */
           const j = groundVar(S.map, x, y).c1 & 1;
           const px = x * BEK_T, py = y * BEK_T;
-          if (BEK_SOLID.indexOf(tileAt(S.map, x, y - 1)) < 0) wash(px, py, BEK_T, 2 * BEK_ART_SCALE, SNO[1], top - j);
-          if (BEK_SOLID.indexOf(tileAt(S.map, x - 1, y)) < 0) wash(px, py, BEK_ART_SCALE, BEK_T, SNO[1], side - j);
+          if (BEK_SOLID.indexOf(tileAt(S.map, x, y - 1)) < 0) put(px, py, BEK_T, 2 * BEK_ART_SCALE, top - j);
+          if (BEK_SOLID.indexOf(tileAt(S.map, x - 1, y)) < 0) put(px, py, BEK_ART_SCALE, BEK_T, side - j);
         }
       }
 
@@ -1587,6 +1595,11 @@ export default {
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
           const c = tileAt(S.map, x, y);
           if (c === 'v') { out.push({ x: x, y: y, dy: 0.1, r: 2.7 * BEK_T, peak: Math.round(12 * dark), hearth: 1 }); continue; }
+          const dp = propMap.get(x + ',' + y);
+          if (dp && PROP_LIGHTS[dp.kind]) {
+            const L2 = PROP_LIGHTS[dp.kind];
+            out.push({ x: x, y: y, dy: 0.5, r: L2.r * BEK_T, peak: Math.round(L2.peak * dark) });
+          }
           if (c !== 'H') continue;
           if (objVar('H', S.map, x, y).win >= 2) continue;            /* no window in this course */
           /* A window that is drawn is a window that lights. If the wall
@@ -1601,27 +1614,34 @@ export default {
       }
 
       /* rebuild cost, so the numbers in the docs are measured and not guessed */
-      const perf = { rects: 0, ms: 0, rebuilds: 0, key: '' };
+      /* Split three ways, because "the rebuild got slower" is not a finding
+         and "the detail pass got slower" is. */
+      const perf = { rects: 0, ms: 0, ground: 0, detail: 0, light: 0, rebuilds: 0, key: '' };
+      const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       function terrain() {
         const L = lighting();
         const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump + '|' + L.key;
         if (k === terrKey) return terrCv;
         terrKey = k; terrLive = []; terrHearths = [];
-        const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+        const t0 = now();
         let rects = 0;
         const prev = g;
         g = terrG;
         try {
           g.setTransform(1, 0, 0, 1, 0, 0);
           g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
-          shore.prepare(k); water.prepare(k); rock.prepare(k);
+          shore.prepare(k); water.prepare(k); rock.prepare(k); interior.prepare(k); propsPrepare();
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
+          const tA = now();
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
+          const tB = now();
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
             const c = tileAt(S.map, x, y);
             tileDetail(c, x, y);
             if (LIVE.indexOf(c) >= 0) terrLive.push(x, y);
           }
+          const tC = now();
+          perf.ground = tB - tA; perf.detail = tC - tB;
           moonKey(L.dark);
           lightSources(L.dark).forEach(sc => {
             const px = (sc.x + 0.5) * BEK_T, py = (sc.y + sc.dy) * BEK_T;
@@ -1638,8 +1658,9 @@ export default {
           }
           g.restore();
         } finally { g = prev; }
+        perf.light = now() - t0 - perf.ground - perf.detail;
         perf.rects = rects; perf.key = k; perf.rebuilds++;
-        perf.ms = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0) - t0;
+        perf.ms = now() - t0;
         return terrCv;
       }
       /* Ploughed in even rows, so the furrows always run the same way the
@@ -1841,6 +1862,8 @@ export default {
            on the same cycle as its flame, and a lamp that walks. Both are
            small — a couple of dozen stipple cells — because the expensive part
            was paid at the last rebuild. */
+        propMap.forEach(d => { if (PROP_LIVE[d.kind]) drawProp(d, d.x, d.y, t); });
+
         if (L.dark > 0.02) {
           const fl = 1 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 11.7);
           for (let i = 0; i < terrHearths.length; i += 2)
@@ -2140,6 +2163,9 @@ export default {
         perf: () => ({
           rebuilds: perf.rebuilds, rebuildRects: perf.rects,
           rebuildMs: Math.round(perf.ms * 100) / 100,
+          groundMs: Math.round(perf.ground * 100) / 100,
+          detailMs: Math.round(perf.detail * 100) / 100,
+          lightMs: Math.round(perf.light * 100) / 100,
           drawMs: Math.round(drawMs * 100) / 100,
           ditherPatterns: Object.keys(ditherCache).length,
           map: S.map, min: Math.floor(S.min), key: perf.key
