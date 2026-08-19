@@ -74,10 +74,14 @@ scripts that check them:
   (`data.js`) into `S.rq`, describes an instance for the board, and merges it
   with the fixed `BEK_QUESTS` list into the rows `menus.js` draws. See
   **Quests and the repeatable board** below.
+- `seasons.js` — the seasonal layer: derives the current season, day-of-season,
+  festival (if any) and a crop's plantability from `S.day` alone, and rolls the
+  morning weather off that season's own odds. See **The seasonal layer** below.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
 - `quest_check.js` — `node apps/bekkedal/quest_check.js`. See below.
+- `season_check.js` — `node apps/bekkedal/season_check.js`. See below.
 
 ## Why the font is a bitmap
 
@@ -268,6 +272,20 @@ spend 20-60 rects on looking like something.
   resolves to a real `BEK_TALK` entry and no batch asks the same NPC twice.
   Run it after touching `BEK_QUEST_TEMPLATES`, `quests.js`, or what any
   gathering action in `index.js` requires to succeed.
+- `node apps/bekkedal/season_check.js` — the seasonal layer, simulated across
+  4 in-game years. Asserts season index and day-of-season agree with an
+  independently written formula on every one of the 320 simulated days and
+  never disagree with what advancing one day from the previous day's own
+  recompute would give (the operational meaning of "never drifts"), that
+  season transitions land exactly on `BEK_SEASON_DAYS` boundaries and nowhere
+  else and that the four-season order repeats identically year to year, that
+  `cropInSeason()` agrees with every `BEK_CROPS` entry's own `seasons` list
+  and that every season has at least one plantable crop, and that each
+  season's festival fires exactly once a year on the day `BEK_FESTIVALS`
+  declares with real, distinct, walkable dressing tiles on the map it names.
+  Run it after touching `seasons.js`, `BEK_SEASONS`/`BEK_SEASON_DAYS`/
+  `BEK_SEASON_WEATHER`/`BEK_SEASON_TINT`/`BEK_FESTIVALS`, or `BEK_CROPS`'
+  `seasons` lists.
 - `node scripts/bekkedal_shots.mjs <out-dir>` — the shot matrix. Boots the
   real machine in Chromium, seeds a save per shot, and captures seventy-two
   960x540 frames: every map at morning, dusk and night, the mine with and
@@ -911,6 +929,63 @@ against `QUEST_VISIBLE_ROWS` (`layout.js`, currently 8) of headroom, so
 each time the board opens) rather than resizing the box — see
 `layout_check.js`'s scroll-indicator-clears-ESC assertion for the geometry
 that guarantees the two labels never collide.
+
+## The seasonal layer
+
+`seasons.js` replaces the old flat, memoryless day-to-day weather roll with a
+returning cycle the day counter itself drives — four `BEK_SEASON_DAYS`-long
+seasons (`BEK_SEASONS`, `data.js`), in fixed order, wrapping forever. Every
+function in it is pure in `day`, same convention as `noise.js`/`light.js`/
+`quests.js`: `seasonIndexOf`/`dayOfSeason`/`seasonOf` derive where in the
+cycle a given day falls, `festivalOf`/`isFestivalDay` derive whether it is
+that season's one festival day, `cropInSeason` derives whether a crop may be
+planted that day, and `rollWeather` rolls the morning's weather off that
+season's own odds (`BEK_SEASON_WEATHER`, `data.js`) rather than the old fixed
+20/10/70 split.
+
+**`S.season` and `S.festival` are recomputed, never incremented.** `newDay()`
+(`index.js`) reassigns both from `S.day` on every call, `heal()` reassigns
+both from `s.day` unconditionally on every load rather than backfilling them
+only when missing, and `fresh()` seeds both from day 1 the same way. There is
+nothing stored that increments on its own schedule, so there is nothing that
+can disagree with the day count that defines it — a save from before this
+layer existed gets both fields correct on the very next load, the same way a
+fresh run gets them correct on day 1. `season_check.js` exercises this
+directly over four simulated years rather than trusting the argument.
+
+`BEK_CROPS` entries (`data.js`) each carry a `seasons` list of the
+`BEK_SEASONS` ids they may be planted in. `plant()` (`index.js`) checks it via
+`cropInSeason()` after every other gate (soil turned, no seed already
+growing, a seed on hand) and turns a mismatch into a spoken line — "WRONG
+SEASON. THE GROUND WILL NOT TAKE IT NOW." — exactly like every other refusal
+`plant()`/`act()` already make, never a silent block or a thrown error. A
+crop already growing is unaffected by a season boundary passing under it;
+the gate only ever fires at the moment of planting.
+
+The one seasonal tint (`BEK_SEASON_TINT`, `data.js`: one palette colour and
+one dither strength per season) and the map dressing half of each season's
+one small recurring festival (`BEK_FESTIVALS`, `data.js`) both reuse existing
+machinery rather than adding a renderer of their own, per the brief that
+asked for this layer:
+
+- The tint is drawn through the exact `dither()` call the weather overlay
+  already makes for fog, immediately before it in the same `!inside` block —
+  another colour and strength handed to a call that already exists, drawn
+  through the hour's own LUT exactly like the fog and rain already are.
+- A festival's `dress` is a handful of `[x, y]` coordinates on the map it
+  names (`BEK_FESTIVALS[id].map`, currently `town` for all four), overlaid by
+  `tileAt()` (`index.js`) exactly the way the farm's two purchasable plots
+  (`BEK_FARM_PLOTS`) already overlay the farm map's own grass — reusing the
+  flower glyph (`F`) the town map already draws elsewhere on itself, so
+  nothing new has to be drawn, only a different day to draw it on. Because
+  `S.festival` is itself derived from `S.day`, and `S.day` is already part of
+  the terrain cache's key, the dressing needs no cache-busting of its own —
+  the cache already rebuilds on the day it should change.
+- The dialogue beat is a `BEK_TALK.astrid.chat` entry per season, gated
+  `if: S => S.festival === '<id>'`, the same convention every other
+  flag/friendship-gated chat line in that file already uses.
+
+`season_check.js` is the check for all of it — see **Checks** above.
 
 ## Crafting and the chest
 
