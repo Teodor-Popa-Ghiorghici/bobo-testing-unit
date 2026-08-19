@@ -12,7 +12,7 @@
  * leaves things in while it works through them — see **The art scale** in
  * this app's CLAUDE.md.
  */
-import { SOI, WAT, GRASS, SNO } from './palette.js';
+import { SOI, WAT, GRASS, SNO, STO } from './palette.js';
 import { soilVar } from './noise.js';
 import { BEK_T, BEK_T_SRC, BEK_CROPS } from './data.js';
 
@@ -44,9 +44,21 @@ export function createCrops(GG, C, A) {
       }
     });
   }
+  /* the sprinkler stands on the tile it waters, a stem and a cross-head,
+     drawn native like the tilled soil beneath it — the crop it may share
+     the square with still draws in source space below */
+  function sprinklerPost(x, y) {
+    const px = x * BEK_T, py = y * BEK_T;
+    A.native(() => {
+      GG().fillStyle = C(STO[3]); GG().fillRect(px + 17, py + 12, 6, 22);
+      GG().fillStyle = C(STO[4]); GG().fillRect(px + 10, py + 8, 20, 4);
+      GG().fillStyle = C(WAT[2]); GG().fillRect(px + 12, py + 4, 2, 4); GG().fillRect(px + 26, py + 4, 2, 4);
+    });
+  }
   function drawSoil(x, y) {
     const c = A.soil(x + ',' + y); if (!c) return;
     if (c.till) tilledSoil(x, y, c.wet);
+    if (c.spr) sprinklerPost(x, y);
     if (!c.seed) return;
     const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
     const spec = BEK_CROPS[c.seed]; const f = Math.min(1, c.age / spec.days); const h = 3 + Math.round(f * 11);

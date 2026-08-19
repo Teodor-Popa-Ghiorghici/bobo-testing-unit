@@ -3,7 +3,7 @@ import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
-         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR,
+         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
@@ -175,15 +175,23 @@ export default {
       /* ---- state -------------------------------------------------------- */
       let S = null;
       const fresh = () => ({
-        ver: 4, lang: BEK_LANG, fullscreen: 0,
+        ver: 5, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
         tools: { spade: 1, kanne: 1, oks: 1, stang: 0, hakke: 0 },
-        tool: 0, axeLv: 1, pickLv: 0, seedIx: 0,
+        tool: 0, axeLv: 1, pickLv: 0, kanneLv: 0, seedIx: 0,
+        /* the bag's soft cap — see gainCapped() — and the shop tier it was
+           bought at, so the offer that sells tier 2 knows tier 1 is done */
+        bagCap: 80, bagTier: 0,
         bag: { potetfro: 5 },
         soil: {}, felled: {}, mined: {}, picked: {}, drops: [],
         fr: { astrid: 0, hakon: 0, ingrid: 0, olav: 0, marit: 0, sigrid: 0, gunnar: 0, lars: 0 },
+        /* one XP counter and one derived level per gathering activity — see
+           addXp(). Farming/mining/foraging/fishing only; felling and selling
+           are not activities a level applies to. */
+        xp: { farm: 0, mine: 0, forage: 0, fish: 0 },
+        lvl: { farm: 0, mine: 0, forage: 0, fish: 0 },
         met: {}, seen: {}, flag: {}, q: {},
         chatIx: {}, disc: { farm: 1 }, weather: 'klar',
         built: 0, ending: 0,
@@ -197,12 +205,14 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'xp', 'lvl'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
-        ['axeLv', 'pickLv', 'seedIx', 'enMax', 'waterMax', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        Object.keys(f.xp).forEach(k => { if (s.xp[k] == null) s.xp[k] = 0; });
+        Object.keys(f.lvl).forEach(k => { if (s.lvl[k] == null) s.lvl[k] = 0; });
+        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
         if (typeof s.chatIx === 'number') s.chatIx = {};
         return s;
@@ -238,6 +248,14 @@ export default {
         if (S.felled[rkey(mp, x, y)] > S.day) return 'g';
         if (S.mined[rkey(mp, x, y)] > S.day) return 'g';
         if (S.picked[rkey(mp, x, y)] > S.day) return ',';
+        /* the two purchasable field expansions — an unlocked-region flag
+           read over the farm map's own rows, never a second map */
+        if (mp === 'farm') {
+          for (let i = 0; i < BEK_FARM_PLOTS.length; i++) {
+            const p = BEK_FARM_PLOTS[i];
+            if (S.flag[p.flag] && x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1) return 'f';
+          }
+        }
         return m.rows[y].charAt(x);
       };
       const solid = (mp, x, y) => {
@@ -248,6 +266,32 @@ export default {
       const has = (id, n) => (S.bag[id] || 0) >= (n || 1);
       const add = (id, n) => { S.bag[id] = (S.bag[id] || 0) + (n || 1); if (S.bag[id] <= 0) delete S.bag[id]; };
       const say = t => { note = t; noteT = 2.8; };
+      /* ---- the bag's soft cap and the XP track --------------------------
+         `add()` above stays the raw, uncapped mutation: quest rewards, NPC
+         gifts and grant.item are guaranteed narrative and must never be
+         blocked by a full bag. `gainCapped` is what every *gathered* item
+         (a harvest, an ore, a catch, a shop purchase) goes through instead,
+         so S.bagCap — raised by the two sekk tiers Astrid sells — is the one
+         concrete thing the upgrade buys. */
+      const bagTotal = () => Object.values(S.bag).reduce((a, b) => a + b, 0);
+      function gainCapped(id, n) {
+        if (bagTotal() >= S.bagCap) { say(TX('SEKKEN ER FULL.', 'BAG IS FULL.')); deny(); return false; }
+        add(id, n || 1); return true;
+      }
+      /* One counter and one derived level per gathering activity, levels
+         0..3 at XP_STEP apart. Each level's effect is applied at its own
+         call site (spend(), the harvest/mine/forage/fish branches below)
+         rather than here — this only owns the counting and the level-up. */
+      const XP_STEP = 20, XP_MAX_LVL = 3;
+      function addXp(kind, n) {
+        S.xp[kind] = (S.xp[kind] || 0) + n;
+        const lvl = Math.min(XP_MAX_LVL, Math.floor(S.xp[kind] / XP_STEP));
+        if (lvl > (S.lvl[kind] || 0)) {
+          S.lvl[kind] = lvl;
+          say(TX('NIVÅ OPP: ', 'LEVEL UP: ') + kind.toUpperCase() + ' ' + lvl);
+          sfx.done();
+        }
+      }
       /* A refusal you can see beats a refusal you have to read. Two frames of
          recoil fires alongside the sound that was already there, so every
          "no" in the game got one without any of them being changed. */
@@ -378,6 +422,10 @@ export default {
         for (let i=0;i<2;i++) dropAt('fjord','tang');
         for (let i=0;i<2;i++) dropAt('lake','blabar',40,[1,9,8,4]);
         dropAt('enga','urt');
+        /* forage lvl2: the valley has more to find, every morning */
+        if (S.lvl.forage >= 2) {
+          dropAt('forest','sopp'); dropAt('setra','multe'); dropAt('vidda','tyttebar'); dropAt('enga','urt');
+        }
       }
       function newDay(passedOut) {
         S.day++; S.min = 6 * 60;
@@ -391,6 +439,23 @@ export default {
           if (c.wet) { c.age++; c.wet = 0; }
           const spec = BEK_CROPS[c.seed];
           if (spec && c.age >= spec.days) c.ready = 1;
+        });
+        /* the sprinkler: waters its own tile and the four it neighbours,
+           same as the player would with a kanne — but every morning, and
+           it never runs dry. Run after the ageing pass above so it is not
+           immediately zeroed out by the "no seed, so not wet" branch, and
+           its own watering only takes effect at the *next* day's ageing —
+           exactly the lag a player's afternoon watering already has. */
+        Object.keys(S.soil).forEach(k => {
+          if (!S.soil[k].spr) return;
+          const [sx, sy] = k.split(',').map(Number);
+          [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].forEach(d => {
+            const x = sx + d[0], y = sy + d[1];
+            if (tileAt('farm', x, y) !== 'f') return;
+            const nk = key(x, y);
+            const nc = S.soil[nk] || (S.soil[nk] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
+            nc.wet = 1;
+          });
         });
         const r = Math.random();
         S.weather = r < 0.20 ? 'regn' : r < 0.30 ? 'take' : 'klar';
@@ -419,6 +484,20 @@ export default {
         const cost = n + (S.en < 20 ? 1 : 0);               /* tired hands work harder */
         if (S.en < cost) { say(TX('FOR SLITEN. LEGG DEG.', 'TOO TIRED. GO TO BED.')); deny(); return false; }
         S.en -= cost; return true;
+      }
+      /* the tier-2 kanne's line: the two tiles either side of the one
+         watered dead ahead, perpendicular to the way the player is facing
+         (S.dir's own [x,y] delta), same as a real watering can pass */
+      function waterLine(f) {
+        const d = [[0, 1], [0, -1], [-1, 0], [1, 0]][S.dir];
+        const perp = d[0] === 0 ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]];
+        perp.forEach(p => {
+          const x = f.x + p[0], y = f.y + p[1];
+          if (tileAt(S.map, x, y) !== 'f') return;
+          const k = key(x, y);
+          const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
+          if (c.seed && !c.wet) c.wet = 1;
+        });
       }
       /* what a rare bite turns into, by water */
       function rareSpecies() { return S.map === 'fjord' ? 'kveite' : 'gullorret'; }
@@ -472,10 +551,11 @@ export default {
 
         const tool = BEK_TOOLS[S.tool];
         if (t === 'p' && S.picked[rkey(S.map, f.x, f.y)] <= S.day) {   /* pick a wildflower */
-          if (!spend(1)) return;
+          if (S.lvl.forage < 1 && !spend(1)) return;   /* forage lvl1: picking costs no energy */
           const kinds = ['blomst_bla', 'blomst_gul', 'blomst_ro'];
           const got = kinds[Math.floor(Math.random() * kinds.length)];
-          add(got, 1); S.picked[rkey(S.map, f.x, f.y)] = S.day + 1; terrLater(); sfx.pick();
+          if (!gainCapped(got, 1)) return;
+          S.picked[rkey(S.map, f.x, f.y)] = S.day + 1; terrLater(); sfx.pick(); addXp('forage', 1);
           startSwing('hand').drop = BEK_ITEMS[got].col;
           say('+1 ' + iname(got)); return;
         }
@@ -486,16 +566,18 @@ export default {
              strike frame, rather than racing it: `fish` does not exist until
              the rod has actually gone out. */
           sfx.cast();
+          /* fish lvl1: a fish finds the hook sooner */
+          const waitCut = S.lvl.fish >= 1 ? 0.4 : 0;
           startSwing('stang').then = () => {
-            fish = { phase: 'wait', t: 0.8 + Math.random() * 1.6, rare: Math.random() < 0.1 };
+            fish = { phase: 'wait', t: Math.max(0.3, 0.8 - waitCut + Math.random() * 1.6), rare: Math.random() < 0.1 };
           };
           return;
         }
         if (tool.id === 'oks') {
-          if (t === 'Y') { if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 2; terrLater(); add('tommer', 1); sfx.chop(); startSwing('oks'); say('+1 ' + iname('tommer')); return; }
+          if (t === 'Y') { if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 2; terrLater(); if (!gainCapped('tommer', 1)) return; sfx.chop(); startSwing('oks'); say('+1 ' + iname('tommer')); return; }
           if (t === 'G') {
             if (S.axeLv < 2) { say(TX('FOR STOR. Du trenger en STÅLØKS.', 'TOO BIG. You need a STEEL AXE.')); deny(); return; }
-            if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 3; terrLater(); add('tommer', 2); sfx.chop(); startSwing('oks'); say('+2 ' + iname('tommer')); return;
+            if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 3; terrLater(); if (!gainCapped('tommer', 2)) return; sfx.chop(); startSwing('oks'); say('+2 ' + iname('tommer')); return;
           }
           say(TX('INGENTING Å FELLE.', 'NOTHING TO FELL.')); return;
         }
@@ -503,10 +585,15 @@ export default {
           if (t !== 'O' && t !== 'Q') { say(TX('INGEN ÅRE HER.', 'NO VEIN HERE.')); return; }
           if (!S.tools.hakke) { say(TX('DU HAR INGEN HAKKE.', 'YOU HAVE NO PICK.')); deny(); return; }
           if (t === 'Q' && S.pickLv < 2) { say(TX('RIK ÅRE. Trenger STÅLHAKKE.', 'RICH VEIN. Needs a STEEL PICK.')); deny(); return; }
-          if (!spend(tool.e)) return;
-          S.mined[rkey(S.map, f.x, f.y)] = S.day + 3; terrLater(); sfx.mine();
+          /* mine lvl1: the pick bites for less energy */
+          const pickCost = Math.max(1, tool.e - (S.lvl.mine >= 1 ? 1 : 0));
+          if (!spend(pickCost)) return;
+          /* mine lvl2: a mined vein regrows a day sooner */
+          const regrow = Math.max(1, 3 - (S.lvl.mine >= 2 ? 1 : 0));
+          S.mined[rkey(S.map, f.x, f.y)] = S.day + regrow; terrLater(); sfx.mine();
           startSwing('hakke');
-          add('stein', 1);
+          if (!gainCapped('stein', 1)) return;
+          addXp('mine', 1);
           /* The metal is the one the tile is drawn as, not a fresh roll. Same
              weights as the roll it replaces (55/30/15 on a vein, 60/40 on a
              rich one) so nothing about the economy moves — but a vein you can
@@ -514,7 +601,10 @@ export default {
              after it regrows is the same square. */
           const ore = oreKind(rockVar(S.map, f.x, f.y), t === 'Q');
           swing.drop = BEK_ITEMS[ore].col;
-          add(ore, 1); say('+1 ' + iname(ore) + '  +1 ' + iname('stein')); return;
+          /* mine lvl3: one swing in four turns up an extra piece of ore */
+          const oreQty = S.lvl.mine >= 3 && Math.random() < 0.25 ? 2 : 1;
+          gainCapped(ore, oreQty);
+          say('+' + oreQty + ' ' + iname(ore) + '  +1 ' + iname('stein')); return;
         }
         /* the soil tools */
         if (t !== 'f') { say(TX('IKKE HER.', 'NOT HERE.')); return; }
@@ -522,18 +612,41 @@ export default {
         const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
         if (c.ready) {
           const spec = BEK_CROPS[c.seed];
-          if (!spend(1)) return; add(spec.out, 1); sfx.pick();
+          if (!spend(1)) return;
+          /* farm lvl3: a chance at a second head off the same plant */
+          const qty = S.lvl.farm >= 3 && Math.random() < 0.4 ? 2 : 1;
+          if (!gainCapped(spec.out, qty)) return;
+          sfx.pick(); addXp('farm', 1);
           startSwing('hand').drop = spec.col;
-          say('+1 ' + iname(spec.out));
-          if (spec.regrow) { c.ready = 0; c.age = spec.days - spec.regrow; } else { c.seed = ''; c.age = 0; c.ready = 0; }
+          say('+' + qty + ' ' + iname(spec.out));
+          if (spec.regrow) {
+            /* farm lvl2: a regrowing crop is ready a day sooner */
+            const regrow = Math.max(1, spec.regrow - (S.lvl.farm >= 2 ? 1 : 0));
+            c.ready = 0; c.age = spec.days - regrow;
+          } else { c.seed = ''; c.age = 0; c.ready = 0; }
           return;
         }
-        if (tool.id === 'spade') { if (c.till) { say(TX('ALLEREDE SPADD.', 'ALREADY TURNED.')); return; } if (!spend(tool.e)) return; c.till = 1; sfx.till(); startSwing('spade'); return; }
+        /* farm lvl1: the spade and the kanne both bite for less energy */
+        const soilCost = Math.max(1, tool.e - (S.lvl.farm >= 1 ? 1 : 0));
+        if (tool.id === 'spade') { if (c.till) { say(TX('ALLEREDE SPADD.', 'ALREADY TURNED.')); return; } if (!spend(soilCost)) return; c.till = 1; sfx.till(); startSwing('spade'); return; }
         if (tool.id === 'kanne') {
-          if (!c.seed) { say(TX('INGENTING PLANTET.', 'NOTHING PLANTED.')); return; }
+          if (!c.seed) {
+            /* holding the can at a tilled, empty square plants the sprinkler
+               instead of watering nothing — see BEK_ITEMS.sprinkler */
+            if (has('sprinkler') && !c.spr) {
+              if (!spend(1)) return;
+              add('sprinkler', -1); c.spr = 1; sfx.pick(); startSwing('hand');
+              say(TX('SATTE OPP SPREDER.', 'PLACED SPRINKLER.'));
+              return;
+            }
+            say(TX('INGENTING PLANTET.', 'NOTHING PLANTED.')); return;
+          }
           if (c.wet) { say(TX('ALLEREDE VANNET.', 'ALREADY WATERED.')); return; }
           if (S.water <= 0) { say(TX('KANNEN ER TOM.', 'THE CAN IS EMPTY.')); deny(); return; }
-          if (!spend(tool.e)) return; S.water--; c.wet = 1; sfx.water(); startSwing('kanne'); return;
+          if (!spend(soilCost)) return;
+          S.water--; c.wet = 1; sfx.water(); startSwing('kanne');
+          if (S.kanneLv >= 1) waterLine(f);      /* tier 2: a 1x3 line, not one tile */
+          return;
         }
       }
       function plant() {
@@ -617,7 +730,13 @@ export default {
           const pool = book.chat.filter(c => !c.if || c.if(S));
           const ix = (S.chatIx[npc.id] = (S.chatIx[npc.id] || 0) + 1);
           const pick = pool[(ix - 1) % pool.length];
-          dlg = { lines: pick.t.slice(), i: 0, npc: npc, menu: 1 };
+          /* a chat line may itself carry a `buy` (bag/kanne/plot upgrades):
+             dlgAdvance() checks dlg.buy before dlg.menu, so an upgrade offer
+             opens instead of the shop that line would otherwise open. Chat
+             is filtered on `if` every visit, unlike a `nodes` entry (one-shot
+             via S.seen), which is what lets the offer keep resurfacing until
+             it is actually bought. */
+          dlg = { lines: pick.t.slice(), i: 0, npc: npc, menu: 1, buy: pick.buy || null };
         }
         sfx.talk(); mode = 'talk';
       }
@@ -654,6 +773,13 @@ export default {
         if (o.tool) S.tools[o.tool] = 1;
         if (o.axeLv) S.axeLv = Math.max(S.axeLv, o.axeLv);
         if (o.pickLv) S.pickLv = Math.max(S.pickLv, o.pickLv);
+        if (o.kanneLv) S.kanneLv = Math.max(S.kanneLv, o.kanneLv);
+        if (o.waterMaxAdd) S.waterMax += o.waterMaxAdd;
+        if (o.bagCapAdd) S.bagCap += o.bagCapAdd;
+        if (o.bagTier) S.bagTier = Math.max(S.bagTier, o.bagTier);
+        /* a flag-granting offer (the farm plot expansions) changes what
+           tileAt() reads for the farm map, so the terrain cache must rebuild */
+        if (o.flag) { Object.assign(S.flag, o.flag); terrDirty(); }
         sfx.coin();
         dlg = { lines: o.ok.slice(), i: 0, npc: null }; mode = 'talk'; offer = null;
       }
@@ -692,7 +818,8 @@ export default {
         if (id === 'rabarbrafro' && !S.flag.rabarbra) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
         const p = price(id);
         if (S.kr < p) { say(TX('IKKE RÅD.', 'CANNOT AFFORD.')); deny(); return; }
-        S.kr -= p; add(id, 1); sfx.coin(); say(TX('KJØPTE ', 'BOUGHT ') + iname(id));
+        if (!gainCapped(id, 1)) return;
+        S.kr -= p; sfx.coin(); say(TX('KJØPTE ', 'BOUGHT ') + iname(id));
       }
       function shopSell() {
         const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0 && BEK_ITEMS[id].sell);
@@ -807,10 +934,15 @@ export default {
           /* a rare fish is a much narrower window on a much faster needle,
              wants one more pull, and forgives one fewer slip */
           fish.need = r ? 3 : 2;
-          fish.maxMiss = r ? 2 : 3;
+          /* fish lvl2: one more slip is forgiven before the line breaks */
+          fish.maxMiss = (r ? 2 : 3) + (S.lvl.fish >= 2 ? 1 : 0);
           fish.spd = r ? 2.7 : 1.15;
-          fish.z0 = r ? 0.455 : 0.34;
-          fish.z1 = r ? 0.545 : 0.66;
+          /* fish lvl3: the catch window itself is wider — the drawn zone in
+             menus.js reads these same fish.z0/z1, so the widened window is
+             what the player sees as well as what tickFish/fishTap test */
+          const widen = S.lvl.fish >= 3 ? 0.04 : 0;
+          fish.z0 = Math.max(0, (r ? 0.455 : 0.34) - widen);
+          fish.z1 = Math.min(1, (r ? 0.545 : 0.66) + widen);
           fish.t = r ? 7 : 6;
           sfx.cast(); return;
         }
@@ -820,8 +952,11 @@ export default {
             fish.hits++; sfx.bite();
             if (fish.hits >= fish.need) {
               const sp = fishSpecies(fish.miss === 0, fish.rare);
-              add(sp, 1); say('+1 ' + iname(sp));
-              if (fish.rare) { sfx.done(); say(TX('SJELDEN FANGST! +1 ', 'RARE CATCH! +1 ') + iname(sp)); } else sfx.catch_();
+              if (gainCapped(sp, 1)) {
+                addXp('fish', fish.rare ? 5 : 3);
+                say('+1 ' + iname(sp));
+                if (fish.rare) { sfx.done(); say(TX('SJELDEN FANGST! +1 ', 'RARE CATCH! +1 ') + iname(sp)); } else sfx.catch_();
+              }
               fish = null;
             }
           }
@@ -865,7 +1000,14 @@ export default {
         if (npcsHere().some(n => n.x === nx && n.y === ny)) return;
         S.px = nx; S.py = ny;
         if (S.step % 2 === 0) sfx.step();
-        for (let i = S.drops.length - 1; i >= 0; i--) { const d = S.drops[i]; if (d.map === S.map && d.x === S.px && d.y === S.py) { add(d.item, 1); S.drops.splice(i, 1); sfx.pick(); say('+1 ' + iname(d.item)); } }
+        for (let i = S.drops.length - 1; i >= 0; i--) {
+          const d = S.drops[i];
+          if (d.map !== S.map || d.x !== S.px || d.y !== S.py) continue;
+          /* forage lvl3: a walked-over drop occasionally doubles up */
+          const qty = S.lvl.forage >= 3 && Math.random() < 0.3 ? 2 : 1;
+          if (!gainCapped(d.item, qty)) continue;
+          S.drops.splice(i, 1); sfx.pick(); addXp('forage', 1); say('+' + qty + ' ' + iname(d.item));
+        }
       }
       function tickClock(dt) {
         if (mode === 'end') return;

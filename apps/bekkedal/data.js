@@ -117,6 +117,9 @@ export const BEK_ITEMS = {
   solv:       { name: { no: 'SØLV',       en: 'SILVER ORE'   }, sell: 220, icon: 'ore',   col: 15 },
   spiker:     { name: { no: 'SPIKER',     en: 'NAILS'        }, buy: 30, sell: 12, icon: 'nail', col: 8 },
   tau:        { name: { no: 'TAU',        en: 'ROPE'         }, buy: 45, sell: 16, icon: 'rope', col: 6 },
+  /* placeable farm gear — `place: true` is read by act()'s kanne branch,
+     never by the shop or the bag, which treat it like any other item */
+  sprinkler:  { name: { no: 'SPREDER',    en: 'SPRINKLER'    }, buy: 250, sell: 60, icon: 'sprinkler', col: 7, place: true },
   /* fish */
   orret:      { name: { no: 'ØRRET',      en: 'TROUT'        }, sell: 65,  icon: 'fish',  col: 13 },
   laks:       { name: { no: 'LAKS',       en: 'SALMON'       }, sell: 130, icon: 'fish',  col: 6  },
@@ -705,6 +708,22 @@ export const BEK_MAPS = {
 };
 
 /* ==========================================================================
+   27.1c THE FARM PLOTS
+   --------------------------------------------------------------------------
+   Two purchasable unlocks over the farm map's own grass, never a new map or
+   a new map id. `tileAt` in index.js reads a plot's rect as 'f' once
+   `S.flag[plot.flag]` is set, exactly the way it already reads S.built's
+   BEK_HOUSE overlay on the lake map — the base rows never change. Both
+   rects sit on plain grass south of the original plot (rows 2-6, cols
+   10-19) and clear the tall grass at (12-13, 11-12) and the flowers at
+   (2, 10) and (18, 10).
+   ========================================================================== */
+export const BEK_FARM_PLOTS = [
+  { flag: 'plot2', x0: 10, y0: 9,  x1: 17, y1: 10 },
+  { flag: 'plot3', x0: 15, y0: 11, x1: 21, y1: 13 }
+];
+
+/* ==========================================================================
    27.2a WHAT GROWS ROUND THE EDGE
    --------------------------------------------------------------------------
    The mix of species in each map's treeline, and how thick it stands. Weights
@@ -859,9 +878,27 @@ export const BEK_TALK = {
       { t: ['ASTRID: You came for the quiet. It is still here.'], if: S => S.flag.why === 'quiet' },
       { t: ['ASTRID: Land is cheap. Company is not.'], if: S => S.flag.why === 'land' },
       { t: ['ASTRID: Sigrid has wool up at the seter, if the vidda calls you.'], if: S => S.disc && S.disc.setra },
-      { t: ['ASTRID: Håkon says you have been felling. Good.'], if: S => S.q.tommer === 'done' }
+      { t: ['ASTRID: Håkon says you have been felling. Good.'], if: S => S.q.tommer === 'done' },
+      /* the tau/spiker Astrid used to carry are Lars's stock too — freeing
+         one shop row is what makes room for the sprinkler on this list
+         without the shop panel growing past SHOP_ROWS */
+      { t: [{ no: 'ASTRID: A bigger sekk carries more before your back complains.', en: 'ASTRID: A bigger bag carries more before your back complains.' }],
+        if: S => !S.bagTier && S.fr.astrid >= 1,
+        buy: { label: { no: 'STØRRE SEKK — 400 kr', en: 'BIGGER BAG — 400 kr' }, kr: 400, bagCapAdd: 40, bagTier: 1,
+               ok: ['ASTRID: There. Room to breathe.'],
+               no: ['ASTRID: 400 kr. Ask me again later.'] } },
+      { t: [{ no: 'ASTRID: There is a bigger sekk still, if the first was not enough.', en: 'ASTRID: There is a bigger bag still, if the first was not enough.' }],
+        if: S => S.bagTier === 1 && S.fr.astrid >= 3,
+        buy: { label: { no: 'STOR SEKK — 900 kr', en: 'BIG BAG — 900 kr' }, kr: 900, bagCapAdd: 60, bagTier: 2,
+               ok: ['ASTRID: Now you can carry half the valley.'],
+               no: ['ASTRID: 900 kr. When you have it.'] } },
+      { t: [{ no: 'ASTRID: A bigger kanne holds more, and waters three furrows at once.', en: 'ASTRID: A bigger can holds more, and waters three furrows at once.' }],
+        if: S => !S.kanneLv && S.fr.astrid >= 2,
+        buy: { label: { no: 'STOR VANNKANNE — 700 kr', en: 'BIG WATERING CAN — 700 kr' }, kr: 700, kanneLv: 1, waterMaxAdd: 15,
+               ok: ['ASTRID: Mind your wrist. It is heavier full.'],
+               no: ['ASTRID: 700 kr. Come back when you have it.'] } }
     ],
-    shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro', 'kaffe', 'vaffel', 'lefse', 'lykt', 'tau', 'spiker']
+    shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro', 'kaffe', 'vaffel', 'lefse', 'lykt', 'sprinkler']
   },
 
   hakon: {
@@ -897,7 +934,17 @@ export const BEK_TALK = {
       { t: ['HÅKON: Wood moves in autumn. Build in summer.'] },
       { t: [{ no: 'HÅKON: Stein comes out of the gruva with the ore. Bring both.', en: 'HÅKON: Stone comes out of the mine with the ore. Bring both.' }] },
       { t: ['HÅKON: Timber you carry is timber you respect.'], if: S => S.flag.build === 'skog' },
-      { t: ['HÅKON: The planks are ordered. They come when they come.'], if: S => S.flag.build === 'kjop' }
+      { t: ['HÅKON: The planks are ordered. They come when they come.'], if: S => S.flag.build === 'kjop' },
+      { t: [{ no: 'HÅKON: The ground south of your plot would till clean, if you wanted it broken.', en: 'HÅKON: The ground south of your plot would till clean, if you wanted it broken.' }],
+        if: S => !S.flag.plot2 && S.q.tommer === 'done',
+        buy: { label: { no: 'NYTT JORDE — 800 kr', en: 'NEW FIELD — 800 kr' }, kr: 800, flag: { plot2: 1 },
+               ok: ['HÅKON: I will have it cleared by morning.'],
+               no: ['HÅKON: 800 kr. The ground will keep.'] } },
+      { t: [{ no: 'HÅKON: Further out still, if the first field filled up fast.', en: 'HÅKON: Further out still, if the first field filled up fast.' }],
+        if: S => S.flag.plot2 && !S.flag.plot3,
+        buy: { label: { no: 'STØRRE JORDE — 1500 kr', en: 'BIGGER FIELD — 1500 kr' }, kr: 1500, flag: { plot3: 1 },
+               ok: ['HÅKON: That is most of the flat ground gone now.'],
+               no: ['HÅKON: 1500 kr. No rush.'] } }
     ]
   },
 
