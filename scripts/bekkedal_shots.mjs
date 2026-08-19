@@ -103,16 +103,30 @@ shot('shorelab_dusk', { map: 'lake', px: 10, py: 8, min: 19 * 60, flag: { boat: 
 /* the four treeline corners, camera clamped to each end of its travel */
 shot('farm_corner_top', { map: 'farm', px: 1, py: 0, min: 12 * 60 });
 shot('farm_corner_bot', { map: 'farm', px: 22, py: 14, min: 12 * 60 });
-/* every tool, at rest and mid-swing, against something it can actually work */
+/* Every tool at rest and at each of its three phases, stood in front of
+   something it can actually work — an axe swung at empty grass throws no
+   chips, and a shot of that proves nothing. */
 const SWING = [
-  ['spade', 0, 'farm', 12, 6, 3], ['kanne', 1, 'farm', 12, 6, 3],
-  ['oks', 2, 'forest', 12, 8, 0], ['stang', 3, 'lake', 8, 8, 3], ['hakke', 4, 'gruva', 12, 8, 3]
+  ['spade', 0, 'farm', 13, 4, 0],      /* facing a plot                     */
+  ['kanne', 1, 'farm', 13, 4, 0],      /* the same plot, tilled and sown    */
+  ['oks', 2, 'forest', 10, 7, 0],      /* above the birch at (10, 8)        */
+  ['hakke', 4, 'gruva', 14, 7, 0],     /* above the rich vein at (14, 8)    */
+  ['stang', 3, 'lake', 9, 7, 0]        /* on the pier, facing the shallows  */
 ];
 for (const [id, ix, mp, x, y, dir] of SWING) {
   for (const ph of [0, 1, 2, 3]) {
     shot('swing_' + id + '_' + ph, { map: mp, px: x, py: y, dir: dir, tool: ix, min: 12 * 60 },
          { swing: ph, till: id === 'kanne' });
   }
+}
+
+/* Every panel, opened through the same code the keyboard opens it with. A
+   menu is the one part of the picture a screenshot of the world never covers,
+   and a panel that throws only throws when somebody opens it. */
+for (const m of ['bag', 'quest', 'travel', 'shop', 'talk', 'offer', 'fish', 'sleep', 'end']) {
+  shot('menu_' + m, { map: 'town', px: 4, py: 5, min: 12 * 60, disc: { farm: 1, town: 1, lake: 1 },
+                      q: { fisk: 'active' }, bag: { potet: 3, jern: 2, tommer: 9, blabar: 5 } },
+       { menu: m });
 }
 
 mkdirSync(OUT, { recursive: true });
@@ -173,6 +187,7 @@ for (const s of shots) {
 
   const png = await page.evaluate(async (opts) => {
     const cv = document.querySelector('canvas.bekcv');
+    if (opts.menu && window.__bekDebug) window.__bekDebug.menu(opts.menu);
     if (opts.swing != null && window.__bekDebug) window.__bekDebug.swing(opts.swing, opts.till);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     if (opts.bits === 1) {

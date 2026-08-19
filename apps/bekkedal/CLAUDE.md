@@ -10,7 +10,7 @@ there is no separate dev entry point for this app.
 ## File split
 
 `data.js` holds only static content tables (items, crops, tools, maps, NPCs,
-dialogue, quests) plus the geometry constants — no functions that mutate game
+decor placements, treeline mixes, dialogue, quests) plus the geometry constants — no functions that mutate game
 state, no rendering, no DOM access. `index.js` holds all engine and game logic:
 state, input, drawing, audio, save/load. When adding content, it goes in
 `data.js`; when adding behavior, it goes in `index.js`. Don't let either drift
@@ -58,6 +58,15 @@ scripts that check them:
 - `forest.js` — the ring of trees round every outdoor map, as one continuous
   strip. Also the lone trees inside a map, so a tree in a field and a tree in
   the wall are the same tree. See **The treeline** below.
+- `fx.js` — the swing: its three phases per tool, the arc the held tool
+  travels, and the little ballistic particle list the chips, dust and spray
+  come out of. See **The swing** below.
+- `crops.js` — the ploughed plot and what grows in it. The one tile that
+  reads `S.soil` rather than the map, which is why it is live and not cached.
+- `actors.js` — the people, the animals, and the item icons.
+- `menus.js` — every panel the game puts over the picture. All chrome, so all
+  of it draws after the LUT goes back to daylight.
+- `music.js` — five tunes and the crossfading scheduler that rotates them.
 - `decor.js` — the things in a room. The five pieces of glyph furniture, and
   a *kind* per prop; where each prop stands is content, in `BEK_DECOR`
   (`data.js`).
@@ -619,6 +628,55 @@ light 12. The light pass is the expensive half because a pool is several
 hundred stipple cells; batching a whole pool inside **one** `native()` rather
 than letting `wash` open one per cell took it from 25ms to 12. Anything that
 draws hundreds of small rects should do the same.
+
+## The swing
+
+`act()` used to resolve everything on one frame: check the tile, spend the
+energy, mutate the state, `terrDirty()`, play a sound, print "+1 TØMMER". The
+tree you felled vanished on the same frame the axe was never seen to swing.
+
+`fx.js` gives every tool three phases — roughly 0.10s windup, 0.05s strike,
+0.15s follow-through, which at the 30fps draw rate is about three drawn
+frames, two and four. **Slight is the specification**: a farming game where
+every action costs half a second of animation is tiring inside ten minutes.
+
+Four things make it read as a hit rather than as a wiggle:
+
+- **The effect lands on the target tile.** Chips off the birch, dust and
+  sparks off the ore, a clod turning in the soil, a splash ring at the water,
+  a sprout when you plant, the item arcing up when it lands in your bag. That
+  is where the payoff is; the player is only the thing that started it.
+- **A camera kick on the strike frame**, under three pixels and under two
+  frames, applied after the clamp so it can nudge the frame free for a
+  moment. Past three pixels it is motion sickness.
+- **The tool is in the hand.** `person` drew none at all, which is why a
+  swing had nothing to be a swing *of*. `ARC` in `fx.js` is four points —
+  carried, the top of the windup, impact, rest — and point 0 doubles as the
+  pose when nothing is happening, so a tool you own is always in your hand.
+- **The failures animate too.** `deny()` fires two frames of recoil beside
+  the sound that was already there, so every "no" in the game got one without
+  any of them being changed.
+
+### Where the state lives, and what is deferred
+
+A swing is transient by definition: it lives beside `fish` and `note` as a
+module-local, **never in `S`**. It must not survive a reload and it must not
+appear in a save. Everything ticks on the frame loop's own `dt`, never on a
+timer, or `unmount()` leaks.
+
+`act()` still mutates state immediately, and that is deliberate — nothing can
+double-resolve, the player cannot walk away mid-swing, and `autoSave()` can
+never catch a half-applied action. The only artefact was the terrain cache
+repainting the felled tree before the axe landed, **so the repaint is what
+gets deferred, not the state change**: `terrLater()` arms it and the strike
+frame fires it. A direct `terrDirty()` in the meantime still takes effect at
+once and clears the arming, so a second source of change is never swallowed
+by a swing that happens to be in flight.
+
+Movement is held for the duration, and a second press is *buffered* rather
+than dropped, so holding the key chops at the rate the animation allows. The
+rod's cast hands off to the fishing minigame on the strike frame rather than
+racing it: `fish` does not exist until the rod has actually gone out.
 
 ## Light and the hour
 
