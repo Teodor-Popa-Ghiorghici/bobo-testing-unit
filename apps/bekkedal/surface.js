@@ -77,6 +77,7 @@ export function solidOf(mapId, c) {
     case 'M': case 'O': case 'Q': return snowy(mapId) ? SNO[0] : STO[2];
     case 'v': return STO[3];                  /* the stone surround of a hearth         */
     case 'o': return STO[4];                  /* a well, pale stone against the grass   */
+    case 'K': return TIM[3];                  /* the chest, read as its planed lid      */
     /* Furniture reads as its top surface, which is the lit face you see from
        above — a bench is its seat and not its legs. Planed boards are also a
        step or two up the ramp from the log walls they stand against, which is

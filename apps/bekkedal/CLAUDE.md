@@ -844,6 +844,36 @@ by the LUT as well as by the context, colour and strength, and swept when
 the hour's table changes, so patterns baked at one hour are never filled
 with at the next.
 
+## Crafting and the chest
+
+Player-side crafting sits beside Sigrid's food shop (`BEK_TALK.sigrid.shop`)
+rather than folded into it — that dialogue node is untouched. The chest is a
+`'K'` tile baked into the farm map's own rows (row 5, col 6), the same
+mechanism as the well (`'o'`) and the sign (`'S'`): a literal glyph, solid in
+`BEK_SOLID`, read apart from grass by `solidOf` in `surface.js`, drawn in
+`index.js`'s `tileDetail` switch. Facing it and pressing act opens
+`mode = 'craft'`, a panel that reuses `SHOP_X/Y/W/H/ROWS/ROW/COL_W/NAME_DX/
+PRICE_DX` (`layout.js`) and the shop's own arrows-select/space-act/escape-
+close input verbatim — `drawCraft()` in `menus.js` sits right next to
+`drawShop()` and reads the same way, LAGE/KOK (craft/cook) standing in for
+BUY/SELL.
+
+`BEK_RECIPES` (`data.js`) is two lists, one per column: `craft` (sprinkler,
+gjerde, dyrefor) and `cook` (one raw crop plus one animal product each,
+restoring more energy than the best shop food — see `BEK_ITEMS`). A recipe's
+`need`/`out` are `BEK_ITEMS` ids, same rule as a quest's `need`. `fr`/`lvl`
+gate it exactly the way a `BEK_TALK` node gates on friendship — read-only,
+raised only through the paths that already raise `S.fr` and `S.lvl` — so no
+recipe spends kr; crafting has no currency of its own.
+
+The chest's contents (`S.chest`) are a `{itemId: qty}` map, serialized in
+`BEK_SAVE` and healed exactly like `S.bag` (bumped `ver` to 7). Crafting
+spends from chest and bag as one combined stock, chest first, and output
+goes to the bag through the usual soft cap, overflowing to the chest
+(uncapped) rather than being lost — so the chest is both where a farmer
+stockpiles ingredients ahead of a session and where a full bag's surplus
+ends up.
+
 ## Autosave
 
 `autoSave()` runs every ~6 accumulated seconds of frame time (`autoT` in the

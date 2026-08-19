@@ -4,6 +4,7 @@ import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT, BEK_BARN_SLOTS, BEK_ANIMAL_KINDS,
+         BEK_RECIPES,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
@@ -175,7 +176,7 @@ export default {
       /* ---- state -------------------------------------------------------- */
       let S = null;
       const fresh = () => ({
-        ver: 6, lang: BEK_LANG, fullscreen: 0,
+        ver: 7, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -185,6 +186,12 @@ export default {
            bought at, so the offer that sells tier 2 knows tier 1 is done */
         bagCap: 80, bagTier: 0,
         bag: { potetfro: 5 },
+        /* the chest — the 'K' tile on the farm map, see act() and
+           tileDetail below — same {itemId: qty} shape as bag, same soft
+           rules (add()/has() style helpers), just no bagCap. Crafting
+           output that will not fit the bag overflows here rather than
+           being lost — see craftGain() in the crafting section. */
+        chest: {},
         soil: {}, felled: {}, mined: {}, picked: {}, drops: [],
         /* owned animals: { id, kind, x, y, fed, pet, ready }. `id` is also
            the key S.fr reads their affection off — the same counter an NPC
@@ -209,7 +216,7 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'xp', 'lvl'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
@@ -223,7 +230,7 @@ export default {
         return s;
       };
 
-      let mode = '', dlg = null, shop = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
+      let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
       /* ---- the swing ------------------------------------------------------
          Transient by definition — it must not survive a reload and it must
          not appear in a save, so it lives here beside `fish` and `note` and
@@ -575,6 +582,7 @@ export default {
         if (t === 'S' && S.map === 'lake') return lotSign();
         if (t === 'S') { say(TX('OPPSLAGSTAVLE — TRYKK Q.', 'NOTICE BOARD — PRESS Q.')); return; }
         if (t === 'D') { if (doorTravel(f)) return; say(TX('LÅST.', 'LOCKED.')); deny(); return; }
+        if (t === 'K') { openCraft(); return; }
 
         const tool = BEK_TOOLS[S.tool];
         if (t === 'p' && S.picked[rkey(S.map, f.x, f.y)] <= S.day) {   /* pick a wildflower */
@@ -901,6 +909,49 @@ export default {
         S.kr += BEK_ITEMS[id].sell; add(id, -1); sfx.coin(); say(TX('SOLGTE ', 'SOLD ') + iname(id));
       }
 
+      /* ---- crafting, at the chest ('K' on the farm map) ------------------
+         The recipe lists (BEK_RECIPES) are static content; the chest and the
+         bag are one combined stock to craft from, chest spent first — the
+         chest is where a farmer stockpiles the raw materials, so ingredients
+         sitting there should count exactly like ingredients carried. Output
+         goes to the bag through the same soft cap every gathered item uses,
+         and overflows to the chest (uncapped, like a gift) rather than being
+         lost — crafting itself never fails once the ingredients are spent. */
+      const stockOf = id => (S.chest[id] || 0) + (S.bag[id] || 0);
+      const hasStock = (id, n) => stockOf(id) >= (n || 1);
+      function spendStock(id, n) {
+        const fromChest = Math.min(S.chest[id] || 0, n);
+        if (fromChest) { S.chest[id] -= fromChest; if (S.chest[id] <= 0) delete S.chest[id]; }
+        const rest = n - fromChest;
+        if (rest) add(id, -rest);
+      }
+      function craftGain(id, n) {
+        if (bagTotal() + n <= S.bagCap) { add(id, n); return; }
+        S.chest[id] = (S.chest[id] || 0) + n;
+      }
+      function recipeUnlocked(r) {
+        if (r.fr && (S.fr[r.fr.npc] || 0) < r.fr.min) return false;
+        if (r.lvl && (S.lvl[r.lvl.kind] || 0) < r.lvl.min) return false;
+        return true;
+      }
+      /* how many of a recipe the current combined stock can pay for right
+         now — menus.js shows this so the panel reads as useful, not just a
+         locked/unlocked list */
+      function craftCount(r) {
+        return Object.keys(r.need).reduce((m, id) => Math.min(m, Math.floor(stockOf(id) / r.need[id])), Infinity);
+      }
+      function openCraft() { craft = { side: 0, sel: 0 }; mode = 'craft'; sfx.talk(); }
+      function doCraft() {
+        const list = BEK_RECIPES[craft.side ? 'cook' : 'craft'];
+        const r = list[craft.sel];
+        if (!r) return;
+        if (!recipeUnlocked(r)) { say(TX('OPPSKRIFTEN ER IKKE LÅST OPP ENNÅ.', 'RECIPE NOT UNLOCKED YET.')); deny(); return; }
+        if (!Object.keys(r.need).every(id => hasStock(id, r.need[id]))) { say(TX('MANGLER RÅVARER.', 'MISSING INGREDIENTS.')); deny(); return; }
+        Object.keys(r.need).forEach(id => spendStock(id, r.need[id]));
+        craftGain(r.out, r.qty || 1);
+        sfx.pick(); say('+' + (r.qty || 1) + ' ' + iname(r.out));
+      }
+
       /* ---- fast travel -------------------------------------------------- */
       function openTravel() {
         const list = Object.keys(S.disc).filter(m => BEK_HOME[m] && m !== S.map);
@@ -924,6 +975,7 @@ export default {
         if (mode === 'talk' && dlg && !dlg.opts) { dlgAdvance(); return; }
         if (mode === 'offer') { offer = null; mode = ''; return; }
         if (mode === 'shop') { shop = null; mode = ''; return; }
+        if (mode === 'craft') { craft = null; mode = ''; return; }
         if (mode === 'travel') { travel = null; mode = ''; return; }
         if (mode === 'bag' || mode === 'quest' || mode === 'sleep') { mode = ''; return; }
       }
@@ -965,6 +1017,16 @@ export default {
           if (k === 'w' || k === 'ArrowUp') shop.sel = (shop.sel + len - 1) % len;
           if (k === 's' || k === 'ArrowDown') shop.sel = (shop.sel + 1) % len;
           if (k === ' ' || k === 'Enter') { shop.side ? shopSell() : shopBuy(); }
+          if (k === 'Escape' || k === 'e') closeMenu();
+          return;
+        }
+        if (mode === 'craft') {
+          const len = Math.max(1, BEK_RECIPES[craft.side ? 'cook' : 'craft'].length);
+          if (k === 'ArrowLeft' || k === 'a') { craft.side = 0; craft.sel = 0; }
+          if (k === 'ArrowRight' || k === 'd') { craft.side = 1; craft.sel = 0; }
+          if (k === 'w' || k === 'ArrowUp') craft.sel = (craft.sel + len - 1) % len;
+          if (k === 's' || k === 'ArrowDown') craft.sel = (craft.sel + 1) % len;
+          if (k === ' ' || k === 'Enter') doCraft();
           if (k === 'Escape' || k === 'e') closeMenu();
           return;
         }
@@ -1045,7 +1107,7 @@ export default {
           S = heal(Object.assign(fresh(), JSON.parse(raw)));
           terrDirty();                                    /* a loaded save brings its own felled/mined/picked */
           BEK_LANG = S.lang || BEK_LANG; refreshBar();
-          mode = ''; dlg = null; shop = null; fish = null; travel = null; offer = null;
+          mode = ''; dlg = null; shop = null; craft = null; fish = null; travel = null; offer = null;
           say(T(UI.loaded) + ' DAG ' + S.day + '.'); sfx.coin();
         } catch (e) { say(TX('LAGRINGEN ER ØDELAGT.', 'SAVE IS UNREADABLE.')); }
         cv.focus();
@@ -1575,6 +1637,7 @@ export default {
         if (c === 'D') { g.fillStyle = C(TIM[2]); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(TIM[1]); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(WAR[4]); g.fillRect(px + 12, py + 11, 2, 2); }
         if (c === 'o') { g.fillStyle = C(STO[4]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 16, 14, 2); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
         if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
+        if (c === 'K') { g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 9, 16, 9); g.fillStyle = C(TIM[3]); g.fillRect(px + 2, py + 5, 16, 5); g.fillStyle = C(TIM[0]); g.fillRect(px + 2, py + 9, 16, 1); g.fillStyle = C(WAR[1]); g.fillRect(px + 9, py + 8, 2, 5); }
         if (c === 'L') { g.fillStyle = C(TIM[3]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
         if (c === 'f') { g.fillStyle = C(SOI[1]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
         if (c === 'k') { g.fillStyle = C(DRY[2]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
@@ -2030,6 +2093,7 @@ export default {
 
         if (mode === 'talk' && dlg) drawTalk();
         if (mode === 'shop') drawShop();
+        if (mode === 'craft') drawCraft();
         if (mode === 'offer') drawOffer();
         if (mode === 'bag') drawBag();
         if (mode === 'quest') drawQuests();
@@ -2049,11 +2113,12 @@ export default {
          fishing gauge, the dialogue box, the shop, the bag, the quest board,
          the travel list and the ending painting. All chrome, so all of it
          draws after the LUT goes back to daylight. */
-      const { drawFish, drawTalk, drawOffer, drawShop, drawBag, drawQuests, drawTravel,
+      const { drawFish, drawTalk, drawOffer, drawShop, drawCraft, drawBag, drawQuests, drawTravel,
               drawEnd, toolName } = createMenus({
-        S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop,
+        S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop, craft: () => craft,
         travel: () => travel, offer: () => offer,
         T: T, TX: TX, iname: iname, price: price, houseCost: houseCost,
+        recipeUnlocked: recipeUnlocked, craftCount: craftCount,
         panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,
         dither: dither, bear: bear, artScale: BEK_ART_SCALE
       }, () => g, C);
@@ -2106,6 +2171,7 @@ export default {
         menu: name => {
           mode = name || '';
           if (name === 'shop') shop = { list: BEK_TALK.astrid.shop, sel: 0, side: 0, npc: BEK_NPCS[0] };
+          if (name === 'craft') craft = { side: 0, sel: 0 };
           if (name === 'talk') dlg = { lines: [BEK_TALK.astrid.chat[0].t[0]], i: 0, npc: BEK_NPCS[0] };
           if (name === 'offer') offer = { label: { no: 'BÅT', en: 'BOAT' }, kr: 400 };
           if (name === 'travel') travel = { list: Object.keys(S.disc), sel: 0 };
