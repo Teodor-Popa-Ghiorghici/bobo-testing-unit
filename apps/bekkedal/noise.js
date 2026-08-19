@@ -162,7 +162,11 @@ const R_ROCK = [
   F('ix', 11, JIT), F('iy', 12, JIT),            /* four inclusions, for the */
   F('jx', 13, JIT), F('jy', 14, JIT),            /* ore and crystal faces    */
   F('hx', 15, JIT), F('hy', 16, JIT),
-  F('lx', 17, JIT), F('ly', 18, JIT)
+  F('lx', 17, JIT), F('ly', 18, JIT),
+  /* Which metal this square carries. Twenty values rather than five because
+     the weights it stands in for are 55/30/15, and rounding those to fifths
+     would move the economy — see `oreKind` in rock.js. */
+  F('ore', 19, 20)
 ];
 
 const R_PATH = [
@@ -193,6 +197,30 @@ const R_SOIL = [                                 /* standing water in a furrow *
   F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT)
 ];
 
+/* The one stream that is not indexed by a grid square. A shore's foam used to
+   break per tile, which drew a visible 40px rhythm along any straight stretch
+   of it; the breaks come off the distance *along the seam* now, so a run of
+   shore is one line of surf however many tiles it crosses. Indexed by that
+   distance in `i`, with y pinned to 0 — still the same hash, still salted per
+   map, and still declared here so `tile_check.js` tests it. */
+const R_SEAM = [
+  F('foam', 0, 5),                               /* where the surf breaks   */
+  F('crest', 1, 7)                               /* and where it catches    */
+];
+
+/* The other stream that is not indexed by a grid square. The treeline is a
+   continuous strip rather than a row of stamped tiles (see forest.js), so its
+   trees are indexed by distance *along* the band and by which depth layer
+   they belong to — `x` is the step index along the band, `y` is the layer.
+   Nothing on a 40px cadence, which is the entire point of it. */
+const R_TREE = [
+  F('gap', 0, 8),                                /* how far to the next one */
+  F('sp', 1, 12),                                /* which species           */
+  F('h', 2, 7), F('w', 3, 5),                    /* how tall, how wide      */
+  F('lean', 4, 5), F('d', 5, 7),                 /* which way, how far back */
+  F('lit', 6, 4), F('br', 7, 6)                  /* catching light; brush   */
+];
+
 /* One block per glyph, so a fir and a birch on the same square would not be
    making the same decision twice. */
 const OBJ_BASE = 128, OBJ_SPAN = 16;
@@ -214,7 +242,7 @@ const R_OBJ = {
 };
 
 const GROUND_BASE = 0, ROCK_BASE = 16, PATH_BASE = 40, WATER_BASE = 56,
-      EDGE_BASE = 68, SOIL_BASE = 76;
+      EDGE_BASE = 68, SOIL_BASE = 76, SEAM_BASE = 84, TREE_BASE = 96;
 
 /* ---- reading a recipe ---------------------------------------------------- */
 function roll(recipe, base, mapId, x, y) {
@@ -229,6 +257,8 @@ export const waterVar = (mapId, x, y) => roll(R_WATER, WATER_BASE, mapId, x, y);
 export const edgeVar = (mapId, x, y) => roll(R_EDGE, EDGE_BASE, mapId, x, y);
 export const soilVar = (mapId, x, y) => roll(R_SOIL, SOIL_BASE, mapId, x, y);
 export const objVar = (c, mapId, x, y) => (R_OBJ[c] ? roll(R_OBJ[c], objBase(c), mapId, x, y) : {});
+export const seamVar = (mapId, i) => roll(R_SEAM, SEAM_BASE, mapId, i, 0);
+export const treeVar = (mapId, i, layer) => roll(R_TREE, TREE_BASE, mapId, i, layer);
 
 /* ---- the tuple the checks compare ----------------------------------------
    Every high-frequency decision a tile of char `c` makes, flattened in
@@ -261,6 +291,8 @@ export function channels() {
   add('water', R_WATER, WATER_BASE);
   add('edge', R_EDGE, EDGE_BASE);
   add('soil', R_SOIL, SOIL_BASE);
+  add('seam', R_SEAM, SEAM_BASE);
+  add('tree', R_TREE, TREE_BASE);
   Object.keys(R_OBJ).forEach(c => add('obj[' + c + ']', R_OBJ[c], objBase(c)));
   return out;
 }

@@ -1,16 +1,30 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
-import { VGA16 } from '../../kernel/god.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
-         BEK_TALK, BEK_QUESTS, BEK_HOUSE,
+         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
          BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
-         soilVar, objVar, LOW, PATCH, JIT } from './noise.js';
+         soilVar, objVar, seamVar, treeVar, LOW, PATCH, JIT } from './noise.js';
+import { createShore } from './shore.js';
+import { createWater } from './water.js';
+import { createRock, oreKind } from './rock.js';
+import { createInterior } from './interior.js';
+import { createForest } from './forest.js';
+import { createFx, TOOL_SWING, swingLen, toolAt, drawHeld } from './fx.js';
+import { createSongs } from './music.js';
+import { createActors } from './actors.js';
+import { createMenus } from './menus.js';
+import { createCrops } from './crops.js';
+import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
+import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
+         MARKS, SHADOWS, FEATURES } from './palette.js';
+import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT, glow, GLOW_CELL } from './light.js';
+import { rustic, inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { createText } from './text.js';
 import { BORDER, CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -75,7 +89,33 @@ export default {
          argument threaded through. */
       let g = cv.getContext('2d');
       if (!g) { info.textContent = 'NO CANVAS.'; return; }
-      const C = i => { const p = VGA16[i]; return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; };
+      /* ---- the active lookup table --------------------------------------
+         `C` is one array index per fill — the old helper built 'rgb(r,g,b)'
+         from three numbers every single time, which on a 7800-rect cache
+         rebuild is 7800 string concatenations nobody needed. What it indexes
+         *into* is the hour's LUT: the playfield sets `LUT_CSS` to the light
+         state's table before it draws and puts it back to daylight after, so
+         night costs no overdraw at all and the two HUD bands, the panels and
+         every glyph of text keep full contrast after dark without anyone
+         having to remember to ask for it. See light.js. */
+      let LUT_CSS = DAY_CSS, LUT_TAG = 'day';
+      const C = i => LUT_CSS[i];
+      const useLut = (css, tag) => { LUT_CSS = css; LUT_TAG = tag; };
+      /* The declared mark / shadow / feature tables, unpacked once. Every
+         decorative colour decision in the art below comes out of one of
+         these, which is what lets palette_check.js assert the contrast rule
+         against the very tables the art draws from. */
+      const TUFT = MARKS.TUFT.cols, TUFT_DRY = MARKS.TUFT_DRY.cols, BLADE = MARKS.BLADE.cols,
+            PATH_GRIT = MARKS.PATH_GRIT.cols, CAVE_GRIT = MARKS.CAVE_GRIT.cols,
+            ROCK_FACE = MARKS.ROCK_FACE.cols, FLOOR_GRAIN = MARKS.FLOOR_GRAIN.cols,
+            TURF_ROOF = MARKS.TURF_ROOF.cols, WATER_DEEP = MARKS.WATER_DEEP.cols;
+      const PATH_CRACK = SHADOWS.PATH_CRACK.cols[0], ROCK_CRACK = SHADOWS.ROCK_CRACK.cols[0],
+            FLOOR_JOINT = SHADOWS.FLOOR_JOINT.cols[0], TREE_INK = SHADOWS.TREE_INK.cols;
+      /* the player, who has no entry in BEK_NPCS because there is only one */
+      const PLAYER_HAIR = TIM[1], PLAYER_SHIRT = WAT[4], PLAYER_PANTS = ATMO[2];
+      const FLOWER = FEATURES.FLOWER.cols, PICKABLE = FEATURES.PICKABLE.cols,
+            WATER_SUN = FEATURES.WATER_SUN.cols, FOAM = FEATURES.FOAM.cols,
+            ORE_GLINT = FEATURES.ORE_GLINT.cols, HEARTH = FEATURES.HEARTH.cols;
       const TX = (no, en) => BEK_LANG === 'en' ? en : no;      /* resolve a dynamic pair now */
       const iname = id => T(BEK_ITEMS[id].name);
       const refreshBar = () => {
@@ -169,6 +209,13 @@ export default {
       };
 
       let mode = '', dlg = null, shop = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
+      /* ---- the swing ------------------------------------------------------
+         Transient by definition — it must not survive a reload and it must
+         not appear in a save, so it lives here beside `fish` and `note` and
+         never in `S`. `bufAct` is the buffered next input: pressing again
+         during a swing queues the action rather than dropping it, so holding
+         the key still chops at the rate the animation allows. */
+      let swing = null, bufAct = false, shake = 0;
       /* The SAVE button still exists, but nothing should be lost by closing a
          window, so the valley writes itself down every few seconds and again
          on the way out. */
@@ -201,6 +248,10 @@ export default {
       const has = (id, n) => (S.bag[id] || 0) >= (n || 1);
       const add = (id, n) => { S.bag[id] = (S.bag[id] || 0) + (n || 1); if (S.bag[id] <= 0) delete S.bag[id]; };
       const say = t => { note = t; noteT = 2.8; };
+      /* A refusal you can see beats a refusal you have to read. Two frames of
+         recoil fires alongside the sound that was already there, so every
+         "no" in the game got one without any of them being changed. */
+      const deny = () => { sfx.deny(); if (!swing) startSwing('deny'); };
       const clock = () => {
         /* S.min runs on a float accumulator, so floor before splitting it —
            otherwise the minutes render as 43.99999618530273 and the strip
@@ -286,156 +337,25 @@ export default {
         if (spokeDlg !== dlg || spokeIx !== dlg.i) { spokeDlg = dlg; spokeIx = dlg.i; speakLine(); }
       }
 
-      /* ---- five songs, on rotation -------------------------------------- */
-      const NOTE = { A2:110, B2:123.47, Cs3:138.59, D3:146.83, E3:164.81, Fs3:185, G3:196, A3:220, B3:246.94,
-                     Cs4:277.18, D4:293.66, E4:329.63, Fs4:369.99, G4:392, A4:440, B4:493.88, Cs5:554.37,
-                     D5:587.33, E5:659.26, Fs5:739.99, G5:783.99, A5:880 };
-      const SONGS = {
-        dag: { bpm: 88, len: 32,
-          lead: [['Fs4',0,4],['A4',4,2],['B4',6,2],['D5',8,4],['A4',12,4],['B4',16,2],['A4',18,2],['Fs4',20,4],['E4',24,2],['D4',26,2],['Fs4',28,4]],
-          bass: [['D3',0,4],['D3',4,4],['A2',8,4],['A2',12,4],['B2',16,4],['B2',20,4],['G3',24,4],['A2',28,4]],
-          pad:  [['D4',0,8],['Fs4',0,8],['A3',8,8],['Cs5',8,8],['B3',16,8],['Fs4',16,8],['G3',24,8],['D4',24,8]],
-          arp:  [['D5',0,1],['A4',2,1],['Fs4',4,1],['A4',6,1],['E5',8,1],['Cs5',10,1],['A4',12,1],['Cs5',14,1],['B4',16,1],['Fs4',18,1],['D5',20,1],['Fs4',22,1],['A4',24,1],['D5',26,1],['Fs4',28,1],['A4',30,1]] },
-        kveld: { bpm: 66, len: 32,
-          lead: [['B3',0,6],['D4',6,2],['Fs4',8,6],['E4',14,2],['D4',16,4],['B3',20,4],['A3',24,6],['B3',30,2]],
-          bass: [['B2',0,8],['G3',8,8],['E3',16,8],['Fs3',24,8]],
-          pad:  [['D4',0,8],['Fs4',8,8],['B3',16,8],['A3',24,8]],
-          arp:  [['B4',0,2],['Fs4',4,2],['D4',8,2],['B4',12,2],['A4',16,2],['E4',20,2],['Fs4',24,2],['B3',28,2]] },
-        gruva: { bpm: 58, len: 32,
-          lead: [['E3',0,8],['G3',8,4],['A3',12,4],['E3',16,8],['D3',24,4],['E3',28,4]],
-          bass: [['E3',0,8],['E3',8,8],['Cs3',16,8],['A2',24,8]],
-          pad:  [['E3',0,16],['B3',0,16],['A3',16,16],['E3',16,16]],
-          arp:  [['E4',0,2],['B3',6,1],['G4',12,2],['E4',20,1],['A3',24,2],['E4',30,1]] },
-        vidda: { bpm: 74, len: 32,
-          lead: [['A4',0,4],['E5',4,4],['D5',8,2],['E5',10,2],['A4',12,4],['G4',16,4],['E5',20,4],['D5',24,4],['A4',28,4]],
-          bass: [['A2',0,8],['E3',8,8],['G3',16,8],['A2',24,8]],
-          pad:  [['A3',0,8],['E4',0,8],['D4',8,8],['A4',8,8],['G3',16,8],['D4',16,8],['A3',24,8],['E4',24,8]],
-          arp:  [['A5',0,1],['E5',3,1],['A4',6,1],['E5',9,1],['D5',12,1],['A4',15,1],['E5',18,1],['G5',22,1],['E5',26,1],['A4',30,1]] },
-        folkedans: { bpm: 108, len: 24,
-          lead: [['D5',0,2],['A4',2,1],['D5',3,1],['Fs5',4,2],['E5',6,2],['D5',8,2],['A4',10,2],['B4',12,2],['Cs5',14,2],['D5',16,4],['A4',20,2],['Fs4',22,2]],
-          bass: [['D3',0,2],['A2',2,1],['D3',4,2],['A2',6,1],['G3',8,2],['D3',10,1],['A2',12,2],['A2',14,1],['D3',16,2],['A2',18,1],['D3',20,2],['A2',22,1]],
-          pad:  [['D4',0,6],['Fs4',0,6],['G3',6,6],['B3',6,6],['A3',12,6],['E4',12,6],['D4',18,6],['Fs4',18,6]],
-          arp:  [['D5',0,1],['Fs5',1,1],['A4',2,1],['D5',3,1],['Fs5',4,1],['A5',5,1],['E5',6,1],['Cs5',7,1],['D5',8,1],['A4',9,1],['B4',10,1],['G4',11,1],['A4',12,1],['Cs5',13,1],['E5',14,1],['A4',15,1],['D5',16,1],['A4',17,1],['Fs5',18,1],['D5',19,1],['A4',20,1],['D5',21,1],['Fs4',22,1],['A4',23,1]] }
-      };
-      const Song = {
-        on: false, cur: 'dag', bus: null, when: 0, timer: null, voices: [], g0: -1, rotIn: 90,
-        swap: null, FADE: 1.1,          /* seconds a track takes to leave */
-        ensure() { Snd.wake(); if (!Snd.ctx) return false; if (!this.bus) { this.bus = Snd.ctx.createGain(); this.bus.gain.value = 0.0001; this.bus.connect(Snd.ctx.destination); } return true; },
-        voice(f, at, dur, type, vol) {
-          const c = Snd.ctx, o = c.createOscillator(), gn = c.createGain();
-          o.type = type; o.frequency.setValueAtTime(f, at);
-          gn.gain.setValueAtTime(0.0001, at);
-          gn.gain.exponentialRampToValueAtTime(vol, at + 0.04);
-          gn.gain.setValueAtTime(vol, at + dur * 0.55);
-          gn.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-          o.connect(gn); gn.connect(this.bus); o.start(at); o.stop(at + dur + 0.05);
-          this.voices.push(o); o.onended = () => { const i = this.voices.indexOf(o); if (i >= 0) this.voices.splice(i, 1); };
-        },
-        bar(t0, sg) {
-          const e = 30 / sg.bpm;
-          sg.pad.forEach(n  => this.voice(NOTE[n[0]], t0 + n[1] * e, n[2] * e * 0.95, 'triangle', 0.04));
-          sg.bass.forEach(n => this.voice(NOTE[n[0]], t0 + n[1] * e, n[2] * e * 0.9,  'square',   0.05));
-          sg.lead.forEach(n => this.voice(NOTE[n[0]], t0 + n[1] * e, n[2] * e * 0.9,  'square',   0.055));
-          if (sg.arp) sg.arp.forEach(n => this.voice(NOTE[n[0]], t0 + n[1] * e, n[2] * e * 0.7, 'triangle', 0.03));
-          return sg.len * e;
-        },
-        context() {
-          if (S.map === 'gruva') return 'mine';
+      /* ---- five songs, on rotation --------------------------------------
+         The tunes and the crossfading scheduler live in music.js. They are
+         the one thing in this file that was neither engine nor drawing, and
+         a hundred and fifty lines of note tables was most of what stood
+         between index.js and the file-size rule. `createSongs` takes the
+         handful of things it needs from here and nothing else. */
+      const Song = createSongs({
+        snd: () => Snd,
+        musGain: musGain,
+        playing: () => alive && CRT.on && Vol.mus > 0,
+        context: () => {
+          if (isCave(S.map)) return 'mine';
           if (S.map === 'setra' || S.map === 'vidda') return 'high';
           if (night()) return 'night';
-          if (S.map === 'town' && !night()) return 'townday';
+          if (S.map === 'town') return 'townday';
           return 'day';
-        },
-        pool() {
-          switch (this.context()) {
-            case 'mine': return ['gruva'];
-            case 'high': return ['vidda', 'dag'];
-            case 'night': return ['kveld', 'gruva'];
-            case 'townday': return ['folkedans', 'dag'];
-            default: return ['dag', 'folkedans'];
-          }
-        },
-        pickNext(force) {
-          const p = this.pool();
-          let choices = p.filter(x => x !== this.cur);
-          if (!choices.length) choices = p;
-          const next = choices[Math.floor(Math.random() * choices.length)];
-          if (next === this.cur && !force) return;
-          if (!this.on) { this.cur = next; return; }
-          this.crossfade(next);
-        },
-        /* Let the old track walk out before the new one walks in: ramp the
-           bus down over FADE, stop the queued voices behind that ramp, then
-           start the next one — start() comes up from silence, so the two
-           halves meet in the middle instead of one being cut off. */
-        crossfade(next) {
-          if (!Snd.ctx || !this.bus) { this.cur = next; return; }
-          clearTimeout(this.timer); clearTimeout(this.swap);
-          this.on = false;
-          const now = Snd.ctx.currentTime, gn = this.bus.gain, F = this.FADE;
-          gn.cancelScheduledValues(now);
-          gn.setValueAtTime(Math.max(0.0001, gn.value), now);
-          gn.exponentialRampToValueAtTime(0.0001, now + F);
-          this.voices.forEach(o => { try { o.stop(now + F + 0.02); } catch (e) {} });
-          this.voices = [];
-          this.swap = setTimeout(() => {
-            this.swap = null;
-            this.cur = next;
-            if (alive && CRT.on && Vol.mus > 0) this.start();
-          }, F * 1000 + 40);
-        },
-        rotStep(dt) {
-          if (!this.on || this.swap) return;
-          this.rotIn -= dt;
-          if (this.pool().indexOf(this.cur) < 0 && this.rotIn > 3) this.rotIn = 3;   /* context changed */
-          if (this.rotIn <= 0) { this.pickNext(false); this.rotIn = 70 + Math.random() * 45; }   /* <= 115s, never 2 min */
-        },
-        level(ramp) {
-          if (!this.bus || !Snd.ctx) return;
-          const want = musGain();
-          if (ramp == null && Math.abs(want - this.g0) < 0.0005) return;
-          this.g0 = want;
-          const now = Snd.ctx.currentTime, gn = this.bus.gain;
-          gn.cancelScheduledValues(now);
-          gn.setValueAtTime(Math.max(0.0001, gn.value), now);
-          gn.exponentialRampToValueAtTime(Math.max(0.0002, want * 0.9), now + (ramp || 0.4));
-        },
-        sync() {
-          if (!(alive && CRT.on && Vol.mus > 0)) { this.stop(); return; }
-          if (this.swap) return;                       /* mid-crossfade: leave it alone */
-          if (this.on) this.level(); else this.start();
-        },
-        /* the fade-in half of a crossfade: bus is at silence, walk it up */
-        start() { if (this.on || !this.ensure()) return; this.on = true; this.g0 = -1; this.when = Snd.ctx.currentTime + 0.15; this.level(this.FADE); this.tick(); },
-        tick() {
-          if (!this.on || !Snd.ctx) return;
-          const now = Snd.ctx.currentTime;
-          if (this.when < now) this.when = now + 0.05;
-          const len = this.bar(this.when, SONGS[this.cur] || SONGS.dag);
-          this.when += len;
-          this.timer = setTimeout(() => this.tick(), Math.max(300, len * 1000 - 500));
-        },
-        hardStop() {
-          clearTimeout(this.timer); clearTimeout(this.swap); this.swap = null; this.on = false;
-          if (!Snd.ctx) return;
-          const now = Snd.ctx.currentTime;
-          this.voices.forEach(o => { try { o.stop(now + 0.05); } catch (e) {} });
-          this.voices = [];
-          if (this.bus) this.bus.gain.setValueAtTime(0.0001, now);
-        },
-        stop() {
-          clearTimeout(this.swap); this.swap = null;
-          if (!this.on) return;
-          clearTimeout(this.timer); this.on = false;
-          if (!this.bus || !Snd.ctx) { this.voices = []; return; }
-          const now = Snd.ctx.currentTime, gn = this.bus.gain;
-          gn.cancelScheduledValues(now);
-          gn.setValueAtTime(Math.max(0.0001, gn.value), now);
-          gn.exponentialRampToValueAtTime(0.0001, now + 0.7);
-          this.voices.forEach(o => { try { o.stop(now + 0.72); } catch (e) {} });
-          this.voices = [];
         }
-      };
+      });
+
 
       /* ---- the day ------------------------------------------------------ */
       const BEK_HOME = { farm:[4,8], town:[4,7], lake:[3,8], forest:[4,7], enga:[4,8], setra:[4,8], vidda:[4,11], gruva:[2,7], fjord:[4,7] };
@@ -484,10 +404,20 @@ export default {
       }
 
       /* ---- the verbs ---------------------------------------------------- */
+      /* Start a swing of `kind` at the tile in front. Returns the swing so a
+         caller can hang an effect on it; the effect fires on the strike frame
+         rather than now, which is the whole point of the exercise. */
+      function startSwing(kind, fx) {
+        const f = facing();
+        swing = { kind: kind, t: 0, fired: false, fx: fx || (TOOL_SWING[kind] || {}).fx,
+                  tx: f.x, ty: f.y, len: swingLen(kind) };
+        return swing;
+      }
+      const busy = () => !!swing;
       function facing() { const d = [[0,1],[0,-1],[-1,0],[1,0]][S.dir]; return { x: S.px + d[0], y: S.py + d[1] }; }
       function spend(n) {
         const cost = n + (S.en < 20 ? 1 : 0);               /* tired hands work harder */
-        if (S.en < cost) { say(TX('FOR SLITEN. LEGG DEG.', 'TOO TIRED. GO TO BED.')); sfx.deny(); return false; }
+        if (S.en < cost) { say(TX('FOR SLITEN. LEGG DEG.', 'TOO TIRED. GO TO BED.')); deny(); return false; }
         S.en -= cost; return true;
       }
       /* what a rare bite turns into, by water */
@@ -507,14 +437,15 @@ export default {
         const d = M().door;
         if (d && d.x === f.x && d.y === f.y) { S.map = d.to; S.px = d.tx; S.py = d.ty; markDisc(d.to); say(T(BEK_MAPS[d.to].title)); return true; }
         const e = (M().exits || []).filter(e2 => e2.x === f.x && e2.y === f.y)[0];
-        if (e) { if (e.need && !gateOK(e.need)) { say(T(e.why)); sfx.deny(); return true; } S.map = e.to; S.px = e.tx; S.py = e.ty; markDisc(e.to); say(T(BEK_MAPS[e.to].title)); return true; }
+        if (e) { if (e.need && !gateOK(e.need)) { say(T(e.why)); deny(); return true; } S.map = e.to; S.px = e.tx; S.py = e.ty; markDisc(e.to); say(T(BEK_MAPS[e.to].title)); return true; }
         return false;
       }
       function act() {
+        if (swing) return;                       /* one thing at a time */
         /* the boat, from the end of the pier or the dock */
         const b = M().boat;
         if (b && S.px === b.x && S.py === b.y) {
-          if (!S.flag.boat) { say(TX('BÅTEN ER IKKE KLAR.', 'THE BOAT IS NOT READY.')); sfx.deny(); return; }
+          if (!S.flag.boat) { say(TX('BÅTEN ER IKKE KLAR.', 'THE BOAT IS NOT READY.')); deny(); return; }
           sfx.boat(); S.map = b.to; S.px = b.tx; S.py = b.ty; markDisc(b.to); say(T(BEK_MAPS[b.to].title)); return;
         }
         const f = facing();
@@ -537,39 +468,52 @@ export default {
         }
         if (t === 'S' && S.map === 'lake') return lotSign();
         if (t === 'S') { say(TX('OPPSLAGSTAVLE — TRYKK Q.', 'NOTICE BOARD — PRESS Q.')); return; }
-        if (t === 'D') { if (doorTravel(f)) return; say(TX('LÅST.', 'LOCKED.')); sfx.deny(); return; }
+        if (t === 'D') { if (doorTravel(f)) return; say(TX('LÅST.', 'LOCKED.')); deny(); return; }
 
         const tool = BEK_TOOLS[S.tool];
         if (t === 'p' && S.picked[rkey(S.map, f.x, f.y)] <= S.day) {   /* pick a wildflower */
           if (!spend(1)) return;
           const kinds = ['blomst_bla', 'blomst_gul', 'blomst_ro'];
           const got = kinds[Math.floor(Math.random() * kinds.length)];
-          add(got, 1); S.picked[rkey(S.map, f.x, f.y)] = S.day + 1; terrDirty(); sfx.pick();
+          add(got, 1); S.picked[rkey(S.map, f.x, f.y)] = S.day + 1; terrLater(); sfx.pick();
+          startSwing('hand').drop = BEK_ITEMS[got].col;
           say('+1 ' + iname(got)); return;
         }
         if (tool.id === 'stang') {
           if (t !== 'W') { say(TX('KAST I VANNET.', 'CAST IT AT THE WATER.')); return; }
           if (!spend(tool.e)) return;
-          fish = { phase: 'wait', t: 0.8 + Math.random() * 1.6, rare: Math.random() < 0.1 }; sfx.cast(); return;
+          /* The cast animates first and *hands off* to the minigame on the
+             strike frame, rather than racing it: `fish` does not exist until
+             the rod has actually gone out. */
+          sfx.cast();
+          startSwing('stang').then = () => {
+            fish = { phase: 'wait', t: 0.8 + Math.random() * 1.6, rare: Math.random() < 0.1 };
+          };
+          return;
         }
         if (tool.id === 'oks') {
-          if (t === 'Y') { if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 2; terrDirty(); add('tommer', 1); sfx.chop(); say('+1 ' + iname('tommer')); return; }
+          if (t === 'Y') { if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 2; terrLater(); add('tommer', 1); sfx.chop(); startSwing('oks'); say('+1 ' + iname('tommer')); return; }
           if (t === 'G') {
-            if (S.axeLv < 2) { say(TX('FOR STOR. Du trenger en STÅLØKS.', 'TOO BIG. You need a STEEL AXE.')); sfx.deny(); return; }
-            if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 3; terrDirty(); add('tommer', 2); sfx.chop(); say('+2 ' + iname('tommer')); return;
+            if (S.axeLv < 2) { say(TX('FOR STOR. Du trenger en STÅLØKS.', 'TOO BIG. You need a STEEL AXE.')); deny(); return; }
+            if (!spend(tool.e)) return; S.felled[rkey(S.map, f.x, f.y)] = S.day + 3; terrLater(); add('tommer', 2); sfx.chop(); startSwing('oks'); say('+2 ' + iname('tommer')); return;
           }
           say(TX('INGENTING Å FELLE.', 'NOTHING TO FELL.')); return;
         }
         if (tool.id === 'hakke') {
           if (t !== 'O' && t !== 'Q') { say(TX('INGEN ÅRE HER.', 'NO VEIN HERE.')); return; }
-          if (!S.tools.hakke) { say(TX('DU HAR INGEN HAKKE.', 'YOU HAVE NO PICK.')); sfx.deny(); return; }
-          if (t === 'Q' && S.pickLv < 2) { say(TX('RIK ÅRE. Trenger STÅLHAKKE.', 'RICH VEIN. Needs a STEEL PICK.')); sfx.deny(); return; }
+          if (!S.tools.hakke) { say(TX('DU HAR INGEN HAKKE.', 'YOU HAVE NO PICK.')); deny(); return; }
+          if (t === 'Q' && S.pickLv < 2) { say(TX('RIK ÅRE. Trenger STÅLHAKKE.', 'RICH VEIN. Needs a STEEL PICK.')); deny(); return; }
           if (!spend(tool.e)) return;
-          S.mined[rkey(S.map, f.x, f.y)] = S.day + 3; terrDirty(); sfx.mine();
+          S.mined[rkey(S.map, f.x, f.y)] = S.day + 3; terrLater(); sfx.mine();
+          startSwing('hakke');
           add('stein', 1);
-          let ore;
-          if (t === 'Q') ore = Math.random() < 0.6 ? 'solv' : 'kobber';
-          else { const r = Math.random(); ore = r < 0.55 ? 'jern' : r < 0.85 ? 'kobber' : 'solv'; }
+          /* The metal is the one the tile is drawn as, not a fresh roll. Same
+             weights as the roll it replaces (55/30/15 on a vein, 60/40 on a
+             rich one) so nothing about the economy moves — but a vein you can
+             read is a vein you can choose, and a square you come back to
+             after it regrows is the same square. */
+          const ore = oreKind(rockVar(S.map, f.x, f.y), t === 'Q');
+          swing.drop = BEK_ITEMS[ore].col;
           add(ore, 1); say('+1 ' + iname(ore) + '  +1 ' + iname('stein')); return;
         }
         /* the soil tools */
@@ -578,16 +522,18 @@ export default {
         const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
         if (c.ready) {
           const spec = BEK_CROPS[c.seed];
-          if (!spend(1)) return; add(spec.out, 1); sfx.pick(); say('+1 ' + iname(spec.out));
+          if (!spend(1)) return; add(spec.out, 1); sfx.pick();
+          startSwing('hand').drop = spec.col;
+          say('+1 ' + iname(spec.out));
           if (spec.regrow) { c.ready = 0; c.age = spec.days - spec.regrow; } else { c.seed = ''; c.age = 0; c.ready = 0; }
           return;
         }
-        if (tool.id === 'spade') { if (c.till) { say(TX('ALLEREDE SPADD.', 'ALREADY TURNED.')); return; } if (!spend(tool.e)) return; c.till = 1; sfx.till(); return; }
+        if (tool.id === 'spade') { if (c.till) { say(TX('ALLEREDE SPADD.', 'ALREADY TURNED.')); return; } if (!spend(tool.e)) return; c.till = 1; sfx.till(); startSwing('spade'); return; }
         if (tool.id === 'kanne') {
           if (!c.seed) { say(TX('INGENTING PLANTET.', 'NOTHING PLANTED.')); return; }
           if (c.wet) { say(TX('ALLEREDE VANNET.', 'ALREADY WATERED.')); return; }
-          if (S.water <= 0) { say(TX('KANNEN ER TOM.', 'THE CAN IS EMPTY.')); sfx.deny(); return; }
-          if (!spend(tool.e)) return; S.water--; c.wet = 1; sfx.water(); return;
+          if (S.water <= 0) { say(TX('KANNEN ER TOM.', 'THE CAN IS EMPTY.')); deny(); return; }
+          if (!spend(tool.e)) return; S.water--; c.wet = 1; sfx.water(); startSwing('kanne'); return;
         }
       }
       function plant() {
@@ -597,9 +543,10 @@ export default {
         if (!c || !c.till) { say(TX('SPA DET FØRST.', 'TURN IT FIRST — HOE.')); return; }
         if (c.seed) { say(TX('ALLEREDE PLANTET.', 'ALREADY PLANTED.')); return; }
         const seed = curSeed();
-        if (!seed) { say(TX('INGEN FRØ I SEKKEN.', 'NO SEED IN THE BAG.')); sfx.deny(); return; }
+        if (!seed) { say(TX('INGEN FRØ I SEKKEN.', 'NO SEED IN THE BAG.')); deny(); return; }
         if (!spend(1)) return;
         add(seed, -1); c.seed = BEK_ITEMS[seed].seed; c.age = 0; c.ready = 0; sfx.pick();
+        startSwing('hand', 'sprout');
         say(TX('SÅDDE ', 'PLANTED ') + iname(seed));
       }
       function cycleSeed() {
@@ -702,7 +649,7 @@ export default {
       }
       function doOffer() {
         const o = offer;
-        if (S.kr < o.kr) { dlg = { lines: o.no.slice(), i: 0, npc: null }; mode = 'talk'; offer = null; sfx.deny(); return; }
+        if (S.kr < o.kr) { dlg = { lines: o.no.slice(), i: 0, npc: null }; mode = 'talk'; offer = null; deny(); return; }
         S.kr -= o.kr;
         if (o.tool) S.tools[o.tool] = 1;
         if (o.axeLv) S.axeLv = Math.max(S.axeLv, o.axeLv);
@@ -741,16 +688,16 @@ export default {
       /* ---- shop --------------------------------------------------------- */
       function shopBuy() {
         const id = shop.list[shop.sel];
-        if (id === 'jordbarfro' && !S.flag.jordbar) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); sfx.deny(); return; }
-        if (id === 'rabarbrafro' && !S.flag.rabarbra) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); sfx.deny(); return; }
+        if (id === 'jordbarfro' && !S.flag.jordbar) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
+        if (id === 'rabarbrafro' && !S.flag.rabarbra) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
         const p = price(id);
-        if (S.kr < p) { say(TX('IKKE RÅD.', 'CANNOT AFFORD.')); sfx.deny(); return; }
+        if (S.kr < p) { say(TX('IKKE RÅD.', 'CANNOT AFFORD.')); deny(); return; }
         S.kr -= p; add(id, 1); sfx.coin(); say(TX('KJØPTE ', 'BOUGHT ') + iname(id));
       }
       function shopSell() {
         const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0 && BEK_ITEMS[id].sell);
         const id = ids[shop.sel % Math.max(1, ids.length)];
-        if (!id) { sfx.deny(); return; }
+        if (!id) { deny(); return; }
         S.kr += BEK_ITEMS[id].sell; add(id, -1); sfx.coin(); say(TX('SOLGTE ', 'SOLD ') + iname(id));
       }
 
@@ -763,7 +710,7 @@ export default {
       function doTravel() {
         const m = travel.list[travel.sel];
         if (!m) { mode = ''; travel = null; return; }
-        if (S.en < 10) { say(TX('FOR SLITEN TIL Å GÅ.', 'TOO TIRED TO WALK.')); sfx.deny(); return; }
+        if (S.en < 10) { say(TX('FOR SLITEN TIL Å GÅ.', 'TOO TIRED TO WALK.')); deny(); return; }
         S.en -= 10; S.min += 40;
         S.map = m; S.px = BEK_HOME[m][0]; S.py = BEK_HOME[m][1]; S.dir = 0;
         markDisc(m); mode = ''; travel = null; sfx.step(); say(T(BEK_MAPS[m].title));
@@ -832,7 +779,12 @@ export default {
         if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(500, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else newDay(false); } if (k === 'Escape') closeMenu(); return; }
 
         /* walking */
-        if (k === ' ') { if (fish) fishTap(); else act(); return; }
+        if (k === ' ') {
+          if (fish) fishTap();
+          else if (swing) bufAct = true;           /* queued, not dropped */
+          else act();
+          return;
+        }
         if (k === 'f') { plant(); return; }
         if (k === 'c') { cycleSeed(); return; }
         if (k === 'i') { mode = 'bag'; return; }
@@ -873,7 +825,7 @@ export default {
               fish = null;
             }
           }
-          else { fish.miss++; sfx.deny(); if (fish.miss >= fish.maxMiss) { say(TX('DEN SLAPP UNNA.', 'IT GOT AWAY.')); fish = null; } }
+          else { fish.miss++; deny(); if (fish.miss >= fish.maxMiss) { say(TX('DEN SLAPP UNNA.', 'IT GOT AWAY.')); fish = null; } }
         }
       }
 
@@ -894,6 +846,10 @@ export default {
 
       /* ---- walking, clock, fishing -------------------------------------- */
       function move(dt) {
+        /* An action reads as committed if you cannot walk out of it. Direction
+           keys are still latched into `keys`, so a turn taken during a swing
+           happens the moment it ends. */
+        if (swing) return;
         let dx = 0, dy = 0;
         if (keys.w || keys.ArrowUp) { dy = -1; S.dir = 1; }
         else if (keys.s || keys.ArrowDown) { dy = 1; S.dir = 0; }
@@ -903,7 +859,7 @@ export default {
         S.walk += dt; if (S.walk < 0.14) return; S.walk = 0; S.step = (S.step + 1) % 4;
         const nx = S.px + dx, ny = S.py + dy;
         const ex = (M().exits || []).filter(x => x.x === nx && x.y === ny)[0];
-        if (ex) { if (ex.need && !gateOK(ex.need)) { say(T(ex.why)); sfx.deny(); return; } S.map = ex.to; S.px = ex.tx; S.py = ex.ty; markDisc(ex.to); say(T(BEK_MAPS[S.map].title)); return; }
+        if (ex) { if (ex.need && !gateOK(ex.need)) { say(T(ex.why)); deny(); return; } S.map = ex.to; S.px = ex.tx; S.py = ex.ty; markDisc(ex.to); say(T(BEK_MAPS[S.map].title)); return; }
         if (nx < 0 || ny < 0 || nx >= BEK_COLS || ny >= BEK_ROWS) return;
         if (solid(S.map, nx, ny)) return;
         if (npcsHere().some(n => n.x === nx && n.y === ny)) return;
@@ -915,6 +871,32 @@ export default {
         if (mode === 'end') return;
         S.min += dt * 4;
         if (S.min >= 26 * 60) { newDay(true); return; }
+      }
+      /* Three phases off the frame loop's own dt, never a timer. The strike
+         frame is where the effect lands, the camera kicks and the deferred
+         repaint fires — so the tree comes down as the axe reaches it. */
+      function tickSwing(dt) {
+        if (shake > 0) shake = Math.max(0, shake - dt * 26);
+        if (!swing) return;
+        const S1 = TOOL_SWING[swing.kind] || TOOL_SWING.hand;
+        swing.t += dt;
+        if (!swing.fired && swing.t >= S1.wind) {
+          swing.fired = true;
+          terrFlush();
+          shake = S1.nudge;
+          if (swing.fx) {
+            const d = [[0, 1], [0, -1], [-1, 0], [1, 0]][S.dir];
+            fx.burst(swing.fx, swing.tx * BEK_T + BEK_T / 2, swing.ty * BEK_T + BEK_T / 2 + 4, d[0], d[1]);
+          }
+          if (swing.drop) fx.pickup(swing.drop, swing.tx * BEK_T + BEK_T / 2, swing.ty * BEK_T + BEK_T / 2);
+          if (swing.then) swing.then();
+        }
+        if (swing.t >= swing.len) {
+          swing = null;
+          terrFlush();
+          /* the buffered press fires the instant the hands are free */
+          if (bufAct) { bufAct = false; if (!mode && !fish) act(); }
+        }
       }
       function tickFish(dt) {
         if (!fish) return;
@@ -935,25 +917,35 @@ export default {
          apparent size and the night overlay would read as flat grey instead of
          dither — and a larger pattern tile is measurably cheaper to fill,
          because the rasteriser repeats it fewer times across the canvas. */
-      function ditherPat(col, strength) {
-        /* Keyed by the target context as well as the colour: a pattern is
-           made by the context that will fill with it, and the terrain cache
-           fills with the same stipples the screen does. */
-        const k = (g.tag || 'screen') + ':' + col + ':' + strength;
+      function ditherPat(col, strength, day) {
+        /* Keyed by the target context and by the LUT as well as the colour: a
+           pattern is made by the context that will fill with it, and the
+           terrain cache fills with the same stipples the screen does — and a
+           pattern baked at one hour is the wrong colour at the next. Only two
+           LUTs are ever live (daylight and the current hour), and the cache is
+           swept when the hour's changes, so sixty-four indices do not turn
+           this into an unbounded pile of canvases.
+
+           `day` asks for the pattern in daylight colours whatever the hour.
+           That is for light *sources*: a fire is as bright at midnight as at
+           noon, which is the entire reason for lighting it. */
+        const tag = day ? 'day' : LUT_TAG;
+        const k = (g.tag || 'screen') + '|' + tag + '|' + col + '|' + strength;
         if (ditherCache[k]) return ditherCache[k];
         const c = document.createElement('canvas'); c.width = BEK_DITHER_PX; c.height = BEK_DITHER_PX;
-        const q = c.getContext('2d'); q.fillStyle = C(col);
+        const q = c.getContext('2d'); q.fillStyle = day ? DAY_CSS[col] : LUT_CSS[col];
         for (let j = 0; j < BEK_DITHER_CELL; j++) for (let i = 0; i < BEK_DITHER_CELL; i++)
           if (DITHER[j][i] < strength) q.fillRect(i * BEK_ART_SCALE, j * BEK_ART_SCALE, BEK_ART_SCALE, BEK_ART_SCALE);
         ditherCache[k] = g.createPattern(c, 'repeat'); return ditherCache[k];
       }
+      /* drop every pattern baked against an hour that has passed */
+      function sweepDither(live) {
+        for (const k of Object.keys(ditherCache)) {
+          const tag = k.split('|')[1];
+          if (tag !== 'day' && tag !== live) delete ditherCache[k];
+        }
+      }
       function dither(col, strength) { const n = Math.max(0, Math.min(16, Math.round(strength))); if (n <= 0) return; g.fillStyle = ditherPat(col, n); g.fillRect(0, 0, BEK_W, BEK_H); }
-
-      /* Two dressings for a building: log-and-turf out on the farms, at the
-         water and indoors; painted board under clay tile in the town. One
-         palette, two silhouettes, and you can tell where you are by looking. */
-      const rustic = () => S.map === 'farm' || S.map === 'setra' || S.map === 'lake' ||
-                           S.map === 'enga' || S.map === 'farmhouse' || S.map === 'lakehouse';
 
       /* ---- native-resolution terrain (art uplift, batch 1) ---------------
          The grass, cave, path and water-edge tiles and drawSoil's tilled
@@ -1004,45 +996,38 @@ export default {
          drawn native so it stays exactly as coarse as the night overlay's.
          Call it outside a native() block, never inside one — it opens its
          own, and two of them nested would halve the scale twice. */
-      function wash(px, py, w, h, col, s) {
+      function wash(px, py, w, h, col, s, day) {
         if (s <= 0) return;
-        native(() => { g.fillStyle = ditherPat(col, s > 16 ? 16 : s); g.fillRect(px, py, w, h); });
+        native(() => { g.fillStyle = ditherPat(col, s > 16 ? 16 : s, day); g.fillRect(px, py, w, h); });
       }
-
-      /* seven tuft colours instead of one, so a field of grass stops reading
-         as a single flat green */
-      /* Mostly greens with the odd dry or flowering blade — enough to break up
-         a field, not so much that the grass turns to confetti. */
-      const TUFT = [10, 2, 10, 14, 10, 2, 3];
-      /* the same seven where the coarse patch has taken the field over to straw */
-      const TUFT_DRY = [14, 3, 14, 6, 2, 3, 14];
 
       /* ---- ground: the first cached pass ---------------------------------
          Fills, and the patches that tint them. Nothing here reaches past its
-         own tile, because every tile's ground is laid before any detail is. */
+         own tile, because every tile's ground is laid before any detail is.
+
+         Every colour below is a step of a ramp in palette.js, addressed by
+         name. The rule the ramps are built around — a decorative mark stays
+         inside its surface's contrast band, and only a *feature* may break it
+         — is declared there in MARKS / SHADOWS / FEATURES and asserted by
+         palette_check.js, so the tables the art reads and the tables the
+         check reads are the same tables. */
       function grassGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => { g.fillStyle = C(2); g.fillRect(px, py, BEK_T, BEK_T); });
-        wash(px, py, BEK_T, BEK_T, 6, pAmt(x, y, PATCH.DRY));       /* a corner gone to straw */
-        wash(px, py, BEK_T, BEK_T, 10, pAmt(x, y, PATCH.LUSH));     /* a wetter, greener run  */
+        native(() => { g.fillStyle = C(GRASS[2]); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DRY));      /* a corner gone to straw */
+        wash(px, py, BEK_T, BEK_T, GRASS[3], pAmt(x, y, PATCH.LUSH));   /* a wetter, greener run  */
       }
 
       /* the floor of a room: boards, never grass */
-      function floorGround(x, y) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, 8, pAmt(x, y, PATCH.WORN, 3));   /* where feet go */
-      }
-
       /* the floor of the gruva: it is a hole in a mountain, so it is gravel.
          Grass down here was reading as a lawn a hundred feet underground.
          Dark floor, lit rock walls — the other way round and the corridors
          disappear into the stone they are cut through. */
       function caveGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => { g.fillStyle = C(0); g.fillRect(px, py, BEK_T, BEK_T); });
-        wash(px, py, BEK_T, BEK_T, 2, pAmt(x, y, PATCH.MOSS));      /* moss where the air moves */
-        wash(px, py, BEK_T, BEK_T, 1, pAmt(x, y, PATCH.DAMP));      /* and where the water does */
+        native(() => { g.fillStyle = C(STO[0]); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, CON[1], pAmt(x, y, PATCH.MOSS));     /* moss where the air moves */
+        wash(px, py, BEK_T, BEK_T, WAT[1], pAmt(x, y, PATCH.DAMP));     /* and where the water does */
       }
 
       /* a worn trail: no directional art (the same glyph does every bend and
@@ -1050,16 +1035,9 @@ export default {
          implying a direction the tile can't back up */
       function pathGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
-        native(() => { g.fillStyle = C(6); g.fillRect(px, py, BEK_T, BEK_T); });
-        wash(px, py, BEK_T, BEK_T, 8, pAmt(x, y, PATCH.WORN));      /* trodden hard */
-        wash(px, py, BEK_T, BEK_T, 14, pAmt(x, y, PATCH.DUST));     /* dry and dusty */
-      }
-
-      function rockGround(x, y, snow) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        g.fillStyle = C(8); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, snow ? 15 : 2, pAmt(x, y, PATCH.MOSS));
-        wash(x * BEK_T, y * BEK_T, BEK_T, BEK_T, 7, pAmt(x, y, PATCH.DAMP));
+        native(() => { g.fillStyle = C(SOI[2]); g.fillRect(px, py, BEK_T, BEK_T); });
+        wash(px, py, BEK_T, BEK_T, SOI[1], pAmt(x, y, PATCH.WORN));     /* trodden hard */
+        wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DUST));     /* dry and dusty */
       }
 
       /* ---- ground detail: the second cached pass -------------------------- */
@@ -1081,20 +1059,14 @@ export default {
           }
           /* a flowering head, but only in the stretch of map that flowers —
              one pixel, so the cell edge of the low-frequency field is
-             invisible and this one does not need feathering */
+             invisible and this one does not need feathering. A flower is a
+             declared feature: it is allowed out of the band precisely
+             because it is one pixel and rare. */
           if (meadow && v.c3 < 3) {
-            g.fillStyle = C(v.c0 % 2 ? 14 : 15);
+            g.fillStyle = C(FLOWER[v.c0 % FLOWER.length]);
             g.fillRect(px + spot(v.x2, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1);
           }
         });
-      }
-
-      function floorDetail(x, y) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        const v = groundVar(S.map, x, y);
-        g.fillStyle = C(8); g.fillRect(px, py + 9, BEK_T_SRC, 1);
-        for (let i = 0; i < BEK_T_SRC; i += 10) g.fillRect(px + i, py, 1, BEK_T_SRC);
-        if (v.c2 === 2) { g.fillStyle = C(8); g.fillRect(px + spot(v.x0, BEK_T_SRC, 2), py + spot(v.y1, BEK_T_SRC, 1), 2, 1); }
       }
 
       function caveDetail(x, y) {
@@ -1102,16 +1074,16 @@ export default {
         const v = groundVar(S.map, x, y);
         const vein = pLow(x, y, LOW.VEIN, 4, 4) === 0;
         native(() => {
-          g.fillStyle = C(8);
+          g.fillStyle = C(CAVE_GRIT[0]);
           g.fillRect(px + spot(v.x0, BEK_T, 6), py + spot(v.y0, BEK_T, 4), 6, 4);
           g.fillRect(px + spot(v.x1, BEK_T, 8), py + spot(v.y1, BEK_T, 4), 8, 4);
-          g.fillStyle = C(7);
+          g.fillStyle = C(CAVE_GRIT[3]);
           g.fillRect(px + spot(v.x2, BEK_T, 4), py + spot(v.y2, BEK_T, 2), 4, 2);
           g.fillRect(px + spot(v.x3, BEK_T, 2), py + spot(v.y3, BEK_T, 2), 2, 2);
           /* rare extras only, so the gravel stays sparse rather than static */
-          if (v.c0 === 3) { g.fillStyle = C(6); g.fillRect(px + spot(v.x3, BEK_T, 4), py + spot(v.y0, BEK_T, 4), 4, 4); }
-          if (v.c1 === 4) { g.fillStyle = C(6); g.fillRect(px + spot(v.x0, BEK_T, 3), py + spot(v.y2, BEK_T, 3), 3, 3); }
-          if (vein && v.c2 < 2) { g.fillStyle = C(15); g.fillRect(px + spot(v.x1, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1); }
+          if (v.c0 === 3) { g.fillStyle = C(CAVE_GRIT[2]); g.fillRect(px + spot(v.x3, BEK_T, 4), py + spot(v.y0, BEK_T, 4), 4, 4); }
+          if (v.c1 === 4) { g.fillStyle = C(CAVE_GRIT[1]); g.fillRect(px + spot(v.x0, BEK_T, 3), py + spot(v.y2, BEK_T, 3), 3, 3); }
+          if (vein && v.c2 < 2) { g.fillStyle = C(ORE_GLINT[2]); g.fillRect(px + spot(v.x1, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1); }
         });
       }
 
@@ -1119,121 +1091,136 @@ export default {
         const px = x * BEK_T, py = y * BEK_T;
         const v = pathVar(S.map, x, y);
         native(() => {
-          g.fillStyle = C(8);
+          g.fillStyle = C(PATH_GRIT[0]);
           g.fillRect(px + spot(v.ax, BEK_T, 4), py + spot(v.ay, BEK_T, 2), 4, 2);
           g.fillRect(px + spot(v.bx, BEK_T, 4), py + spot(v.by, BEK_T, 2), 4, 2);
-          g.fillStyle = C(7);
+          g.fillStyle = C(PATH_GRIT[1]);
           g.fillRect(px + spot(v.cx, BEK_T, 4), py + spot(v.cy, BEK_T, 2), 4, 2);
           g.fillRect(px + spot(v.dx, BEK_T, 2), py + spot(v.dy, BEK_T, 2), 2, 2);
-          g.fillStyle = C(0);
+          g.fillStyle = C(PATH_CRACK);
           g.fillRect(px + spot(v.kx, BEK_T, 2), py + spot(v.ky, BEK_T, 1), 2, 1);   /* a crack in the hardpack */
-          if (v.peb === 1) { g.fillStyle = C(14); g.fillRect(px + spot(v.px, BEK_T, 2), py + spot(v.py, BEK_T, 2), 2, 2); }
+          if (v.peb === 1) { g.fillStyle = C(PATH_GRIT[2]); g.fillRect(px + spot(v.px, BEK_T, 2), py + spot(v.py, BEK_T, 2), 2, 2); }
         });
       }
 
-      function rockDetail(c, x, y, snow) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, S1 = BEK_T_SRC;
-        const v = rockVar(S.map, x, y);
-        g.fillStyle = C(7);
-        g.fillRect(px + spot(v.fx, S1, 9), py + spot(v.fy, S1, 6), 9, 6);
-        g.fillRect(px + spot(v.gx, S1, 7), py + spot(v.gy, S1, 6), 7, 6);
-        g.fillStyle = C(0);
-        g.fillRect(px + spot(v.ax, S1, 8), py + spot(v.ay, S1, 1), 8, 1);
-        g.fillRect(px + spot(v.bx, S1, 5), py + spot(v.by, S1, 1), 5, 1);
-        if (snow) {
-          g.fillStyle = C(15);
-          g.fillRect(px + spot(v.mx, S1, 4), py + spot(v.my, S1, 1), 4, 1);
-          g.fillRect(px + spot(v.jx, S1, 3), py + spot(v.jy, S1, 1), 3, 1);
-        } else if (v.kind === 2) {                                                  /* mineral */
-          g.fillStyle = C(5);
-          g.fillRect(px + spot(v.mx, S1, 1), py + spot(v.my, S1, 1), 1, 1);
-          g.fillRect(px + spot(v.jx, S1, 1), py + spot(v.jy, S1, 1), 1, 1);
-        }
-        if (v.kind === 4) { g.fillStyle = C(9); g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 3), 1, 3); }   /* seepage */
-        if (c === 'O') {
-          g.fillStyle = C(6); g.fillRect(px + spot(v.ix, S1, 3), py + spot(v.iy, S1, 3), 3, 3);
-          g.fillStyle = C(7); g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
-          g.fillStyle = C(14);
-          g.fillRect(px + spot(v.hx, S1, 1), py + spot(v.hy, S1, 1), 1, 1);
-          g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
-        }
-        if (c === 'Q') {
-          g.fillStyle = C(15);
-          g.fillRect(px + spot(v.ix, S1, 2), py + spot(v.iy, S1, 2), 2, 2);
-          g.fillRect(px + spot(v.jx, S1, 2), py + spot(v.jy, S1, 2), 2, 2);
-          g.fillStyle = C(11); g.fillRect(px + spot(v.hx, S1, 2), py + spot(v.hy, S1, 2), 2, 2);
-          g.fillStyle = C(13); g.fillRect(px + spot(v.lx, S1, 1), py + spot(v.ly, S1, 1), 1, 1);
-          g.fillStyle = C(5); g.fillRect(px + spot(v.fx, S1, 1), py + spot(v.gy, S1, 1), 1, 1);
-        }
-      }
-
-      /* The outer ring of every map, drawn as a hard black frame with a grey
-         lip on the inward side. The treeline alone never read as a limit —
-         this does, and it stops at anything you can actually walk through, so
-         the gaps in the border are the exits. */
+      /* The world's edge. What used to be a hard 4px black frame with a grey
+         lip is now a vignette that dithers away into the wood, plus a pair of
+         timber posts wherever the ring is open — see forest.js. */
       function edgeMark(px, py, x, y) {
-        const L = x === 0, R = x === BEK_COLS - 1, U = y === 0, D = y === BEK_ROWS - 1;
-        g.fillStyle = C(0);
-        if (U) g.fillRect(px, py, BEK_T_SRC, 4);
-        if (D) g.fillRect(px, py + BEK_T_SRC - 4, BEK_T_SRC, 4);
-        if (L) g.fillRect(px, py, 4, BEK_T_SRC);
-        if (R) g.fillRect(px + BEK_T_SRC - 4, py, 4, BEK_T_SRC);
-        g.fillStyle = C(8);
-        if (U) g.fillRect(px, py + 4, BEK_T_SRC, 1);
-        if (D) g.fillRect(px, py + BEK_T_SRC - 5, BEK_T_SRC, 1);
-        if (L) g.fillRect(px + 4, py, 1, BEK_T_SRC);
-        if (R) g.fillRect(px + BEK_T_SRC - 5, py, 1, BEK_T_SRC);
+        native(() => forest.edge(x, y, tileAt(S.map, x, y) !== 'T'));
       }
 
       /* ---- the animated tiles, drawn live over the cache ------------------ */
-      function waterTile(x, y, t) {
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC, w = Math.floor(t * 2 + x + y) % 4;
-        const v = waterVar(S.map, x, y);
-        g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC);
-        g.fillStyle = C(3); g.fillRect(px, py + 6 + v.sw, BEK_T_SRC, 2);              /* the swell */
-        /* the ripple bands drift +/-3 with `w`, so their placement is held
-           three pixels clear of both edges to keep them inside the tile */
-        g.fillStyle = C(9);
-        g.fillRect(px + spot(v.ax, BEK_T_SRC, 8), py + 3 + spot(v.ay, 14, 1) + w, 8, 1);
-        g.fillRect(px + spot(v.bx, BEK_T_SRC, 7), py + 3 + spot(v.by, 14, 1) - w, 7, 1);
-        if (v.foam === 0) { g.fillStyle = C(11); g.fillRect(px + spot(v.bx, BEK_T_SRC, 4), py + spot(v.ay, BEK_T_SRC, 1), 4, 1); }
-        if (v.glint === 3) { g.fillStyle = C(15); g.fillRect(px + spot(v.ax, BEK_T_SRC, 2), py + 3 + spot(v.by, 14, 1) + w, 2, 1); }
+      /* The shore's whole profile lives in shore.js and is sampled along
+         whichever direction autotile.js says the land lies, so one drawing
+         serves a north shore, a south shore, a cove, a headland and a spit.
+         See shore.js for why that is one drawing and not four rotations. */
+      const waterArt = {
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        /* the stipple, for callers that are *already* inside a native() block
+           — `wash` opens one of its own and two nested would halve the scale
+           twice, so shore.js gets this shape instead */
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        seam: i => seamVar(S.map, i),
+        spot: spot,
+        tileAt: (x, y) => tileAt(S.map, x, y)
+      };
+      const shore = createShore(waterArt);
+      const water = createWater(waterArt);
+      /* The mountain and what is in it. Everything the ore does — the recess
+         it is bitten out of, the seam, the body, the faces, the traces that
+         thicken in the wall as you get closer to one — is in rock.js, and so
+         is `oreKind`, which `act()` below reads so the drop is the metal the
+         tile was drawn as. */
+      /* The inside of a house: boards laid across the room from world
+         position, the shadow a wall casts on the floor, the wear that follows
+         the traffic, and the rug. Where the *things* in a room stand is
+         content and lives in BEK_DECOR (data.js); decor.js knows how to draw
+         each kind. See interior.js. */
+      const interior = createInterior({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        salt: () => mapSalt(S.map)
+      });
+      /* what decor.js draws with — the same shape the other art modules take */
+      const propArt = { fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); } };
+      /* Chips, dust, spray and the item arcing into the bag. Transient, so
+         it lives here rather than in `S`, steps on the frame loop's own dt
+         and is cleared when the window goes. */
+      const fx = createFx({ fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); } },
+                          Math.random);
+
+      /* the props on this map, indexed by square. Rebuilt with the cache. */
+      let propMap = new Map();
+      function propsPrepare() {
+        propMap = new Map();
+        (BEK_DECOR[S.map] || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
+      }
+      function drawProp(d, x, y, t) {
+        const fn = PROP[d.kind];
+        if (fn) native(() => fn(propArt, x * BEK_T, y * BEK_T, hLowV(x, y, mapSalt(S.map) + 4090, 1, 3), t));
       }
 
-      /* the shallow shore: mostly water, a foam seam where it meets the bank,
-         then the strip of sand and turf that the deep-water 'W' tile doesn't
-         carry. Ripple bands still drift with `t` the way they always did. */
-      function waterEdgeTile(x, y, t) {
+      /* The ring of trees around every outdoor map, as one continuous strip
+         rather than seventy stamps of the same fir on a 40px cadence. See
+         forest.js; the species mix is content, in BEK_TREES. */
+      const forest = createForest({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        tree: (i, layer) => treeVar(S.map, i, layer),
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        map: () => S.map,
+        snowy: () => snow_()
+      });
+
+      const rock = createRock({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        rockVar: (x, y) => rockVar(S.map, x, y),
+        patch: (x, y, name) => pAmt(x, y, PATCH[name]),
+        spot: spot,
+        tileAt: (x, y) => tileAt(S.map, x, y)
+      });
+
+      /* deep water: the depth ramp is in the cache, and what is left per frame
+         is two short ripple bands and the odd catch of light */
+      function waterTile(x, y, t) {
         const px = x * BEK_T, py = y * BEK_T, w = Math.floor(t * 2 + x + y) % 4;
-        const v = edgeVar(S.map, x, y);
+        const v = waterVar(S.map, x, y);
         native(() => {
-          g.fillStyle = C(1); g.fillRect(px, py, BEK_T, BEK_T);
-          g.fillStyle = C(3); g.fillRect(px, py, BEK_T, 16);
-          g.fillStyle = C(9); g.fillRect(px, py, BEK_T, 8);
-          g.fillStyle = C(11);
-          g.fillRect(px + spot(v.ax, BEK_T, 12), py + 4 + spot(v.ay, 18, 2) + w, 12, 2);
-          g.fillRect(px + spot(v.bx, BEK_T, 10), py + 4 + spot(v.by, 18, 2) - w, 10, 2);
-          g.fillRect(px + spot(v.fx, BEK_T, 8), py + 18 + spot(v.ay, 9, 1), 8, 1);
-          g.fillRect(px + spot(v.gx, BEK_T, 10), py + 18 + spot(v.by, 9, 1), 10, 1);
-          g.fillStyle = C(15); g.fillRect(px, py + 28, BEK_T, 1);                         /* foam, water meets sand */
-          g.fillStyle = C(11);
-          g.fillRect(px + spot(v.fx, BEK_T, 6), py + 29, 6, 1); g.fillRect(px + spot(v.gx, BEK_T, 8), py + 29, 8, 1);
-          g.fillStyle = C(14); g.fillRect(px, py + 30, BEK_T, 4);                         /* sand */
-          g.fillStyle = C(6); g.fillRect(px, py + 34, BEK_T, 6);                          /* bank */
-          g.fillStyle = C(8);
-          g.fillRect(px + spot(v.sx, BEK_T, 2), py + 34 + spot(v.sy, 6, 2), 2, 2);
-          g.fillRect(px + spot(v.bx, BEK_T, 2), py + 34 + spot(v.ax, 6, 1), 2, 1);
+          /* a deep tile that happens to touch land carries the surf, because
+             on nine maps out of eleven that boundary is where the water ends */
+          shore.live(x, y, t, v, -1);
+          g.fillStyle = C(WATER_DEEP[0]);
+          g.fillRect(px + spot(v.ax, BEK_T, 16), py + 6 + spot(v.ay, 28, 2) + w * 2, 16, 2);
+          g.fillStyle = C(WATER_DEEP[1]);
+          g.fillRect(px + spot(v.bx, BEK_T, 14), py + 6 + spot(v.by, 28, 2) - w * 2, 14, 2);
+          if (v.foam === 0) { g.fillStyle = C(WATER_SUN[0]); g.fillRect(px + spot(v.bx, BEK_T, 8), py + spot(v.ay, BEK_T, 2), 8, 2); }
+          if (v.glint === 3) { g.fillStyle = C(WATER_SUN[1]); g.fillRect(px + spot(v.ax, BEK_T, 4), py + 6 + spot(v.by, 28, 2) + w * 2, 4, 2); }
         });
       }
 
       function hearthTile(x, y, t) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC, fl = Math.floor(t * 6) % 3;
-        g.fillStyle = C(8); g.fillRect(px + 2, py + 2, 16, 16);
-        g.fillStyle = C(0); g.fillRect(px + 5, py + 5, 10, 11);
-        g.fillStyle = C(4); g.fillRect(px + 7, py + 9, 6, 7);
-        g.fillStyle = C(12); g.fillRect(px + 8, py + 8 - fl, 4, 6 + fl);
-        g.fillStyle = C(14); g.fillRect(px + 9, py + 7 - fl, 2, 3);
-        g.fillStyle = C(15); g.fillRect(px + 9, py + 6 - fl, 1, 1);
+        g.fillStyle = C(STO[3]); g.fillRect(px + 2, py + 2, 16, 16);
+        g.fillStyle = C(ATMO[0]); g.fillRect(px + 5, py + 5, 10, 11);
+        g.fillStyle = C(HEARTH[0]); g.fillRect(px + 7, py + 9, 6, 7);
+        g.fillStyle = C(HEARTH[1]); g.fillRect(px + 8, py + 8 - fl, 4, 6 + fl);
+        g.fillStyle = C(HEARTH[2]); g.fillRect(px + 9, py + 7 - fl, 2, 3);
+        g.fillStyle = C(HEARTH[3]); g.fillRect(px + 9, py + 6 - fl, 1, 1);
       }
 
       /* ---- the three passes ------------------------------------------------
@@ -1244,8 +1231,11 @@ export default {
          allow. Both feed the terrain cache and run only when the map, the
          day or the felled/mined/picked state changes. `tileLive` is what is
          left over: the three glyphs whose art reads the clock. */
-      const ins_ = () => !!(BEK_MAPS[S.map] && BEK_MAPS[S.map].inside);
-      const snow_ = () => S.map === 'setra' || S.map === 'vidda';
+      /* which dressing a building wears, whether we are indoors, whether the
+         map is snowed on — all one table now, in surface.js, because
+         palette_check has to read the same answers the art draws from */
+      const ins_ = () => insideMap(S.map);
+      const snow_ = () => snowy(S.map);
       const rim_ = (x, y) => !ins_() && (x === 0 || y === 0 || x === BEK_COLS - 1 || y === BEK_ROWS - 1);
       /* a tile that lays its own ground has no grass or boards under it */
       const ownGround = (c, x, y) => 'W~P.MOQHRDLf '.indexOf(c) >= 0 || (c === 'T' && rim_(x, y));
@@ -1254,188 +1244,152 @@ export default {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         /* the dead margin outside a room's walls: not floor, not field, nothing */
         if (c === ' ') { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'T' && rim_(x, y)) { g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }   /* the wall of wood is solid black behind */
-        if (c === 'W' || c === '~') { g.fillStyle = C(1); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'T' && rim_(x, y)) { g.fillStyle = C(ATMO[0]); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }   /* the wall of wood is solid dark behind */
+        /* Deep water takes its colour from how far it is from any land, so a
+           lake has a middle. A shore tile is the whole rotated profile, and
+           both of them are static: only the ripples and the surf are not. */
+        /* a deep tile that touches land carries the shallows instead of the
+           depth ramp, so the two halves of the waterline meet */
+        if (c === 'W') { native(() => (shore.maskOf(x, y) ? shore.nearShore(x, y) : water.deep(x, y))); return; }
+        if (c === '~') { native(() => shore.ground(x, y)); return; }
         if (c === '.') { pathGround(x, y); return; }
-        if (c === 'M' || c === 'O' || c === 'Q') { rockGround(x, y, snow_()); return; }
-        if (c === 'P' || c === 'f') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'L') { g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'H') { g.fillStyle = C(ins_() ? 8 : rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'R' || c === 'D') { g.fillStyle = C(rustic() ? 6 : 4); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (ins_()) floorGround(x, y); else if (S.map === 'gruva') caveGround(x, y); else grassGround(x, y);
+        if (c === 'M' || c === 'O' || c === 'Q') { native(() => rock.ground(c, x, y, snow_())); return; }
+        /* the plain fills come straight out of surface.js, so the colour the
+           check reasons about at the darkest hour is the colour that is
+           actually on screen */
+        if (c === 'P' || c === 'f' || c === 'L') { g.fillStyle = C(groundOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'H' || c === 'R' || c === 'D') { g.fillStyle = C(solidOf(S.map, c === 'R' ? 'H' : c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (ins_()) native(() => interior.floor(x, y)); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
       }
 
       function tileDetail(c, x, y) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         const ins = ins_(), snow = snow_(), rim = rim_(x, y);
-        if (c === ' ' || c === 'W' || c === '~') return;      /* nothing static of their own */
+        if (c === ' ' || c === 'W') return;                  /* nothing static of its own */
+        if (c === '~') { native(() => shore.detail(x, y, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(px, py, x, y); return; }
         if (!ownGround(c, x, y)) {
-          if (ins) floorDetail(x, y); else if (S.map === 'gruva') caveDetail(x, y); else grassDetail(x, y);
+          if (ins) native(() => interior.volume(x, y)); else if (isCave(S.map)) caveDetail(x, y); else grassDetail(x, y);
         }
+        /* the land half of a waterline, on whichever edges face water */
+        if (!ins && c !== 'W' && c !== '~') native(() => shore.bank(x, y));
         const o = objVar(c, S.map, x, y);
         if (c === 'P') {
-          g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
-          g.fillStyle = C(6); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
+          g.fillStyle = C(TIM[2]); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
+          g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
           return;
         }
         if (c === '.') { pathDetail(x, y); if (rim) edgeMark(px, py, x, y); return; }
-        if (c === 'M' || c === 'O' || c === 'Q') { rockDetail(c, x, y, snow); if (rim) edgeMark(px, py, x, y); return; }
+        if (c === 'M' || c === 'O' || c === 'Q') { native(() => rock.detail(c, x, y, snow)); if (rim) edgeMark(px, py, x, y); return; }
         if (c === ',') {
-          g.fillStyle = C(10);
+          g.fillStyle = C(GRASS[3]);
           g.fillRect(px + spot(o.ax, BEK_T_SRC, 1), py + spot(o.ay, BEK_T_SRC, 8), 1, 8);
           g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 10);
           g.fillRect(px + spot(o.cx, BEK_T_SRC, 1), py + spot(o.cy, BEK_T_SRC, 7), 1, 7);
           g.fillRect(px + spot(o.dx, BEK_T_SRC, 1), py + spot(o.dy, BEK_T_SRC, 9), 1, 9);
-          g.fillStyle = C(TUFT[o.c]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 2);
+          g.fillStyle = C(BLADE[o.c]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 1), py + spot(o.by, BEK_T_SRC, 10), 1, 2);
         }
         if (c === 'F') {
-          const fc = [15, 14, 13, 5, 11];
-          g.fillStyle = C(fc[o.ac]); g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, BEK_T_SRC, 2), 2, 2);
-          g.fillStyle = C(fc[o.bc]); g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, BEK_T_SRC, 2), 2, 2);
-          g.fillStyle = C(fc[o.cc]); g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, BEK_T_SRC, 2), 2, 2);
+          /* Three heads on three stems. The stem is what stops a flower bed
+             reading as three coloured pixels dropped on the grass: a 2x2 of
+             an out-of-band colour with nothing under it is a defect, and the
+             same 2x2 sitting on a dark green stalk is a flower. */
+          const bloom = (sx, sy, col) => {
+            const bx = px + spot(sx, BEK_T_SRC, 2), by = py + spot(sy, BEK_T_SRC, 5);
+            g.fillStyle = C(GRASS[1]); g.fillRect(bx, by + 2, 1, 3);
+            g.fillStyle = C(col); g.fillRect(bx, by, 2, 2);
+          };
+          bloom(o.ax, o.ay, FLOWER[o.ac]); bloom(o.bx, o.by, FLOWER[o.bc]); bloom(o.cx, o.cy, FLOWER[o.cc]);
         }
         if (c === 'p') {
-          const cols = [9, 14, 13, 5], h = 5 + o.h;
+          const h = 5 + o.h;
           const bx = px + spot(o.x, BEK_T_SRC, 5), by = py + spot(o.y, BEK_T_SRC, h + 4);
-          g.fillStyle = C(2); g.fillRect(bx + 2, by + 4, 1, h);
-          g.fillStyle = C(cols[o.c]); g.fillRect(bx, by, 5, 4);
-          g.fillStyle = C(15); g.fillRect(bx + 2, by + 1, 1, 1);
+          g.fillStyle = C(GRASS[2]); g.fillRect(bx + 2, by + 4, 1, h);
+          g.fillStyle = C(PICKABLE[o.c]); g.fillRect(bx, by, 5, 4);
+          g.fillStyle = C(SNO[1]); g.fillRect(bx + 2, by + 1, 1, 1);
         }
         /* A dark fir is the same green as the grass it stands on, so without a
            black silhouette behind it a tree in a field is invisible. Draw the
-           shape once in black, one pixel proud, then the tree inside it. */
-        if (c === 'T') {
-          const ln = o.lean, lit = o.lit === 0 ? 10 : 2;
-          g.fillStyle = C(0);
-          g.fillRect(px + 2, py + 11, 16, 5); g.fillRect(px + 3, py + 7, 14, 6); g.fillRect(px + 5, py + 3 - ln, 10, 7);
-          g.fillStyle = C(6); g.fillRect(px + 9, py + 14, 2, 5);
-          g.fillStyle = C(2); g.fillRect(px + 3, py + 12, 14, 3); g.fillRect(px + 4, py + 8, 12, 4); g.fillRect(px + 6, py + 4 - ln, 8, 5);
-          g.fillStyle = C(0); g.fillRect(px + 3, py + 14, 14, 1);
-          g.fillStyle = C(lit); g.fillRect(px + 6, py + 9, 3, 1); g.fillRect(px + 8, py + 5 - ln, 2, 1);
-          if (o.bare === 5) { g.fillStyle = C(3); g.fillRect(px + 4 + spot(o.bx, 12, 2), py + 8 + spot(o.by, 6, 1), 2, 1); }
-          if (snow) {
-            g.fillStyle = C(15);
-            g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 4 - ln + spot(o.sy, 4, 1), 3, 1);
-            g.fillRect(px + 4 + spot(o.tx, 10, 3), py + 8 + spot(o.ty, 4, 1), 3, 1);
-          }
-        }
-        if (c === 'G') {
-          g.fillStyle = C(0);
-          g.fillRect(px + 1, py + 12, 18, 5); g.fillRect(px + 2, py + 7, 16, 6); g.fillRect(px + 4, py + 2, 12, 7); g.fillRect(px + 6, py, 8, 4);
-          g.fillStyle = C(6); g.fillRect(px + 9, py + 15, 3, 4);
-          g.fillStyle = C(2); g.fillRect(px + 2, py + 13, 16, 4); g.fillRect(px + 3, py + 8, 14, 5); g.fillRect(px + 5, py + 3, 10, 6); g.fillRect(px + 7, py, 6, 4);
-          g.fillStyle = C(0); g.fillRect(px + 2, py + 15, 16, 1);
-          g.fillStyle = C(o.lit === 0 ? 10 : 2);
-          g.fillRect(px + 4 + spot(o.lx, 10, 4), py + 9 + spot(o.ly, 4, 1), 4, 1);
-          g.fillRect(px + 6 + spot(o.sx, 8, 3), py + 3 + spot(o.sy, 4, 1), 3, 1);
-          g.fillStyle = C(3); g.fillRect(px + 6 + spot(o.lx, 10, 2), py + 8 + spot(o.ly, 5, 1), 2, 1);
-          if (snow) { g.fillStyle = C(15); g.fillRect(px + 6 + spot(o.sx, 8, 4), py, 4, 1); }
-        }
-        if (c === 'Y') {
-          g.fillStyle = C(15); g.fillRect(px + 8, py + 10, 3, 9);
-          g.fillStyle = C(8); g.fillRect(px + 8, py + 12, 3, 1); g.fillRect(px + 8, py + 15, 3, 1);
-          g.fillStyle = C(10); g.fillRect(px + 3, py + 3, 13, 8);
-          g.fillStyle = C(2);
-          g.fillRect(px + 4 + spot(o.lx, 11, 3), py + 4 + spot(o.ly, 6, 3), 3, 3);
-          g.fillRect(px + 4 + spot(o.mx, 11, 3), py + 4 + spot(o.my, 6, 2), 3, 2);
-          g.fillStyle = C(14); g.fillRect(px + 4 + spot(o.mx, 11, 2), py + 4 + spot(o.ly, 6, 2), 2, 2);
-          if (o.turn === 3) { g.fillStyle = C(14); g.fillRect(px + 4 + spot(o.lx, 11, 2), py + 4 + spot(o.my, 6, 2), 2, 2); }   /* one turning early */
-        }
+           shape once in ink, one pixel proud, then the tree inside it. */
+        /* A `T` on the ring belongs to the treeline strip, which is drawn
+           over the whole band after this pass. Only the handful of firs that
+           stand inside a map are still stamped per tile. */
+        if (c === 'T') { if (!rim) native(() => forest.loneTree(c, x, y, o, snow)); }
+        if (c === 'G' || c === 'Y') native(() => forest.loneTree(c, x, y, o, snow));
         if (c === '^') {
-          g.fillStyle = C(8); g.fillRect(px + 3, py + 6, 14, 11);
-          g.fillStyle = C(7); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
-          g.fillStyle = C(0); g.fillRect(px + 4, py + 15, 12, 1);
-          if (o.cap === 1) { g.fillStyle = C(10); g.fillRect(px + 4 + spot(o.mx, 12, 3), py + 7 + spot(o.my, 8, 2), 3, 2); }
+          g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 6, 14, 11);
+          g.fillStyle = C(STO[3]); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
+          g.fillStyle = C(ROCK_CRACK); g.fillRect(px + 4, py + 15, 12, 1);
+          if (o.cap === 1) { g.fillStyle = C(CON[2]); g.fillRect(px + 4 + spot(o.mx, 12, 3), py + 7 + spot(o.my, 8, 2), 3, 2); }
         }
-        if (c === '=') { g.fillStyle = C(6); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(14); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
-        if (c === 'x') { g.fillStyle = C(6); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(8); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }
+        if (c === '=') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(TIM[4]); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
+        if (c === 'x') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(TIM[1]); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }
         if (c === 'H') {
           /* not every course of logs has a window cut in it */
           const win = o.win < 2;
           if (ins) {
-            /* Seen from inside, a wall must not be the same brown as the
-               floor or the room has no edges. Dark timber, lighter courses. */
-            g.fillStyle = C(6); g.fillRect(px + 1, py + 2, 18, 4); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 14, 18, 4);
-            g.fillStyle = C(0); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py + BEK_T_SRC - 1, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
-            if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 5, 9, 8);
-              g.fillStyle = C(15); g.fillRect(px + 5, py + 5, 9, 1); g.fillRect(px + 9, py + 5, 1, 8); }
-          } else if (rustic()) {
-            g.fillStyle = C(8); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
-            g.fillStyle = C(0); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
-            if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 4, 9, 8);
-              g.fillStyle = C(15); g.fillRect(px + 5, py + 4, 9, 1); g.fillRect(px + 9, py + 4, 1, 8); }
-            else { g.fillStyle = C(0); g.fillRect(px + spot(o.kx, BEK_T_SRC, 2), py + spot(o.ky, BEK_T_SRC, 2), 2, 2); }   /* a knot in a log */
+            native(() => interior.wall(x, y, o, win));
+          } else if (rustic(S.map)) {
+            g.fillStyle = C(TIM[3]); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
+            g.fillStyle = C(TIM[0]); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
+            if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 4, 9, 8);
+              g.fillStyle = C(SNO[0]); g.fillRect(px + 5, py + 4, 9, 1); g.fillRect(px + 9, py + 4, 1, 8); }
+            else { g.fillStyle = C(TIM[0]); g.fillRect(px + spot(o.kx, BEK_T_SRC, 2), py + spot(o.ky, BEK_T_SRC, 2), 2, 2); }   /* a knot in a log */
           } else {
-            g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);             /* painted board */
-            g.fillStyle = C(8); g.fillRect(px, py + 18, BEK_T_SRC, 2);
-            if (win) { g.fillStyle = C(11); g.fillRect(px + 5, py + 5, 9, 8);
-              g.fillStyle = C(15); g.fillRect(px + 4, py + 4, 11, 1); g.fillRect(px + 9, py + 5, 1, 8); }
+            g.fillStyle = C(WAR[2]); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);             /* painted board */
+            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 18, BEK_T_SRC, 2);
+            if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 5, 9, 8);
+              g.fillStyle = C(SNO[1]); g.fillRect(px + 4, py + 4, 11, 1); g.fillRect(px + 9, py + 5, 1, 8); }
           }
         }
         if (c === 'R') {
-          if (rustic()) {
-            g.fillStyle = C(2); g.fillRect(px, py, BEK_T_SRC, 13);                                  /* torvtak: turf */
-            g.fillStyle = C(10);
+          if (rustic(S.map)) {
+            g.fillStyle = C(GRASS[1]); g.fillRect(px, py, BEK_T_SRC, 13);                     /* torvtak: turf */
+            g.fillStyle = C(TURF_ROOF[0]);
             g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, 12, 1), 2, 1);
             g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, 12, 1), 2, 1);
+            g.fillStyle = C(TURF_ROOF[1]);
             g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, 12, 1), 2, 1);
-            g.fillStyle = C(14); g.fillRect(px + spot(o.fx, BEK_T_SRC, 1), py + spot(o.fy, 12, 1), 1, 1);
-            g.fillStyle = C(8); g.fillRect(px, py + 13, BEK_T_SRC, 2);
+            g.fillStyle = C(TURF_ROOF[2]); g.fillRect(px + spot(o.fx, BEK_T_SRC, 1), py + spot(o.fy, 12, 1), 1, 1);
+            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 13, BEK_T_SRC, 2);
           } else {
-            g.fillStyle = C(12); g.fillRect(px, py + 4, BEK_T_SRC, 3); g.fillRect(px, py + 12, BEK_T_SRC, 3);
-            g.fillStyle = C(8); g.fillRect(px, py + 18, BEK_T_SRC, 2);
+            g.fillStyle = C(WAR[1]); g.fillRect(px, py + 4, BEK_T_SRC, 3); g.fillRect(px, py + 12, BEK_T_SRC, 3);
+            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 18, BEK_T_SRC, 2);
           }
         }
-        if (c === 'D') { g.fillStyle = C(6); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(8); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(14); g.fillRect(px + 12, py + 11, 2, 2); }
-        if (c === 'b') {
-          g.fillStyle = C(6); g.fillRect(px + 1, py + 1, 18, 18);
-          g.fillStyle = C(8); g.fillRect(px + 1, py + 1, 18, 2); g.fillRect(px + 1, py + 17, 18, 2);
-          g.fillStyle = C(15); g.fillRect(px + 3, py + 3, 14, 5);                                   /* pillow */
-          g.fillStyle = C(9); g.fillRect(px + 3, py + 9, 14, 8);                                    /* blanket */
-          g.fillStyle = C(11); g.fillRect(px + 3, py + 9, 14, 1); g.fillRect(px + 3, py + 13, 14, 1);
-        }
-        if (c === 'o') { g.fillStyle = C(8); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(9); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(11); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(6); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
-        if (c === 'S') { g.fillStyle = C(6); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(14); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(0); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
-        if (c === 'L') { g.fillStyle = C(6); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
-        if (c === 'f') { g.fillStyle = C(8); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
-        /* ---- indoors, and the benches ---------------------------------- */
-        if (c === 'z') {                                                     /* a rag rug, walked on */
-          g.fillStyle = C(4); g.fillRect(px + 1, py + 1, 18, 18);
-          g.fillStyle = C(12); g.fillRect(px + 3, py + 3, 14, 14);
-          g.fillStyle = C(6); g.fillRect(px + 3, py + 7, 14, 2); g.fillRect(px + 3, py + 12, 14, 2);
-          g.fillStyle = C(14); g.fillRect(px + 8, py + 3, 2, 14);
-        }
-        if (c === 'n') {                                                     /* a table */
-          g.fillStyle = C(14); g.fillRect(px, py + 3, BEK_T_SRC, 7);
-          g.fillStyle = C(8); g.fillRect(px, py + 3, BEK_T_SRC, 1);
-          g.fillStyle = C(6); g.fillRect(px, py + 10, BEK_T_SRC, 2); g.fillRect(px + 2, py + 12, 3, 7); g.fillRect(px + 15, py + 12, 3, 7);
-        }
-        if (c === 'u') {                                                     /* a cupboard */
-          g.fillStyle = C(6); g.fillRect(px + 1, py, 18, BEK_T_SRC);
-          g.fillStyle = C(8); g.fillRect(px + 1, py + 6, 18, 1); g.fillRect(px + 1, py + 13, 18, 1); g.fillRect(px + 9, py, 1, BEK_T_SRC);
-          g.fillStyle = C(14); g.fillRect(px + 6, py + 9, 2, 2); g.fillRect(px + 12, py + 9, 2, 2);
-          g.fillStyle = C(11); g.fillRect(px + 3, py + 2, 4, 3);
-          g.fillStyle = C(15); g.fillRect(px + 12, py + 2, 3, 3);
-        }
-        if (c === 'J') {                                                     /* a bench, to sit on */
-          g.fillStyle = C(6); g.fillRect(px + 1, py + 8, 18, 4); g.fillRect(px + 1, py + 3, 18, 3);
-          g.fillStyle = C(14); g.fillRect(px + 1, py + 8, 18, 1);
-          g.fillStyle = C(8); g.fillRect(px + 2, py + 12, 3, 6); g.fillRect(px + 15, py + 12, 3, 6); g.fillRect(px + 2, py + 3, 2, 6); g.fillRect(px + 16, py + 3, 2, 6);
-        }
-        if (c === 'c') {                                                     /* a crate */
-          g.fillStyle = C(6); g.fillRect(px + 2, py + 4, 16, 14);
-          g.fillStyle = C(8); g.fillRect(px + 2, py + 4, 16, 1); g.fillRect(px + 2, py + 10, 16, 1); g.fillRect(px + 9, py + 4, 1, 14);
-          g.fillStyle = C(14); g.fillRect(px + 4, py + 6, 2, 1);
-        }
+        if (c === 'D') { g.fillStyle = C(TIM[2]); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(TIM[1]); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(WAR[4]); g.fillRect(px + 12, py + 11, 2, 2); }
+        if (c === 'o') { g.fillStyle = C(STO[4]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 16, 14, 2); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
+        if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
+        if (c === 'L') { g.fillStyle = C(TIM[3]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
+        if (c === 'f') { g.fillStyle = C(SOI[1]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
+        /* ---- indoors, and the benches ----------------------------------
+           The rug and the five pieces of furniture live in interior.js and
+           draw at native density; this is the last of the glyph ladder that
+           still had them. */
+        if (c === 'z') { native(() => interior.rug(x, y)); }
+        else if ('nuJcb'.indexOf(c) >= 0) native(() => furniture(propArt, c, x, y));
+        /* A prop stands on whatever tile the content table put it on, drawn
+           after that tile's own art and before the actors — so the player
+           passes in front of the boots by the door rather than under them.
+           The animated kinds are not here; they are redrawn per frame. */
+        const prp = propMap.get(x + ',' + y);
+        if (prp && !PROP_LIVE[prp.kind] && LIVE.indexOf(c) < 0) drawProp(prp, x, y, 0);
         if (rim) edgeMark(px, py, x, y);
       }
 
       function tileLive(c, x, y, t) {
         if (c === 'W') { waterTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
-        if (c === '~') { waterEdgeTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
+        if (c === '~') { native(() => shore.live(x, y, t, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
+        if (c === 'O' || c === 'Q') { native(() => rock.live(c, x, y, t)); return; }
         if (c === 'v') hearthTile(x, y, t);                                  /* the hearth, alight */
+        /* A prop standing on a tile that is itself redrawn every frame has to
+           be redrawn with it, or the tile paints over it — which is how the
+           kettle spent its first afternoon invisible behind the fire. */
+        const lp = propMap.get(x + ',' + y);
+        if (lp) drawProp(lp, x, y, t);
       }
-      const LIVE = 'W~v';
+      /* the glyphs whose art reads the clock: water, the hearth, and the
+         catch of light travelling across a crystal face */
+      const LIVE = 'W~vOQ';
 
       /* ---- the terrain cache ----------------------------------------------
          The two passes above used to be one function run for all 360 tiles
@@ -1452,117 +1406,215 @@ export default {
       terrCv.width = BEK_MAP_W; terrCv.height = BEK_MAP_H;
       const terrG = terrCv.getContext('2d');
       if (terrG) terrG.tag = 'terrain';
-      let terrKey = '', terrLive = [];
+      let terrKey = '', terrLive = [], terrHearths = [];
       let terrBump = 0;
-      const terrDirty = () => { terrBump++; };
+      /* `act()` mutating state immediately is the safe design: nothing can
+         double-resolve, the player cannot walk away mid-swing, and autoSave
+         can never catch a half-applied action. Keep it. The only artefact was
+         the terrain cache repainting the felled tree before the axe landed —
+         so the *repaint* is what gets deferred, not the state change.
+
+         `terrLater()` arms it; the strike frame fires it. Anything that calls
+         `terrDirty()` directly in the meantime still takes effect at once and
+         clears the arming, so a second source of change is never swallowed by
+         a swing that happens to be in flight. */
+      let terrPending = false;
+      const terrDirty = () => { terrBump++; terrPending = false; };
+      const terrLater = () => { terrPending = true; };
+      const terrFlush = () => { if (terrPending) terrDirty(); };
+
+      /* ---- the hour ------------------------------------------------------
+         `st0` is the light outside; `st` is what this map actually sits in —
+         a room is sheltered halfway back toward daylight, and the gruva is a
+         hole in a mountain and has no hour at all. `dark` is how hard the
+         fires burn, and it comes off the *unsheltered* state on purpose: a
+         hearth is bright because the valley is dark, not because the room is.
+         Everything here is a pure function of S.map and S.min, so the cache
+         and the frame can both ask and get the same answer. */
+      function lighting() {
+        const cave = isCave(S.map), ins = ins_();
+        const st0 = cave ? CAVE_LIGHT : lightAt(S.min);
+        const st = ins ? shelter(st0, 0.5) : st0;
+        return { st: st, tag: keyOf(st), dark: Math.max(0, Math.min(1, 1 - st0.k)),
+                 key: (cave ? 'cave' : keyOf(st0)) + (ins ? '|in' : '') };
+      }
+
+      /* ---- local light ---------------------------------------------------
+         The lighting curve is what makes night comfortable; this is what
+         makes it inviting, and they are different things. A source pulls the
+         ground near it back toward warm and bright — warm, not merely
+         brighter, or a lit window in a blue valley reads as a hole in the
+         picture rather than as somebody being in. Two passes per source, a
+         wide faint halo and a tight core, so the pool changes colour
+         temperature toward the middle instead of only getting stronger.
+
+         The stipple is taken in *daylight* colours (`wash`'s last argument):
+         a fire is as bright at midnight as at noon, which is the whole
+         reason for lighting one.
+
+         Static sources are painted into the terrain cache, because the light
+         key is already part of the cache key — so a lit window costs nothing
+         per frame. Only what moves or flickers is redrawn live. */
+      /* Two passes, and the outer one is a *deeper* colour rather than a
+         weaker one. Light gets redder as it dims — a fire's reach is amber in
+         the middle and rust at the edge — so the pool changes temperature
+         outward and not only strength. Pull the outer pass toward yellow
+         instead and it reads as a spotlight. */
+      const GLOW_HALO = 1.35;
+      /* One native() for the whole pool, not one per cell. `wash` opens its
+         own, and a pool is several hundred cells — that was several hundred
+         save/scale/restore triples per source and most of the rebuild. */
+      function pool(px, py, r, peak) {
+        if (peak < 2) return 0;
+        let n = 0;
+        native(() => {
+          const put = col => (gx, gy, w, h, sN) => {
+            g.fillStyle = ditherPat(col, sN, true); g.fillRect(gx, gy, w, h);
+          };
+          n += glow(put(WAR[1]), px, py, r * GLOW_HALO, Math.round(peak * 0.45));
+          n += glow(put(WAR[3]), px, py, r, peak);
+        });
+        return n;
+      }
+
+      /* ---- the moon ------------------------------------------------------
+         One cool key light, from above and a little to the left, put on as a
+         two-pixel rim along the top of anything solid and a one-pixel lick
+         down its left side. It costs a wash per solid tile in a pass that is
+         cached, and it is what stops a night reading as one flat sheet of
+         dark: without it every silhouette has the same value all the way
+         round and the scene has no direction in it at all.
+
+         Drawn through the hour's own table rather than in daylight, because
+         moonlight is the ambient — it is not a lamp somebody lit. */
+      function moonKey(dark) {
+        /* and not indoors. There is no moon in a room, and a rim light along
+           the top of every wall from inside reads as a dotted line ruled
+           around the picture rather than as anything lighting anything. */
+        if (dark < 0.25 || ins_()) return;
+        const top = Math.round(5 * dark), side = Math.round(2.5 * dark);
+        if (top < 2) return;
+        native(() => moonRim(top, side));
+      }
+      function moonRim(top, side) {
+        const put = (px, py, w, h, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(SNO[1], str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        };
+        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+          const c = tileAt(S.map, x, y);
+          if (c === ' ' || c === 'W' || c === '~' || BEK_SOLID.indexOf(c) < 0) continue;
+          /* Never on the border ring. A whole row of it lit at one strength
+             is not moonlight, it is a dotted line ruled across the picture —
+             and the border is a wall of the same glyph all the way along, so
+             that is exactly what it would be. */
+          if (rim_(x, y)) continue;
+          /* and one step of jitter per tile off a channel that is already
+             declared and tested, so a long run of wall does not come out as
+             one drawn edge either. groundVar is free here: the tiles this
+             touches are solid, so nothing else on them reads from it. */
+          const j = groundVar(S.map, x, y).c1 & 1;
+          const px = x * BEK_T, py = y * BEK_T;
+          if (BEK_SOLID.indexOf(tileAt(S.map, x, y - 1)) < 0) put(px, py, BEK_T, 2 * BEK_ART_SCALE, top - j);
+          if (BEK_SOLID.indexOf(tileAt(S.map, x - 1, y)) < 0) put(px, py, BEK_ART_SCALE, BEK_T, side - j);
+        }
+      }
+
+      /* Which tiles are giving light, found once while the map is being
+         rasterised rather than searched for every frame. A window only counts
+         if it has somewhere to spill: a wall with another wall in front of it
+         is lighting the inside of a wall. */
+      function lightSources(dark) {
+        const out = [];
+        if (dark <= 0.02) return out;
+        const ins = ins_();
+        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+          const c = tileAt(S.map, x, y);
+          if (c === 'v') { out.push({ x: x, y: y, dy: 0.1, r: 2.7 * BEK_T, peak: Math.round(12 * dark), hearth: 1 }); continue; }
+          const dp = propMap.get(x + ',' + y);
+          if (dp && PROP_LIGHTS[dp.kind]) {
+            const L2 = PROP_LIGHTS[dp.kind];
+            out.push({ x: x, y: y, dy: 0.5, r: L2.r * BEK_T, peak: Math.round(L2.peak * dark) });
+          }
+          if (c !== 'H') continue;
+          if (objVar('H', S.map, x, y).win >= 2) continue;            /* no window in this course */
+          /* A window that is drawn is a window that lights. If the wall
+             carries on below it the pool falls on the wall face, which is
+             what a lit window actually does to the boards under it. Only the
+             dead margin outside a room gets nothing, because there is
+             nothing out there to light. */
+          if (tileAt(S.map, x, y + 1) === ' ') continue;
+          out.push({ x: x, y: y, dy: 0.9, r: (ins ? 1.5 : 1.9) * BEK_T, peak: Math.round((ins ? 7 : 8) * dark) });
+        }
+        return out;
+      }
+
+      /* rebuild cost, so the numbers in the docs are measured and not guessed */
+      /* Split three ways, because "the rebuild got slower" is not a finding
+         and "the detail pass got slower" is. */
+      const perf = { rects: 0, ms: 0, ground: 0, detail: 0, forest: 0, light: 0, rebuilds: 0, key: '' };
+      const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       function terrain() {
-        const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump;
+        const L = lighting();
+        const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump + '|' + L.key;
         if (k === terrKey) return terrCv;
-        terrKey = k; terrLive = [];
+        terrKey = k; terrLive = []; terrHearths = [];
+        const t0 = now();
+        let rects = 0;
         const prev = g;
         g = terrG;
         try {
           g.setTransform(1, 0, 0, 1, 0, 0);
           g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
+          shore.prepare(k); water.prepare(k); rock.prepare(k); interior.prepare(k);
+          forest.prepare(k); propsPrepare();
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
+          const tA = now();
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
+          const tB = now();
           for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
             const c = tileAt(S.map, x, y);
             tileDetail(c, x, y);
             if (LIVE.indexOf(c) >= 0) terrLive.push(x, y);
           }
+          const tC = now();
+          perf.ground = tB - tA; perf.detail = tC - tB;
+          const tD = now();
+          if (!ins_()) native(() => forest.draw(snow_()));
+          perf.forest = now() - tD;
+          moonKey(L.dark);
+          lightSources(L.dark).forEach(sc => {
+            const px = (sc.x + 0.5) * BEK_T, py = (sc.y + sc.dy) * BEK_T;
+            rects += pool(px, py, sc.r, sc.peak);
+            if (sc.hearth) terrHearths.push(px, py);
+          });
+          /* Light does not spill into the void. The margin outside a room's
+             walls is deliberate dead black and a warm pool creeping out over
+             it reads as the room leaking, so it is painted back afterwards
+             rather than the glow being clipped to a shape. */
+          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+            if (tileAt(S.map, x, y) !== ' ') continue;
+            g.fillStyle = C(0); g.fillRect(x * BEK_T_SRC, y * BEK_T_SRC, BEK_T_SRC, BEK_T_SRC);
+          }
           g.restore();
         } finally { g = prev; }
+        perf.light = now() - t0 - perf.ground - perf.detail - perf.forest;
+        perf.rects = rects; perf.key = k; perf.rebuilds++;
+        perf.ms = now() - t0;
         return terrCv;
       }
-      /* Ploughed in even rows, so the furrows always run the same way the
-         field was worked — horizontal bands that line up tile to tile rather
-         than each tile picking its own direction. Wet soil goes darker as
-         well as greyer and keeps a black, dither-proof shadow in every
-         furrow (plus a glint of standing water) so it still reads apart from
-         dry soil once the night stipple is over everything. */
-      function tilledSoil(x, y, wet) {
-        const px = x * BEK_T, py = y * BEK_T, v = soilVar(S.map, x, y);
-        native(() => {
-          g.fillStyle = C(wet ? 8 : 6); g.fillRect(px + 2, py + 2, 36, 36);
-          g.fillStyle = C(wet ? 0 : 8);
-          g.fillRect(px + 4, py + 9, 32, 2); g.fillRect(px + 4, py + 19, 32, 2); g.fillRect(px + 4, py + 29, 32, 2);
-          g.fillStyle = C(7);
-          g.fillRect(px + 4, py + 8, 32, 1); g.fillRect(px + 4, py + 18, 32, 1); g.fillRect(px + 4, py + 28, 32, 1);
-          /* standing water, and it stands where the ground happens to dip,
-             not on a line four pixels wide down the left of every plot */
-          if (wet) {
-            g.fillStyle = C(9);
-            g.fillRect(px + 4 + spot(v.ax, 32, 1), py + 4 + spot(v.ay, 32, 1), 1, 1);
-            g.fillRect(px + 4 + spot(v.bx, 32, 1), py + 4 + spot(v.by, 32, 1), 1, 1);
-          }
-        });
-      }
-      function drawSoil(x, y) {
-        const c = S.soil[key(x, y)]; if (!c) return;
-        if (c.till) tilledSoil(x, y, c.wet);
-        if (!c.seed) return;
-        const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
-        const spec = BEK_CROPS[c.seed]; const f = Math.min(1, c.age / spec.days); const h = 3 + Math.round(f * 11);
-        g.fillStyle = C(10); g.fillRect(px + 9, py + 18 - h, 2, h);
-        g.fillStyle = C(2); g.fillRect(px + 6, py + 16 - h, 3, 2); g.fillRect(px + 11, py + 14 - h, 3, 2);
-        if (c.ready) { g.fillStyle = C(spec.col); g.fillRect(px + 7, py + 14 - h, 6, 5); g.fillStyle = C(15); g.fillRect(px + 8, py + 15 - h, 2, 1); }
-      }
+      /* The ploughed plot and what grows in it live in crops.js — the last
+         of the live second pass, and the one tile that reads `S.soil` rather
+         than the map. */
+      const { drawSoil } = createCrops(() => g, C, {
+        soil: k => S.soil[k], map: () => S.map, native: native, spot: spot
+      });
 
-      function drawIcon(id, x, y) {
-        const it = BEK_ITEMS[id], col = it.col == null ? 7 : it.col, ic = it.icon;
-        const R = (a, b, w, h, k) => { g.fillStyle = C(k); g.fillRect(x + a, y + b, w, h); };
-        if (ic === 'seed') { R(4, 3, 6, 8, 6); R(5, 5, 4, 1, col); R(5, 8, 4, 1, col); }
-        else if (ic === 'root') { R(4, 4, 6, 6, col); R(6, 2, 2, 3, 2); R(5, 10, 1, 2, col); R(8, 10, 1, 2, col); }
-        else if (ic === 'leaf') { R(6, 3, 2, 9, 2); R(3, 5, 4, 3, col); R(7, 7, 4, 3, col); }
-        else if (ic === 'berry') { R(4, 5, 3, 3, col); R(8, 6, 3, 3, col); R(6, 9, 3, 3, col); R(5, 6, 1, 1, 15); }
-        else if (ic === 'mush') { R(6, 8, 3, 4, 15); R(3, 4, 9, 5, col); R(5, 5, 2, 1, 15); }
-        else if (ic === 'fish') { R(3, 6, 8, 4, col); R(11, 5, 3, 6, col); R(4, 7, 1, 1, 0); R(10, 5, 1, 1, 15); }
-        else if (ic === 'ore') { R(3, 5, 9, 8, 8); R(5, 7, 5, 4, col); R(6, 8, 1, 1, 15); }
-        else if (ic === 'wood') { R(3, 6, 10, 4, 6); R(3, 6, 10, 1, col); R(11, 6, 2, 4, 8); }
-        else if (ic === 'stone') { R(4, 6, 8, 6, 7); R(4, 6, 8, 1, 8); R(5, 8, 3, 2, 8); }
-        else if (ic === 'nail') { R(6, 3, 2, 9, 7); R(5, 3, 4, 2, 15); }
-        else if (ic === 'rope') { R(4, 5, 8, 3, 6); R(4, 8, 8, 3, col); R(6, 5, 1, 6, 8); }
-        else if (ic === 'flower') { R(7, 8, 1, 5, 2); R(5, 5, 6, 4, col); R(7, 6, 2, 2, 15); }
-        else if (ic === 'milk') { R(4, 3, 7, 9, 15); R(4, 3, 7, 2, 7); R(6, 6, 3, 3, 9); }
-        else if (ic === 'cheese') { R(3, 5, 10, 6, col); R(3, 5, 10, 1, 14); R(6, 7, 1, 1, 6); R(9, 8, 1, 1, 6); }
-        else if (ic === 'wool') { R(4, 5, 8, 6, 15); R(5, 6, 2, 2, 7); R(8, 7, 2, 2, 7); }
-        else if (ic === 'cup') { R(4, 4, 7, 7, 15); R(5, 5, 5, 3, col); R(11, 5, 2, 3, 7); }
-        else if (ic === 'food') { R(3, 6, 10, 4, col); R(3, 5, 10, 2, 14); R(5, 7, 1, 1, 6); }
-        else if (ic === 'bowl') { R(3, 7, 10, 4, 7); R(4, 5, 8, 3, col); R(6, 5, 1, 1, 15); }
-        else if (ic === 'stalk') { R(6, 3, 2, 9, col); R(4, 3, 5, 2, 10); R(8, 5, 3, 2, 10); }
-        else if (ic === 'lamp') { R(5, 3, 5, 3, 7); R(4, 6, 7, 6, col); R(6, 8, 3, 3, 15); }
-        else if (ic === 'shirt') { R(3, 5, 10, 7, col); R(2, 5, 3, 3, col); R(11, 5, 3, 3, col); R(5, 5, 5, 2, 15); }
-        else R(4, 4, 8, 8, col);
-      }
+      /* The people, the animals and the item icons live in actors.js. It is
+         handed `() => g` rather than `g`, because `g` is repointed at the
+         offscreen terrain canvas for the length of a cache rebuild. */
+      const { drawIcon, person, bear, goat } = createActors(() => g, C);
 
-      function person(px, py, dir, step, hair, shirt, pants) {
-        const bob = (step === 1 || step === 3) ? 1 : 0, y = py + bob;
-        g.fillStyle = C(pants); g.fillRect(px + 3, y + 13, 3, 5); g.fillRect(px + 7, y + 13, 3, 5);
-        g.fillStyle = C(0);
-        if (step === 1) g.fillRect(px + 3, y + 17, 3, 2); else if (step === 3) g.fillRect(px + 7, y + 17, 3, 2); else { g.fillRect(px + 3, y + 17, 3, 2); g.fillRect(px + 7, y + 17, 3, 2); }
-        g.fillStyle = C(shirt); g.fillRect(px + 2, y + 7, 9, 7); g.fillRect(px, y + 8, 2, 5); g.fillRect(px + 11, y + 8, 2, 5);
-        g.fillStyle = C(14); g.fillRect(px, y + 12, 2, 2); g.fillRect(px + 11, y + 12, 2, 2); g.fillRect(px + 3, y + 2, 7, 6);
-        g.fillStyle = C(hair); g.fillRect(px + 2, y, 9, 3);
-        if (dir === 1) g.fillRect(px + 2, y, 9, 7);
-        else { g.fillStyle = C(0); if (dir === 0) { g.fillRect(px + 4, y + 4, 1, 2); g.fillRect(px + 8, y + 4, 1, 2); } if (dir === 2) g.fillRect(px + 3, y + 4, 1, 2); if (dir === 3) g.fillRect(px + 9, y + 4, 1, 2); }
-      }
-      function bear(px, py, step) {
-        const bob = (step === 1 || step === 3) ? 1 : 0, y = py + bob;
-        g.fillStyle = C(6); g.fillRect(px + 1, y + 5, 14, 14); g.fillRect(px + 2, y, 12, 7); g.fillRect(px, y - 1, 4, 4); g.fillRect(px + 12, y - 1, 4, 4);
-        g.fillStyle = C(8); g.fillRect(px + 1, y + 16, 14, 3);
-        g.fillStyle = C(14); g.fillRect(px + 5, y + 4, 6, 4);
-        g.fillStyle = C(0); g.fillRect(px + 4, y + 2, 2, 2); g.fillRect(px + 10, y + 2, 2, 2); g.fillRect(px + 7, y + 5, 2, 2);
-        g.fillStyle = C(6); for (let i = 0; i < 12; i++) g.fillRect(px + 15 + Math.floor(i / 2), y + 4 + i, 2, 2);
-        g.fillStyle = C(14); g.fillRect(px + 19, y + 16, 7, 5); g.fillStyle = C(6); g.fillRect(px + 19, y + 16, 7, 1);
-      }
-      function goat(px, py, t) {
-        const bob = Math.floor(t * 1.5) % 2;
-        g.fillStyle = C(15); g.fillRect(px + 3, py + 6 + bob, 11, 7); g.fillRect(px + 12, py + 3 + bob, 5, 5);
-        g.fillStyle = C(7); g.fillRect(px + 3, py + 11 + bob, 11, 2);
-        g.fillStyle = C(0); g.fillRect(px + 4, py + 13, 1, 4); g.fillRect(px + 12, py + 13, 1, 4); g.fillRect(px + 15, py + 5 + bob, 1, 1);
-        g.fillStyle = C(8); g.fillRect(px + 13, py + 1 + bob, 1, 3); g.fillRect(px + 16, py + 1 + bob, 1, 3);
-      }
       const { text, textW, wrapText } = createText(g, C);
 
       function panel(x, y, w, h, edge) {
@@ -1595,6 +1647,16 @@ export default {
       function camTrack() {
         camX = Math.max(0, Math.min(BEK_CAM_MAX_X, Math.round(S.px * BEK_T + BEK_T / 2 - BEK_VIEW_W / 2)));
         camY = Math.max(0, Math.min(BEK_CAM_MAX_Y, Math.round(S.py * BEK_T + BEK_T / 2 - BEK_VIEW_H / 2)));
+        /* The kick on the strike frame — the whole difference between an
+           animation and a hit. Kept under three pixels and under two frames,
+           because past that it is motion sickness. Applied after the clamp so
+           it can nudge the top and bottom rows a pixel free of the frame for
+           a moment, which is what a jolt looks like. */
+        if (shake > 0.4) {
+          const k = Math.round(shake);
+          camX += (S.dir === 2 ? -k : S.dir === 3 ? k : 0);
+          camY += (S.dir === 1 ? -k : S.dir === 0 ? k : 0);
+        }
       }
       const viewClip = () => { g.beginPath(); g.rect(BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H); g.clip(); };
 
@@ -1628,9 +1690,16 @@ export default {
       }
 
       /* ---- the frame ---------------------------------------------------- */
+      let litTag = '';
       function draw(t) {
         const m = M(), inside = !!m.inside;
         camTrack();
+        /* Everything from here to the HUD resolves its colours through the
+           hour's table. Night is not painted on top of the picture any more;
+           the picture is rasterised in night colours. */
+        const L = lighting();
+        if (L.tag !== litTag) { litTag = L.tag; sweepDither(L.tag); }
+        useLut(cssFor(L.st), L.tag);
 
         /* The playfield draws in source-art coordinates under one whole-number
            transform, so the tile passes, drawSoil, person, bear and goat kept every
@@ -1649,6 +1718,21 @@ export default {
         }
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) if (tileAt(S.map, x, y) === 'f') drawSoil(x, y);
 
+        /* The moving half of the light. The pools themselves are in the cache;
+           these are the two things that cannot be: a fire whose reach breathes
+           on the same cycle as its flame, and a lamp that walks. Both are
+           small — a couple of dozen stipple cells — because the expensive part
+           was paid at the last rebuild. */
+        propMap.forEach(d => { if (PROP_LIVE[d.kind]) drawProp(d, d.x, d.y, t); });
+
+        if (L.dark > 0.02) {
+          const fl = 1 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 11.7);
+          for (let i = 0; i < terrHearths.length; i += 2)
+            pool(terrHearths[i], terrHearths[i + 1], 1.25 * BEK_T * fl, Math.round(5 * L.dark));
+          if (isCave(S.map) && has('lykt'))
+            pool(S.px * BEK_T + BEK_T / 2, S.py * BEK_T + BEK_T / 2, 2.4 * BEK_T, 10);
+        }
+
         S.drops.filter(d => d.map === S.map).forEach(d => drawIcon(d.item, d.x * BEK_T_SRC + 3, d.y * BEK_T_SRC + 3));
         BEK_GOATS.filter(gt => gt.map === S.map).forEach(gt => goat(gt.x * BEK_T_SRC + 1, gt.y * BEK_T_SRC + 1, t));
 
@@ -1656,36 +1740,53 @@ export default {
         actors.push({ me: 1, y: S.py });
         actors.sort((a, b) => a.y - b.y);
         actors.forEach(a => {
-          if (a.me) { person(S.px * BEK_T_SRC + 4, S.py * BEK_T_SRC + 2, S.dir, S.step, 6, 11, 1); return; }
+          if (a.me) {
+            /* what is in the hand: the selected tool at rest, or whatever is
+               mid-swing. A tool you do not own is not in your hand. */
+            const tid = BEK_TOOLS[S.tool].id;
+            const sw = swing && TOOL_SWING[swing.kind];
+            const kind = sw && swing.kind !== 'deny' && swing.kind !== 'hand' ? swing.kind : tid;
+            const held = S.tools[kind] || (sw && swing.kind === kind)
+              ? { kind: kind, u: sw ? Math.min(1, swing.t / swing.len) : 0, dir: S.dir } : null;
+            /* two frames of recoil when the answer was no */
+            const jx = swing && swing.kind === 'deny' ? ((swing.t * 46) | 0) % 2 ? 2 : -2 : 0;
+            person(S.px * BEK_T_SRC + 4 + jx, S.py * BEK_T_SRC + 2, S.dir, S.step, PLAYER_HAIR, PLAYER_SHIRT, PLAYER_PANTS, held);
+            return;
+          }
           const n = a.n;
           if (n.bear) { const sway = Math.floor(t * 1.2) % 2; bear(n.x * BEK_T_SRC + 2 + sway, n.y * BEK_T_SRC + 1, sway * 2); }
           else person(n.x * BEK_T_SRC + 4, n.y * BEK_T_SRC + 2, 0, Math.floor(t) % 2 ? 0 : 2, n.hair, n.shirt, n.pants);
         });
 
-        if (S.map === 'lake' && S.flag.lot && !S.built) { g.fillStyle = C(14); g.fillRect(3 * BEK_T_SRC, 3 * BEK_T_SRC, 5 * BEK_T_SRC, 1); g.fillRect(3 * BEK_T_SRC, 6 * BEK_T_SRC - 1, 5 * BEK_T_SRC, 1); }
+        /* the chips, the dust and the spray, in front of everything in the
+           playfield and under the chrome */
+        native(() => fx.draw());
+
+        if (S.map === 'lake' && S.flag.lot && !S.built) { g.fillStyle = C(SAN[2]); g.fillRect(3 * BEK_T_SRC, 3 * BEK_T_SRC, 5 * BEK_T_SRC, 1); g.fillRect(3 * BEK_T_SRC, 6 * BEK_T_SRC - 1, 5 * BEK_T_SRC, 1); }
         g.restore();
 
-        /* Weather and the hour of the day sit over the playfield only; the HUD
-           bands are chrome and stay at full contrast through the night. */
+        /* Weather sits over the playfield only, and it is the last thing that
+           still composites: fog really is a sheet of something between you
+           and the valley, which is exactly what an overlay is for. The hour
+           is no longer here at all — it went into the palette. Both still
+           draw through the hour's LUT, so fog at midnight is night fog and
+           rain at dusk catches the last of the light. */
         g.save();
         viewClip();
         if (!inside) {
           if (S.weather === 'regn') {
-            g.fillStyle = C(9);
+            g.fillStyle = C(WAT[4]);
             for (let i = 0; i < BEK_RAIN_N; i++) {
               const rx = (i * BEK_RAIN_STRIDE_X + Math.floor(t * BEK_RAIN_VX)) % BEK_VIEW_W;
               const ry = (i * BEK_RAIN_STRIDE_Y + Math.floor(t * BEK_RAIN_VY)) % BEK_VIEW_H;
               g.fillRect(BEK_VIEW_X + rx, BEK_VIEW_Y + ry, BEK_ART_SCALE, BEK_RAIN_LEN);
             }
-          } else if (S.weather === 'take') dither(7, 4);
-          if (night()) dither(1, 9); else if (dusk()) dither(1, 5); else if (dawn()) dither(6, 3);
-        } else {
-          /* A room is not exempt from the evening. It is lit by its hearth, so
-             it goes about half as dark as the valley outside — but it goes. */
-          if (night()) dither(1, 5); else if (dusk()) dither(1, 3); else if (dawn()) dither(6, 2);
+          } else if (S.weather === 'take') dither(STO[4], 4);
         }
         g.restore();
 
+        /* the chrome, from here down: two HUD bands, panels, menus, text */
+        useLut(DAY_CSS, 'day');
         drawHud(m);
 
         /* crop tooltip when you face growing soil */
@@ -1721,202 +1822,18 @@ export default {
       /* The needle and the zone are both placed by multiplying the same track
          width by the same 0..1 figures the hit test in tickFish reads, so where
          the needle looks like it lands is where it actually lands. */
-      function drawFish() {
-        panel(FISH_X, FISH_Y, FISH_W, FISH_H, fish.rare ? 11 : 14);
-        const tx = FISH_TRACK_X, ty = FISH_Y + PAD_SM;
-        if (fish.phase === 'reel') {
-          g.fillStyle = C(8); g.fillRect(tx, FISH_TRACK_Y, FISH_TRACK_W, FISH_TRACK_H);
-          /* Both edges are rounded from the track width the same way the
-             needle is, so the zone the player sees spans exactly the 0..1
-             interval tickFish tests against — rounding the width separately
-             would let the drawn zone drift a pixel off the real one. */
-          const z0 = Math.round(FISH_TRACK_W * fish.z0);
-          const zw = Math.max(FISH_NEEDLE_W, Math.round(FISH_TRACK_W * fish.z1) - z0);
-          g.fillStyle = C(fish.rare ? 11 : 10); g.fillRect(tx + z0, FISH_TRACK_Y, zw, FISH_TRACK_H);
-          g.fillStyle = C(15);
-          g.fillRect(tx + Math.round(FISH_TRACK_W * fish.pos) - FISH_NEEDLE_W / 2,
-                     FISH_TRACK_Y - FISH_NEEDLE_OVER, FISH_NEEDLE_W, FISH_TRACK_H + FISH_NEEDLE_OVER * 2);
-          const left = Math.max(0, fish.need - fish.hits);
-          text(TX('DRA! SPACE x' + left, 'REEL! SPACE x' + left), tx, ty, fish.rare ? 11 : 14, FONT_SM);
-        } else if (fish.phase === 'bite') {
-          text(fish.rare ? TX('SJELDEN! NÅ!', 'RARE! NOW!') : TX('NÅ! SPACE', 'NOW! SPACE'), tx, ty, fish.rare ? 11 : 14, FONT_SM);
-        } else text(TX('VENTER...', 'WAITING...'), tx, ty, 7, FONT_SM);
-      }
-
-      function drawTalk() {
-        panel(DLG_X, DLG_Y, DLG_W, DLG_H, 15);
-        const who = dlg.npc ? (dlg.npc.bear ? '' : dlg.npc.n) : '';
-        const top = DLG_Y + PAD_LG;
-        if (who) text(who, DLG_TX, top, 14, FONT_SM);
-        let y = top + LINE_SM;
-        if (dlg.opts) {
-          wrapText(T(dlg.opts.q), DLG_TW, FONT_LG).forEach(l => { text(l, DLG_TX, y, 11, FONT_LG); y += LINE_LG; });
-          dlg.opts.opts.forEach((o, i) => {
-            const on = dlg.sel === i;
-            wrapText((on ? '> ' : '  ') + T(o.t), DLG_TW, FONT_LG).forEach(l => {
-              text(l, DLG_TX, y, on ? 15 : 7, FONT_LG); y += LINE_LG;
-            });
-          });
-          return;
-        }
-        /* The current line wraps to as many rows as it needs; the next line
-           follows only while there is room left in the box. */
-        const cur = wrapText(T(dlg.lines[dlg.i]) || '', DLG_TW, FONT_LG);
-        const nxt = dlg.lines[dlg.i + 1] ? wrapText(T(dlg.lines[dlg.i + 1]), DLG_TW, FONT_LG) : [];
-        let used = 0;
-        for (const l of cur) { if (used >= DLG_BODY_LINES) break; text(l, DLG_TX, y, 15, FONT_LG); y += LINE_LG; used++; }
-        for (const l of nxt) { if (used >= DLG_BODY_LINES) break; text(l, DLG_TX, y, 8, FONT_LG); y += LINE_LG; used++; }
-        text('SPACE', DLG_X + DLG_W - PAD_LG - textW('SPACE', FONT_SM), DLG_Y + DLG_H - PAD_LG - GLYPH_SM, 8, FONT_SM);
-      }
-      function drawOffer() {
-        panel(OFFER_X, OFFER_Y, OFFER_W, OFFER_H, 14);
-        const tx = OFFER_X + PAD_LG;
-        let y = OFFER_Y + PAD_LG;
-        text(T(offer.label), tx, y, 15, FONT_LG); y += LINE_LG;
-        text(S.kr + ' kr', tx, y, S.kr >= offer.kr ? 14 : 12, FONT_LG); y += LINE_LG;
-        text(TX('SPACE — KJØP    ESC — NEI', 'SPACE — BUY    ESC — NO'), tx, y, 7, FONT_LG);
-      }
-      function drawShop() {
-        panel(SHOP_X, SHOP_Y, SHOP_W, SHOP_H, 14);
-        const bx = SHOP_X + PAD_SM, sx = bx + SHOP_COL_W;
-        let y = SHOP_Y + PAD_SM;
-        text(T(UI.shop), bx, y, 14, FONT_SM);
-        text(S.kr + ' KR', SHOP_X + SHOP_W - PAD_SM - textW(S.kr + ' KR', FONT_SM), y, 14, FONT_SM);
-        y += LINE_SM;
-        text(T(UI.buy), bx, y, shop.side ? 7 : 15, FONT_SM);
-        text(T(UI.sell), sx, y, shop.side ? 15 : 7, FONT_SM);
-        const rowY = y + LINE_SM;
-        shop.list.forEach((id, i) => {
-          if (i >= SHOP_ROWS) return;
-          const locked = (id === 'jordbarfro' && !S.flag.jordbar) || (id === 'rabarbrafro' && !S.flag.rabarbra);
-          const on = !shop.side && shop.sel === i;
-          const ry = rowY + i * SHOP_ROW, tyy = ry + Math.round((ICON_PX - GLYPH_SM) / 2);
-          icon(id, bx, ry);
-          text((on ? '>' : ' ') + iname(id), bx + SHOP_NAME_DX, tyy, locked ? 8 : (on ? 15 : 7), FONT_SM);
-          if (!locked) text(price(id) + ' kr', bx + SHOP_PRICE_DX, tyy, on ? 14 : 8, FONT_SM);
-        });
-        const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0 && BEK_ITEMS[id].sell);
-        if (!ids.length) text(T(UI.empty), sx, rowY, 8, FONT_SM);
-        ids.slice(0, SHOP_ROWS).forEach((id, i) => {
-          const on = shop.side && (shop.sel % Math.max(1, ids.length)) === i;
-          const ry = rowY + i * SHOP_ROW, tyy = ry + Math.round((ICON_PX - GLYPH_SM) / 2);
-          icon(id, sx, ry);
-          text((on ? '>' : ' ') + iname(id) + ' x' + S.bag[id], sx + SHOP_NAME_DX, tyy, on ? 15 : 7, FONT_SM);
-          text(BEK_ITEMS[id].sell + ' kr', sx + SHOP_PRICE_DX, tyy, on ? 14 : 8, FONT_SM);
-        });
-        text(TX('PILER · SPACE · ESC', 'ARROWS · SPACE · ESC'), bx, SHOP_Y + SHOP_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
-      }
-      /* The bag fills nearly the whole picture now: three columns of eight,
-         twenty-four lines instead of twelve, so a good day's foraging fits
-         on one page and you stop having to guess what fell off the bottom. */
-      function drawBag() {
-        panel(BAG_X, BAG_Y, BAG_W, BAG_H, 11);
-        const bx = BAG_X + PAD_SM;
-        let y = BAG_Y + PAD_SM;
-        text(T(UI.bag), bx, y, 14, FONT_SM);
-        y += LINE_SM;
-        const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0);
-        if (!ids.length) text(T(UI.empty), bx, y, 8, FONT_SM);
-        ids.slice(0, BAG_CAP).forEach((id, i) => {
-          const col = i % BAG_COLS, row = Math.floor(i / BAG_COLS);
-          const cx = bx + col * BAG_CW, cy = y + row * BAG_ROW;
-          const tyy = cy + Math.round((ICON_PX - GLYPH_SM) / 2);
-          icon(id, cx, cy);
-          text(iname(id), cx + BAG_NAME_DX, tyy, 15, FONT_SM);
-          text('x' + S.bag[id], cx + BAG_QTY_DX, tyy, 11, FONT_SM);
-        });
-        let fy = y + BAG_ROW * BAG_ROWS;
-        if (ids.length > BAG_CAP) text('+' + (ids.length - BAG_CAP) + TX(' TIL', ' MORE'), bx, fy, 8, FONT_SM);
-        fy += LINE_SM;
-        let planted = 0, ready = 0;
-        Object.keys(S.soil).forEach(k => { const c = S.soil[k]; if (c.seed) { planted++; if (c.ready) ready++; } });
-        text(TX('JORD: ', 'SOIL: ') + planted + TX(' plantet, ', ' planted, ') + ready + TX(' klare', ' ready'), bx, fy, 7, FONT_SM);
-        fy += LINE_SM;
-        text(T(UI.tools) + ': ' + BEK_TOOLS.filter(tt => S.tools[tt.id]).map(tt => tt.id === 'oks' ? toolName('oks') : tt.id === 'hakke' ? toolName('hakke') : T(tt.name)).join('  '), bx, fy, 7, FONT_SM);
-      }
-      function toolName(id) {
-        if (id === 'oks') return T({ no: AXE_NAME.no[Math.min(1, S.axeLv - 1)], en: AXE_NAME.en[Math.min(1, S.axeLv - 1)] });
-        if (id === 'hakke') { const lv = Math.max(1, S.pickLv); return T({ no: PICK_NAME.no[Math.min(1, lv - 1)], en: PICK_NAME.en[Math.min(1, lv - 1)] }); }
-        return T(BEK_TOOLS.filter(tt => tt.id === id)[0].name);
-      }
-      function drawQuests() {
-        panel(QUEST_X, QUEST_Y, QUEST_W, QUEST_H, 14);
-        const bx = QUEST_X + PAD_SM;
-        text(T(UI.board), bx, QUEST_Y + PAD_SM, 14, FONT_SM);
-        let y = QUEST_Y + PAD_SM + LINE_SM * 2;
-        const shown = BEK_QUESTS.filter(q => S.q[q.id]);            /* hidden until obtained */
-        if (!shown.length) text(TX('Ingen oppdrag ennå. Snakk med folk.', 'No quests yet. Go and talk to people.'), bx, y, 7, FONT_SM);
-        shown.forEach(q => {
-          const st = S.q[q.id];
-          text(T(q.t), bx, y, st === 'done' ? 8 : 15, FONT_SM);
-          text(st === 'done' ? T(UI.done) : T(UI.active), bx + QUEST_STATUS_DX, y, st === 'done' ? 10 : 11, FONT_SM);
-          text(T(q.d), bx + CELL_SM, y + LINE_SM, 7, FONT_SM);
-          y += QUEST_ENTRY;
-        });
-        if (S.flag.build || S.flag.lot) {
-          const c = houseCost();
-          text(TX('HUSET VED VANNET', 'THE HOUSE BY THE WATER'), bx, y, 14, FONT_SM);
-          text(S.built ? TX('BYGGET', 'BUILT') : (S.flag.lot ? TX('TOMT KJØPT', 'LOT BOUGHT') : TX('TOMT 1200 KR', 'LOT 1200 KR')), bx + QUEST_STATUS_DX, y, S.built ? 10 : 11, FONT_SM);
-          if (!S.built) text(c.kr + ' kr + ' + c.tommer + ' ' + iname('tommer') + ' + ' + c.stein + ' ' + iname('stein'), bx + CELL_SM, y + LINE_SM, 7, FONT_SM);
-        }
-        text('ESC', QUEST_X + QUEST_W - PAD_SM - textW('ESC', FONT_SM), QUEST_Y + QUEST_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
-      }
-      function drawTravel() {
-        panel(TRAVEL_X, TRAVEL_Y, TRAVEL_W, TRAVEL_H, 14);
-        const bx = TRAVEL_X + PAD_SM;
-        text(T(UI.map), bx, TRAVEL_Y + PAD_SM, 14, FONT_SM);
-        let y = TRAVEL_Y + PAD_SM + LINE_SM * 2;
-        travel.list.forEach((mp, i) => {
-          text((travel.sel === i ? '> ' : '  ') + T(BEK_MAPS[mp].title), bx, y + i * LINE_SM, travel.sel === i ? 15 : 7, FONT_SM);
-        });
-        text(TX('SPACE — GÅ (−10, +40min)', 'SPACE — WALK (−10, +40min)'), bx, TRAVEL_Y + TRAVEL_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
-      }
-
-      /* ---- the ending ----------------------------------------------------
-         A bespoke painting rather than a tile scene, so it keeps its own
-         source-space coordinates and reaches the screen through the same
-         whole-number transform the playfield uses. */
-      function drawEnd(t) {
-        g.fillStyle = C(1); g.fillRect(0, 0, BEK_W, BEK_H);
-        dither(0, Math.max(0, 16 - S.ending * 6));
-
-        g.save();
-        g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
-        for (let i = 0; i < END_TREES; i++) {
-          const tx = 20 + i * END_TREE_DX, ty = 150 + (i % 2) * 20;
-          g.fillStyle = C(6); g.fillRect(tx + 10, ty + 30, 6, 22);
-          g.fillStyle = C(2); g.fillRect(tx, ty, 26, 34);
-          g.fillStyle = C(10); g.fillRect(tx + 4, ty + 4, 18, 16);
-        }
-        const cx = END_HOUSE_X;                                   /* the house, centred */
-        g.fillStyle = C(4); g.fillRect(cx, 90, END_HOUSE_W, 30); g.fillStyle = C(12); g.fillRect(cx, 96, END_HOUSE_W, 4);
-        g.fillStyle = C(7); g.fillRect(cx + 6, 120, 88, 60); g.fillStyle = C(6); g.fillRect(cx + 40, 148, 20, 32);
-        g.fillStyle = C(11); g.fillRect(cx + 14, 130, 16, 14); g.fillRect(cx + 70, 130, 16, 14); g.fillStyle = C(14); g.fillRect(cx + 14, 130, 16, 3);
-        g.fillStyle = C(1); g.fillRect(0, 210, END_SRC_W, END_SRC_H - 210);
-        g.fillStyle = C(9); for (let i = 0; i < 12; i++) g.fillRect(20 + i * 40, 226 + (i % 3) * 14, 22, 1);
-        if (S.ending > 1.2) bear(END_SRC_W - 80, 168, Math.floor(S.ending * 2) % 4);
-        g.restore();
-
-        const title = T(BEK_MAPS.lakehouse.title) + '.';
-        text(title, Math.round((BEK_W - textW(title, FONT_LG)) / 2), PAD_LG, 14, FONT_LG);
-        /* the ending remembers what you told them */
-        const lines = [];
-        lines.push(TX('Trær på tre sider. Vann på den fjerde.', 'Trees on three sides. Water on the fourth.'));
-        if (S.flag.why === 'quiet') lines.push(TX('Du kom for stillheten. Den er her ennå.', 'You came for the quiet. It is still here.'));
-        else if (S.flag.why === 'land') lines.push(TX('Billig jord. Men ikke lenger tom.', 'Cheap land. But not empty any more.'));
-        if (S.flag.build === 'skog') lines.push(TX('Hver bjelke bar du selv.', 'Every beam you carried yourself.'));
-        else if (S.flag.build === 'kjop') lines.push(TX('Plankene kom med båt. Huset står likevel.', 'The planks came by boat. The house stands all the same.'));
-        if (S.flag.dairy) lines.push(TX('Sigrid vinker fra setra.', 'Sigrid waves from the mountain dairy.'));
-        if (S.pickLv >= 2) lines.push(TX('Fjellet ga fra seg sølvet sitt.', 'The mountain gave up its silver.'));
-        if (S.flag.boat) lines.push(TX('Olavs båt gynger ved kaia.', 'Olav’s boat rocks at the dock.'));
-        if (S.q.blomst === 'done') lines.push(TX('Blomster på karmen, som Marit ville.', 'Flowers on the sill, as Marit wanted.'));
-        const ly = END_TEXT_Y;
-        for (let i = 0; i < lines.length; i++) if (S.ending > 1.6 + i * 0.7) text(lines[i], END_TEXT_X, ly + i * LINE_SM, i === 0 ? 15 : 11, FONT_SM);
-        const stat = 'DAG ' + S.day + ' — ' + S.kr + ' KR';
-        if (S.ending > 1.6 + lines.length * 0.7 + 0.5) text(stat, Math.round((BEK_W - textW(stat, FONT_SM)) / 2), ly + lines.length * LINE_SM + LINE_SM, 11, FONT_SM);
-        const again = TX('SPACE — BEGYNN PÅ NYTT', 'SPACE — START OVER');
-        if (S.ending > 1.6 + lines.length * 0.7 + 1.2) text(again, Math.round((BEK_W - textW(again, FONT_SM)) / 2), BEK_H - PAD_LG - GLYPH_SM, 8, FONT_SM);
-      }
+      /* Every panel the game puts over the picture lives in menus.js — the
+         fishing gauge, the dialogue box, the shop, the bag, the quest board,
+         the travel list and the ending painting. All chrome, so all of it
+         draws after the LUT goes back to daylight. */
+      const { drawFish, drawTalk, drawOffer, drawShop, drawBag, drawQuests, drawTravel,
+              drawEnd, toolName } = createMenus({
+        S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop,
+        travel: () => travel, offer: () => offer,
+        T: T, TX: TX, iname: iname, price: price, houseCost: houseCost,
+        panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,
+        dither: dither, bear: bear, artScale: BEK_ART_SCALE
+      }, () => g, C);
 
       /* ---- the loop ----------------------------------------------------- */
       S = fresh(); spawnDrops(); refreshBar();
@@ -1930,19 +1847,92 @@ export default {
       try { hymnWas = Music.on; if (Music.on) Music.stop(); } catch (e) {}
       Song.sync();
 
+      /* A hatch for the screenshot harness (scripts/bekkedal_shots.mjs) to
+         read real numbers out of a running game instead of guessing them.
+         Nothing in the game reads it, it is deleted when the window closes,
+         and no gameplay path goes through it. */
+      let drawMs = 0;
+      const dbg = {
+        perf: () => ({
+          rebuilds: perf.rebuilds, lightRects: perf.rects,
+          rebuildMs: Math.round(perf.ms * 100) / 100,
+          groundMs: Math.round(perf.ground * 100) / 100,
+          detailMs: Math.round(perf.detail * 100) / 100,
+          forestMs: Math.round(perf.forest * 100) / 100,
+          lightMs: Math.round(perf.light * 100) / 100,
+          drawMs: Math.round(drawMs * 100) / 100,
+          ditherPatterns: Object.keys(ditherCache).length,
+          particles: fx.count(),
+          map: S.map, min: Math.floor(S.min), key: perf.key
+        }),
+        /* Every rect one rebuild emits, which is the figure the budget in
+           this app's CLAUDE.md is stated against. Counted on demand rather
+           than always: a wrapper on `fillRect` is one extra call per rect,
+           and paying that on every rebuild would inflate the very millisecond
+           figure sitting beside it. Wraps, forces one rebuild, unwraps. */
+        rects: () => {
+          const real = terrG.fillRect;
+          let n = 0;
+          terrG.fillRect = function () { n++; return real.apply(this, arguments); };
+          try { terrKey = ''; terrain(); } finally { terrG.fillRect = real; terrKey = ''; }
+          return n;
+        },
+        /* Open a panel so the harness can photograph it. Menus are the one
+           part of the picture a screenshot of the world never covers, and a
+           panel that throws only throws when somebody opens it. */
+        menu: name => {
+          mode = name || '';
+          if (name === 'shop') shop = { list: BEK_TALK.astrid.shop, sel: 0, side: 0, npc: BEK_NPCS[0] };
+          if (name === 'talk') dlg = { lines: [BEK_TALK.astrid.chat[0].t[0]], i: 0, npc: BEK_NPCS[0] };
+          if (name === 'offer') offer = { label: { no: 'BÅT', en: 'BOAT' }, kr: 400 };
+          if (name === 'travel') travel = { list: Object.keys(S.disc), sel: 0 };
+          if (name === 'end') S.ending = 4.2;
+          if (name === 'fish') fish = { phase: 'reel', t: 4, pos: 0.42, dir: 1, spd: 0.7,
+                                        z0: 0.3, z1: 0.5, hits: 1, need: 3, miss: 0, maxMiss: 3, rare: 0 };
+        },
+        /* Hold a swing at one of its three phases for a frame so the harness
+           can photograph it. Nothing in the game calls this; it drives the
+           same `swing` the keyboard does, so what it photographs is what a
+           player sees rather than a mock-up of it. */
+        swing: (phase, till) => {
+          if (till) {
+            const f0 = facing();
+            S.soil[key(f0.x, f0.y)] = { till: 1, wet: 0, seed: 'potet', age: 1, ready: 0 };
+            terrDirty();
+          }
+          swing = null;
+          if (!phase) return false;
+          const tid = BEK_TOOLS[S.tool].id, sp = TOOL_SWING[tid];
+          if (!sp) return false;
+          startSwing(tid);
+          tickSwing(phase === 1 ? sp.wind * 0.6
+                  : phase === 2 ? sp.wind + sp.hit * 0.4
+                  : sp.wind + sp.hit + sp.rec * 0.45);
+          return true;
+        }
+      };
+      window.__bekDebug = dbg;
+
       let acc = 0;
       function frame(ts) {
         if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); return; }
         raf = requestAnimationFrame(frame);
         const dt = Math.min(0.1, (ts - last) / 1000 || 0); last = ts;
         if (!mode) { move(dt); tickFish(dt); }
+        tickSwing(dt); fx.step(dt);
         if (mode === 'end') S.ending += dt;
         tickClock(dt);
         if (noteT > 0) { noteT -= dt; if (noteT <= 0) note = ''; }
         autoT += dt; if (autoT > 6) { autoT = 0; autoSave(); }
         speechTick();
         Song.rotStep(dt); Song.sync();
-        acc += dt; if (acc >= 1 / 30) { acc = 0; draw(ts / 1000); }
+        acc += dt;
+        if (acc >= 1 / 30) {
+          acc = 0;
+          const t0 = performance.now();
+          draw(ts / 1000);
+          drawMs = drawMs * 0.9 + (performance.now() - t0) * 0.1;
+        }
       }
       raf = requestAnimationFrame(frame);
 
@@ -1958,6 +1948,8 @@ export default {
       /* the fullscreen listener lives on `document`, not on the canvas, so it
          outlives the window's own DOM removal and must be torn down here */
       this._cleanup = () => {
+        if (window.__bekDebug === dbg) { try { delete window.__bekDebug; } catch (e) { window.__bekDebug = null; } }
+        fx.clear(); swing = null;
         ro.disconnect();
         document.removeEventListener('fullscreenchange', onFSChange);
         if (document.fullscreenElement === wrap) document.exitFullscreen().catch(() => {});

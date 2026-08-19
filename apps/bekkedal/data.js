@@ -1,3 +1,5 @@
+import { ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR } from './palette.js';
+
 /* ---- geometry -------------------------------------------------------------
  * The map is 24x15 tiles and that never changes: every row string in
  * BEK_MAPS, every NPC and goat position, and every per-tile key in S.soil /
@@ -144,13 +146,15 @@ export const BEK_ITEMS = {
 /* which items are seeds, in the order the planter cycles them */
 export const BEK_SEED_ORDER = ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro'];
 
+/* `col` is what the ripe head is drawn in — a palette index, and deliberately
+   one per crop you can tell apart across a field at a glance. */
 export const BEK_CROPS = {
-  potet:    { days: 3, out: 'potet',    col: 14 },
-  nepe:     { days: 2, out: 'nepe',     col: 13 },
-  gulrot:   { days: 4, out: 'gulrot',   col: 6  },
-  kal:      { days: 4, out: 'kal',      col: 10 },
-  jordbar:  { days: 5, out: 'jordbar',  col: 12, regrow: 2 },
-  rabarbra: { days: 6, out: 'rabarbra', col: 10, regrow: 3 }
+  potet:    { days: 3, out: 'potet',    col: SAN[1] },
+  nepe:     { days: 2, out: 'nepe',     col: SNO[0] },
+  gulrot:   { days: 4, out: 'gulrot',   col: WAR[3] },
+  kal:      { days: 4, out: 'kal',      col: GRASS[4] },
+  jordbar:  { days: 5, out: 'jordbar',  col: WAR[2], regrow: 2 },
+  rabarbra: { days: 6, out: 'rabarbra', col: WAR[1], regrow: 3 }
 };
 
 /* ---- 27.1b tools ---------------------------------------------------------
@@ -700,6 +704,80 @@ export const BEK_MAPS = {
   }
 };
 
+/* ==========================================================================
+   27.2a WHAT GROWS ROUND THE EDGE
+   --------------------------------------------------------------------------
+   The mix of species in each map's treeline, and how thick it stands. Weights
+   are relative and the bag is expanded once per cache rebuild (see
+   `forest.js`); `density` under 1 spaces the trunks out and shortens them,
+   which is what a treeline does as the ground gets higher and poorer.
+
+   This is why the valley does not look the same in nine places. Birch round
+   the farm and the meadow, dense dark spruce closing in on the mine, wind-bent
+   and thinning on the vidda, snow-loaded at the setra.
+   ========================================================================== */
+export const BEK_TREES = {
+  default:  { mix: { fir: 5, spruce: 2, birch: 2, snag: 1 }, density: 1 },
+  farm:     { mix: { birch: 5, fir: 3, spruce: 1, stump: 1 }, density: 1 },
+  town:     { mix: { birch: 4, fir: 4, spruce: 1, stump: 1 }, density: 0.95 },
+  lake:     { mix: { fir: 4, birch: 3, spruce: 2, fallen: 1 }, density: 1 },
+  forest:   { mix: { spruce: 6, fir: 4, snag: 2, fallen: 1, stump: 1 }, density: 1.25 },
+  enga:     { mix: { birch: 6, fir: 2, stump: 2, fallen: 1 }, density: 0.9 },
+  setra:    { mix: { fir: 5, spruce: 3, snag: 2, stump: 1 }, density: 0.95 },
+  vidda:    { mix: { fir: 3, snag: 4, stump: 3, fallen: 1 }, density: 0.6 },
+  gruva:    { mix: { spruce: 7, fir: 3, snag: 2 }, density: 1.3 },
+  fjord:    { mix: { fir: 5, spruce: 2, snag: 2, fallen: 1 }, density: 1 }
+};
+
+/* ==========================================================================
+   27.2b WHO LIVES HERE
+   --------------------------------------------------------------------------
+   Where the things in a room stand. `kind` names a drawing in `decor.js`;
+   this table only says where. Keeping it here rather than adding eight more
+   glyphs to `tileDetail` is the file split working as intended — adding a
+   room later costs no code — and it is what lets the two houses be two
+   different people's houses instead of one house drawn twice.
+
+   Decor never changes walkability: `solid()` reads BEK_SOLID against the map
+   glyph and knows nothing about this table. Anything on a floor square is a
+   square you can stand on, and the player draws in front of it.
+
+   The farm cabin is somewhere work happens — a kettle on the fire, wood
+   stacked beside it, boots by the door, a broom in the corner, herbs drying
+   from the beam. The house by the water is the one you built to be quiet in,
+   so it has a lamp and a rod and a creel and flowers on the sill, which is
+   what Marit asked for.
+   ========================================================================== */
+export const BEK_DECOR = {
+  farmhouse: [
+    { x: 14, y: 4,  kind: 'kettle' },
+    { x: 16, y: 4,  kind: 'jars' },
+    { x: 10, y: 7,  kind: 'crockery' },
+    { x: 11, y: 7,  kind: 'candle' },
+    { x: 13, y: 5,  kind: 'firewood' },
+    { x: 13, y: 6,  kind: 'cat' },
+    { x: 10, y: 9,  kind: 'boots' },
+    { x: 7,  y: 9,  kind: 'broom' },
+    { x: 6,  y: 6,  kind: 'coat' },
+    { x: 8,  y: 3,  kind: 'picture' },
+    { x: 12, y: 3,  kind: 'herbs' }
+  ],
+  lakehouse: [
+    { x: 15, y: 4,  kind: 'kettle' },
+    { x: 17, y: 4,  kind: 'lamp' },
+    { x: 9,  y: 7,  kind: 'loaf' },
+    { x: 10, y: 7,  kind: 'crockery' },
+    { x: 14, y: 5,  kind: 'firewood' },
+    { x: 13, y: 5,  kind: 'cat' },
+    { x: 12, y: 10, kind: 'boots' },
+    { x: 13, y: 9,  kind: 'basket' },
+    { x: 5,  y: 7,  kind: 'net' },
+    { x: 18, y: 6,  kind: 'rod' },
+    { x: 7,  y: 3,  kind: 'picture' },
+    { x: 12, y: 3,  kind: 'flowers' }
+  ]
+};
+
 /* D is solid too, but it is knocked on. n table, u cupboard and J bench are
    furniture you walk up to, not through; z is a rug, so it is not here. The
    space is the dead margin beyond a room's walls — nothing should stand in it. */
@@ -712,18 +790,21 @@ export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJ ';
    ========================================================================== */
 /* voice: the base pitch their blips are built on, so you can tell who is
    speaking with your eyes shut. Low for the old and the large. */
+/* hair / shirt / pants are palette indices. They come off the ramps rather
+   than out of VGA16 now, so a person standing in a field is a person and not
+   a colour swatch — and everyone keeps the silhouette and the read they had. */
 export const BEK_NPCS = [
-  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 4,  y: 4,  hair: 6,  shirt: 12, pants: 1, voice: 620 },
-  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 18, y: 11, hair: 8,  shirt: 2,  pants: 8, voice: 360 },
-  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 7,  y: 8,  hair: 14, shirt: 9,  pants: 1, voice: 700 },
-  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 5,  y: 9,  hair: 7,  shirt: 1,  pants: 8, voice: 330 },
-  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 4,  y: 6,  hair: 15, shirt: 5,  pants: 8, voice: 660 },
-  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 5,  y: 6,  hair: 14, shirt: 13, pants: 7, voice: 560 },
-  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 8,  y: 11, hair: 6,  shirt: 2,  pants: 8, voice: 290 },
+  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 4,  y: 4,  hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620 },
+  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 18, y: 11, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360 },
+  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 7,  y: 8,  hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700 },
+  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 5,  y: 9,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330 },
+  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 4,  y: 6,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660 },
+  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 5,  y: 6,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560 },
+  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 8,  y: 11, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290 },
   /* Lars stands in the alcove cut beside the adit, never on a corridor. Row 7
      of the gruva is the only way in and it is one tile tall, and the shafts
      off it are one tile wide — a man standing on either is a wall. */
-  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 6,  hair: 8,  shirt: 4,  pants: 8, voice: 420 },
+  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 6,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420 },
   { id: 'bjorn',  n: '',       map: 'forest', x: 11, y: 7, bear: true, from: 6 }
 ];
 
