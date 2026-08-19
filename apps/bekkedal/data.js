@@ -50,6 +50,11 @@ export const BEK_DITHER_CELL = 4;                         /* ordered-dither matr
 export const BEK_DITHER_PX = BEK_DITHER_CELL * BEK_ART_SCALE;  /* stipple stays as coarse as it looks today */
 export const BEK_SAVE = 'templeos.bekkedal.v2';
 
+/* the lot by the water — index.js's lotSign() reads this rather than a
+ * literal 1200, so act2_check.js's balance simulation can read the exact
+ * same number rather than a hand-copied one. */
+export const BEK_LOT_COST = 1200;
+
 /* ---- 27.0 the two tongues ------------------------------------------------
    Every player-facing string is either a plain string (same in both) or a
    { no, en } pair. BILINGUAL keeps the Norwegian flavour words the valley is
@@ -249,7 +254,16 @@ export const BEK_TOOLS = [
   { id: 'kanne', name: { no: 'VANNKANNE',  en: 'CAN'      }, e: 1 },
   { id: 'oks',   name: { no: 'ØKS',        en: 'AXE'      }, e: 5 },
   { id: 'stang', name: { no: 'FISKESTANG', en: 'ROD'      }, e: 4 },
-  { id: 'hakke', name: { no: 'HAKKE',      en: 'PICK'     }, e: 5 }
+  /* e:7, not 5 — a swing here dropped an ore worth ~104kr on average (see
+     rock.js's "The die is rolled once per square" section) against a 5-energy
+     cost, ~21 kr/energy against ~17 for the best early crop and single-digits
+     for the rest. At the old cost a rational first playthrough bought a hakke
+     on day 1 and never touched farming, animals or fishing again — see
+     act2_check.js's balance simulation, which is what this number is tuned
+     against. Ore/fish sell prices stay untouched: the ore mix's kr figures
+     are cited as measured values below ("The veins"), and fishing's real
+     throughput is gated by the reel minigame, not by this table. */
+  { id: 'hakke', name: { no: 'HAKKE',      en: 'PICK'     }, e: 7 }
 ];
 export const AXE_NAME  = { no: ['ØKS', 'STÅLØKS'],  en: ['AXE', 'STEEL AXE'] };
 export const PICK_NAME = { no: ['HAKKE', 'STÅLHAKKE'], en: ['PICK', 'STEEL PICK'] };
@@ -823,6 +837,15 @@ export const BEK_BARN_SLOTS = [
   { x: 5, y: 11 }, { x: 7, y: 11 }, { x: 5, y: 13 }, { x: 7, y: 13 }
 ];
 
+/* Act II: the pen's second tier, gated on S.act2Unlocked — see
+   BEK_TALK.hakon's own `barn2` offer and progression.js's barnSlots(). Same
+   mechanism again, immediately east of the first pen (cols 9-14, clear of
+   BEK_FARM_PLOTS' plot3 which starts at col 15) so no map row changes. */
+export const BEK_BARN_PLOT2 = { flag: 'barn2', x0: 9, y0: 11, x1: 13, y1: 13 };
+export const BEK_BARN_SLOTS2 = [
+  { x: 10, y: 11 }, { x: 12, y: 11 }, { x: 10, y: 13 }, { x: 12, y: 13 }
+];
+
 /* what an owned animal is, and what it pays out once fed and content. The
    affection that gates `produce` is not tracked here — it lives in S.fr,
    keyed by the animal's own instance id, exactly like an NPC's friendship. */
@@ -915,6 +938,18 @@ export const BEK_DECOR = {
     { x: 18, y: 6,  kind: 'rod' },
     { x: 7,  y: 3,  kind: 'picture' },
     { x: 12, y: 3,  kind: 'flowers' }
+  ],
+  /* Act II: the house's own upgrade tier (S.houseTier, index.js's
+     hakonTilbygg()) — layered over `lakehouse` above rather than replacing it,
+     the same way the two farm-plot flags overlay the farm map's own grass
+     rather than swapping in a second map. A room with three more things in
+     it than the day you moved in is what "lived in longer" looks like.
+     Coordinates checked against BEK_MAPS.lakehouse's own rows and the
+     `lakehouse` list above for collisions. */
+  lakehouse_t2: [
+    { x: 16, y: 3,  kind: 'herbs' },
+    { x: 17, y: 7,  kind: 'jars' },
+    { x: 7,  y: 9,  kind: 'coat' }
   ]
 };
 
@@ -1029,7 +1064,13 @@ export const BEK_TALK = {
       { t: [{ no: 'ASTRID: Haustgilde i dag — takk for avlingen, før frosten tar den.', en: 'ASTRID: Harvest Fair today — thanks for the crop, before the frost takes it.' }],
         if: S => S.festival === 'host' },
       { t: [{ no: 'ASTRID: Juleblot i dag. Kaldt ute, men torget er pyntet likevel.', en: 'ASTRID: Midwinter Feast today. Cold out, but the square is dressed all the same.' }],
-        if: S => S.festival === 'vinter' }
+        if: S => S.festival === 'vinter' },
+      /* Act II: one late beat per character acknowledging the finished
+         house, gated on S.act2Unlocked exactly like the festival lines
+         above gate on S.festival — a chat entry, not a node, so it keeps
+         resurfacing rather than firing once and being spent. */
+      { t: [{ no: 'ASTRID: Huset ved vannet står nå. Bra. Dalen trengte en skorstein til.', en: 'ASTRID: The house by the water is standing now. Good. This valley needed one more chimney.' }],
+        if: S => S.act2Unlocked }
     ],
     shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro', 'kaffe', 'vaffel', 'lefse', 'lykt', 'sprinkler']
   },
@@ -1082,7 +1123,19 @@ export const BEK_TALK = {
         if: S => S.flag.plot3 && !S.flag.barn,
         buy: { label: { no: 'DYREINNHEGNING — 1100 kr', en: 'ANIMAL PEN — 1100 kr' }, kr: 1100, flag: { barn: 1 },
                ok: ['HÅKON: Fenced and strawed. Sigrid will sell you what goes in it.'],
-               no: ['HÅKON: 1100 kr. The fence will keep.'] } }
+               no: ['HÅKON: 1100 kr. The fence will keep.'] } },
+      /* Act II: the pen's second tier — kr-only, so the generic `buy` offer
+         fits (unlike the house tier itself, which spends tømmer/stein too
+         and stays in hakonBuild()). Gated on S.flag.barn so it only ever
+         follows the first pen, and S.act2Unlocked so it cannot outrun the
+         house. See BEK_BARN_PLOT2/BEK_BARN_SLOTS2 above. */
+      { t: [{ no: 'HÅKON: Nå som du har eget tak, kunne innhegningen godt vokse også.', en: 'HÅKON: Now that you have a roof of your own, the pen could stand to grow too.' }],
+        if: S => S.act2Unlocked && S.flag.barn && !S.flag.barn2,
+        buy: { label: { no: 'DYREINNHEGNING II — 1400 kr', en: 'ANIMAL PEN II — 1400 kr' }, kr: 1400, flag: { barn2: 1 },
+               ok: ['HÅKON: Doubled it. Sigrid will be glad to hear it.'],
+               no: ['HÅKON: 1400 kr. It will keep.'] } },
+      { t: [{ no: 'HÅKON: Huset står i vinkel. Jeg sjekket, da du ikke så på.', en: 'HÅKON: The house stands square. I checked, when you weren’t looking.' }],
+        if: S => S.act2Unlocked }
     ]
   },
 
@@ -1114,7 +1167,9 @@ export const BEK_TALK = {
       { t: ['INGRID: The lot behind you has been empty a long time.'] },
       { t: ['INGRID: Deep water, deep fish. Patience.'], if: S => S.flag.fisk === 'ro' },
       { t: [{ no: 'INGRID: Eat something that is not a potet.', en: 'INGRID: Eat something that is not a potato.' }], if: S => S.flag.fisk === 'mat' },
-      { t: ['INGRID: Olav could take you to the fjord, if his boat floated.'] }
+      { t: ['INGRID: Olav could take you to the fjord, if his boat floated.'] },
+      { t: [{ no: 'INGRID: Du bygde nært nok til at jeg ser lykten din fra brygga.', en: 'INGRID: You built close enough that I can see your lamp from the pier.' }],
+        if: S => S.act2Unlocked }
     ]
   },
 
@@ -1141,7 +1196,9 @@ export const BEK_TALK = {
     chat: [
       { t: ['OLAV: Water finds every gap you leave it.'] },
       { t: ['OLAV: The pier is Ingrid\u2019s. The dock at the fjord is mine.'] },
-      { t: [{ no: 'OLAV: Boat floats now. Take it whenever. Pier\u2019s end, press act.', en: 'OLAV: Boat floats now. Take it whenever. Pier\u2019s end, press act.' }], if: S => S.flag.boat }
+      { t: [{ no: 'OLAV: Boat floats now. Take it whenever. Pier\u2019s end, press act.', en: 'OLAV: Boat floats now. Take it whenever. Pier\u2019s end, press act.' }], if: S => S.flag.boat },
+      { t: [{ no: 'OLAV: Et hus ved vannet finner sine egne lekkasjer ogs\u00e5, med tiden. Sjekk taket.', en: 'OLAV: A house by the water finds its own leaks eventually too. Mind the roof.' }],
+        if: S => S.act2Unlocked }
     ]
   },
 
@@ -1171,7 +1228,9 @@ export const BEK_TALK = {
       { t: ['MARIT: The bells only ring at midsummer now. Nobody minds.'] },
       { t: [{ no: 'MARIT: Blåklokke, soleie, revebjelle. The meadow keeps them all.', en: 'MARIT: Harebell, buttercup, foxglove. The meadow keeps them all.' }] },
       { t: ['MARIT: Flowers picked at dawn last longest. An old trick.'] },
-      { t: ['MARIT: Colour on the sill. That is all an old house needs.'], if: S => S.q.blomst === 'done' }
+      { t: ['MARIT: Colour on the sill. That is all an old house needs.'], if: S => S.q.blomst === 'done' },
+      { t: [{ no: 'MARIT: Blomster på karmen og et tak over dem begge. Mer trenger ikke et hus.', en: 'MARIT: Flowers on the sill and a roof over them both. That is all any house needs.' }],
+        if: S => S.act2Unlocked }
     ]
   },
 
@@ -1204,7 +1263,9 @@ export const BEK_TALK = {
       { t: ['SIGRID: A wool genser is all that stands between you and the wind.'] },
       { t: ['SIGRID: You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva },
       { t: [{ no: 'SIGRID: Håkon fences it, I stock it. Geit or høne, your pen.', en: 'SIGRID: Håkon fences it, I stock it. Goat or chicken, your pen.' }],
-        if: S => S.flag.barn }
+        if: S => S.flag.barn },
+      { t: [{ no: 'SIGRID: De sier huset ved vannet er ferdig. På tide. En bonde trenger vegger som ikke er sine egne armer.', en: 'SIGRID: They tell me the house by the water is finished. About time. A farmer needs walls that are not their own two arms.' }],
+        if: S => S.act2Unlocked }
     ],
     shop: ['brunost', 'ullgenser', 'multekrem', 'lefse', 'dyrefor', 'geit', 'hone']
   },
@@ -1228,7 +1289,9 @@ export const BEK_TALK = {
     chat: [
       { t: ['GUNNAR: Wind from the north. There is always wind from the north.'] },
       { t: [{ no: 'GUNNAR: Røye in the tarn. Tyttebær in the heather. The vidda provides.', en: 'GUNNAR: Char in the tarn. Lingonberries in the heather. The plateau provides.' }] },
-      { t: ['GUNNAR: You wore the wool. Good. I have buried men who did not.'] }
+      { t: ['GUNNAR: You wore the wool. Good. I have buried men who did not.'] },
+      { t: [{ no: 'GUNNAR: Hørte huset ditt er ferdig. Bra. Nå har du noe å komme tilbake til.', en: 'GUNNAR: Heard your house is finished. Good. Now you have somewhere to come back to.' }],
+        if: S => S.act2Unlocked }
     ]
   },
 
@@ -1259,7 +1322,9 @@ export const BEK_TALK = {
       { t: ['LARS: Mm. Deeper is darker. Darker is richer.'] },
       { t: [{ no: 'LARS: Kobber sells well in town. Sølv sells better anywhere.', en: 'LARS: Copper sells well in town. Silver sells better anywhere.' }] },
       { t: [{ no: 'LARS: The rich veins glitter. You need steel for those.', en: 'LARS: The rich veins glitter. You need steel for those.' }], if: S => S.pickLv < 2 },
-      { t: ['LARS: Steel in your hands now. The whole mountain is yours.'], if: S => S.pickLv >= 2 }
+      { t: ['LARS: Steel in your hands now. The whole mountain is yours.'], if: S => S.pickLv >= 2 },
+      { t: [{ no: 'LARS: De sier huset ditt står. Halve steinen bar du ut herfra selv.', en: 'LARS: They tell me your house stands. Half the stone you carried out of here yourself.' }],
+        if: S => S.act2Unlocked }
     ],
     shop: ['spiker', 'tau']
   }
@@ -1319,7 +1384,16 @@ export const BEK_QUEST_TEMPLATES = [
   /* fishing needs a stang at all (index.js act()'s stang branch) */
   { id: 'fish',   items: ['orret', 'laks', 'roye', 'torsk', 'makrell'], qty: [2, 6], tool: 'stang' },
   /* dairy/wool/eggs come off an owned, tended animal (tendAnimal() in index.js) */
-  { id: 'dairy',  items: ['melk', 'ull', 'egg'], qty: [2, 5], animal: 1 }
+  { id: 'dairy',  items: ['melk', 'ull', 'egg'], qty: [2, 5], animal: 1 },
+  /* Act II: two higher-tier templates, gated `act2` — read exactly like
+     `tool`/`animal` above (quests.js's templateAvailable(), read-only, never
+     set directly) but against S.act2Unlocked instead of an owned tool. Both
+     draw from item pools worth several times a normal template's, so the
+     reward formula (questReward(), unchanged) already scales them up without
+     a second formula — a rich vein or a rare fish just carries a bigger
+     number through the same markup every other quest uses. */
+  { id: 'rich_ore',  items: ['kobber', 'solv'], qty: [3, 6], tool: 'hakke', act2: true },
+  { id: 'rare_fish', items: ['kveite', 'gullorret'], qty: [1, 2], tool: 'stang', act2: true }
 ];
 
 /* ==========================================================================

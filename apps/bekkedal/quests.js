@@ -22,6 +22,10 @@ const TALKERS = BEK_NPCS.filter(n => BEK_TALK[n.id]).map(n => n.id);
 function templateAvailable(tpl, S) {
   if (tpl.tool && !S.tools[tpl.tool]) return false;
   if (tpl.animal && (!S.animals || !S.animals.length)) return false;
+  /* Act II: the board's higher-tier templates, read-only against
+     S.act2Unlocked the same way the two lines above read tool/animal state
+     — never set here, only checked. See BEK_QUEST_TEMPLATES (data.js). */
+  if (tpl.act2 && !S.act2Unlocked) return false;
   return true;
 }
 

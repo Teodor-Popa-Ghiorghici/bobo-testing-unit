@@ -9,6 +9,16 @@
    2. serialize -> deserialize -> serialize, assert byte-identical
    3. a hand-written previous-version save run through the real load/heal
       path, assert every current field survives and nothing is dropped
+   4. the ending path is a permanent milestone, not a reset (S = fresh() is
+      never called) — see apps/bekkedal/CLAUDE.md's house-completion note
+   5. a fresh save, idle (no input at all) across and beyond a full simulated
+      year — houseBuilt/act2Unlocked never flip true on their own, since
+      nothing the player didn't do should ever unlock Act II
+   6. a save seeded with houseBuilt/act2Unlocked/houseTier already true, run
+      the same way — none of it drifts back off even a year and change
+      later, and kr/day/bag are exactly what an idle run should leave them
+      (day advances, nothing else does), which is the operational meaning of
+      "never resets"
 
    Run: node scripts/smoke.mjs
 */
@@ -96,7 +106,7 @@ function setupGlobalEnv() {
 setupGlobalEnv();
 
 const dataMod = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/data.js')));
-const { BEK_SAVE } = dataMod;
+const { BEK_SAVE, BEK_SEASON_DAYS } = dataMod;
 const appMod = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/index.js')));
 const app = appMod.default;
 
@@ -349,9 +359,135 @@ function caseHouseCompletionMilestone() {
   report('house completion is a permanent milestone', problems.length === 0, problems.join('; '));
 }
 
+/* ---- shared driver for the two "full year" cases below -------------------- */
+/* Driving the real frame loop (dt clamped to 0.1s/step inside frame() itself,
+   same as caseSimulate30Days) costs a real rebuild-shaped draw() call on
+   essentially every step — measured against this app's own CLAUDE.md cost
+   figures, a full 365-day grind through it is minutes, not seconds, which is
+   too slow for a check meant to run before every change. So "a full year" is
+   verified in two cheaper pieces instead of one expensive one: a real,
+   continuously-driven window (long enough to cross a season boundary and
+   several weekly quest-board refreshes) proves the frame loop itself stays
+   correct under sustained idle play, and a save-injected jump to the
+   one-year mark (the same technique caseHouseCompletionMilestone already
+   uses to reach a specific S without grinding to it) proves the day/season
+   arithmetic — and Act II's own gates — don't come apart at that magnitude,
+   without paying to grind every day in between. */
+function runIdleDays(handle, numDays) {
+  const MAX_FRAMES = 3200 * (numDays + 1);      /* ~3000 frames/day at dt=0.1s, generous headroom */
+  let ts = 0, startDay = null, day = null, lastDay = null, dayWentBackwards = false;
+  for (let i = 0; i < MAX_FRAMES; i++) {
+    ts += 100;
+    const cb = handle.tick();
+    if (!cb) throw new Error('frame loop never registered a requestAnimationFrame callback');
+    cb(ts);
+    if (i % 1000 === 0) {
+      handle.bSave.click();
+      const raw = globalThis.localStorage.getItem(BEK_SAVE);
+      if (raw) {
+        day = JSON.parse(raw).day;
+        if (startDay == null) startDay = day;
+        if (lastDay != null && day < lastDay) dayWentBackwards = true;
+        lastDay = day;
+        if (day - startDay >= numDays) break;
+      }
+    }
+  }
+  handle.bSave.click();
+  const raw = globalThis.localStorage.getItem(BEK_SAVE);
+  const save = raw ? JSON.parse(raw) : null;
+  return { save, finalDay: save ? save.day : day, dayWentBackwards };
+}
+
+/* jumps a mounted save's `day` field forward without simulating the days in
+   between, then remounts — asserting mount() itself survives is what proves
+   heal()'s season/festival recompute doesn't break at a large day count */
+function jumpToDay(targetDay) {
+  const raw = globalThis.localStorage.getItem(BEK_SAVE);
+  const save = raw ? JSON.parse(raw) : null;
+  if (!save) throw new Error('jumpToDay: no save to jump from');
+  save.day = targetDay;
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+  return mountApp();
+}
+
+const YEAR = 4 * BEK_SEASON_DAYS;
+
+/* ---- case 5: idle across and beyond a full year, Act II never self-unlocks */
+function caseIdleYearFresh() {
+  clearSave();
+  let handle, near, far;
+  try {
+    handle = mountApp();
+    near = runIdleDays(handle, 15);                          /* crosses one season boundary, several board refreshes */
+    handle = jumpToDay(YEAR + 5);                             /* just past a full year */
+    far = runIdleDays(handle, 5);
+  } catch (e) {
+    report('idle across a full year (fresh save, no exceptions)', false, 'threw: ' + (e && e.stack || e));
+    return;
+  }
+  const problems = [];
+  if (!near.save || !far.save) problems.push('a save was not written');
+  if (near.dayWentBackwards || far.dayWentBackwards) problems.push('day counter went backwards mid-run');
+  if (near.save && near.save.houseBuilt) problems.push('houseBuilt became true with no player input');
+  if (near.save && near.save.act2Unlocked) problems.push('act2Unlocked became true with no player input');
+  if (far.save && far.save.houseBuilt) problems.push('houseBuilt became true past the one-year mark with no player input');
+  if (far.save && far.save.act2Unlocked) problems.push('act2Unlocked became true past the one-year mark with no player input');
+  if (far.finalDay < YEAR) problems.push('never actually reached the one-year mark: day ' + far.finalDay);
+  report('idle across a full year (fresh save, no exceptions, Act II stays locked)', problems.length === 0, problems.join('; '));
+}
+
+/* ---- case 6: idle across and beyond a full year, an Act II save never drifts */
+function caseIdleYearAct2() {
+  clearSave();
+  let seedHandle;
+  try { seedHandle = mountApp(); } catch (e) {
+    report('idle across a full year (Act II save persists)', false, 'seed mount() threw: ' + (e && e.stack || e));
+    return;
+  }
+  seedHandle.bSave.click();
+  const seedRaw = globalThis.localStorage.getItem(BEK_SAVE);
+  if (!seedRaw) { report('idle across a full year (Act II save persists)', false, 'seed save was not written'); return; }
+  const save = JSON.parse(seedRaw);
+
+  const KNOWN_KR = 8842, KNOWN_DAY = 25, KNOWN_BAG = { tommer: 4, stein: 2 };
+  save.kr = KNOWN_KR; save.day = KNOWN_DAY; save.bag = KNOWN_BAG;
+  save.built = 1; save.houseBuilt = true; save.houseBuiltDay = 17;
+  save.act2Unlocked = true; save.houseTier = 1; save.flag = Object.assign(save.flag || {}, { barn: 1, barn2: 1, lot: 1, build: 'skog' });
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+
+  let handle, near, far;
+  try {
+    handle = mountApp();
+    near = runIdleDays(handle, 15);
+    handle = jumpToDay(KNOWN_DAY + YEAR + 5);                 /* a year and change past where Act II was reached */
+    far = runIdleDays(handle, 5);
+  } catch (e) {
+    report('idle across a full year (Act II save persists)', false, 'threw: ' + (e && e.stack || e));
+    return;
+  }
+  const problems = [];
+  if (!near.save || !far.save) problems.push('a save was not written');
+  if (near.dayWentBackwards || far.dayWentBackwards) problems.push('day counter went backwards mid-run');
+  if (far.finalDay <= KNOWN_DAY + YEAR) problems.push('day never advanced past the one-year mark: ' + far.finalDay);
+  [['near', near], ['far', far]].forEach(([label, run]) => {
+    if (!run.save) return;
+    if (run.save.kr !== KNOWN_KR) problems.push(label + ': kr drifted with no input: ' + run.save.kr + ' !== ' + KNOWN_KR);
+    if (JSON.stringify(run.save.bag) !== JSON.stringify(KNOWN_BAG)) problems.push(label + ': bag drifted with no input: ' + JSON.stringify(run.save.bag));
+    if (run.save.houseBuilt !== true) problems.push(label + ': houseBuilt did not survive: ' + run.save.houseBuilt);
+    if (run.save.act2Unlocked !== true) problems.push(label + ': act2Unlocked did not survive: ' + run.save.act2Unlocked);
+    if (run.save.houseTier !== 1) problems.push(label + ': houseTier did not survive: ' + run.save.houseTier);
+  });
+  report('idle across a full year (Act II save persists, never resets)', problems.length === 0, problems.join('; '));
+}
+
 caseSimulate30Days();
 caseRoundTrip();
 caseMigration();
 caseHouseCompletionMilestone();
+caseIdleYearFresh();
+caseIdleYearAct2();
 
 process.exit(failed ? 1 : 0);
