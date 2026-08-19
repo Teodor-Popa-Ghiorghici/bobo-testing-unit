@@ -1217,6 +1217,38 @@ export const BEK_QUESTS = [
     d: { no: 'Bring Lars six jern for a stålhakke.', en: 'Bring Lars six iron for a steel pick.' } }
 ];
 
+/* ---- 27.5a the quest board -------------------------------------------------
+   A repeatable layer on top of the fixed list above, never a replacement for
+   it — BEK_QUESTS keeps first claim on the board (see boardRows() in
+   quests.js). BEK_QUEST_TEMPLATES is N shapes of quest: an item pool, a
+   quantity range, and — for the two templates that need one — the stage
+   gate that makes the pool obtainable at all. `tool`/`animal` read the same
+   way BEK_RECIPES' `fr`/`lvl` do: declared here, checked read-only in
+   quests.js, never set directly.
+
+   quests.js rolls BEK_QUEST_BOARD_MIN..MAX instances into S.rq — item,
+   quantity and requester (an NPC id, same `who` contract as above) all
+   picked at random from whichever templates are obtainable right now — and
+   replaces the whole batch together every BEK_QUEST_REFRESH_DAYS days, so
+   the board turns over on a fixed in-game weekday rather than piecemeal.
+   -------------------------------------------------------------------------- */
+export const BEK_QUEST_BOARD_MIN = 2;
+export const BEK_QUEST_BOARD_MAX = 3;
+export const BEK_QUEST_REFRESH_DAYS = 7;
+
+export const BEK_QUEST_TEMPLATES = [
+  { id: 'crops',  items: ['potet', 'nepe', 'gulrot', 'kal', 'jordbar', 'rabarbra'], qty: [3, 8] },
+  { id: 'forage', items: ['sopp', 'kantarell', 'blabar', 'multe', 'tyttebar', 'tang', 'urt'], qty: [3, 10] },
+  { id: 'blomst', items: ['blomst_bla', 'blomst_gul', 'blomst_ro'], qty: [1, 3] },
+  { id: 'wood',   items: ['tommer'], qty: [4, 12] },
+  /* mining needs a hakke at all (index.js act()'s hakke branch) */
+  { id: 'ore',    items: ['jern', 'kobber', 'solv'], qty: [2, 6], tool: 'hakke' },
+  /* fishing needs a stang at all (index.js act()'s stang branch) */
+  { id: 'fish',   items: ['orret', 'laks', 'roye', 'torsk', 'makrell'], qty: [2, 6], tool: 'stang' },
+  /* dairy/wool/eggs come off an owned, tended animal (tendAnimal() in index.js) */
+  { id: 'dairy',  items: ['melk', 'ull', 'egg'], qty: [2, 5], animal: 1 }
+];
+
 /* ==========================================================================
    27.5b RECIPES — player-side crafting and cooking, at the chest ('K' on
    the farm map, see 27.1e above)

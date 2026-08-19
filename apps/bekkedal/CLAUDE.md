@@ -70,9 +70,14 @@ scripts that check them:
 - `decor.js` — the things in a room. The five pieces of glyph furniture, and
   a *kind* per prop; where each prop stands is content, in `BEK_DECOR`
   (`data.js`).
+- `quests.js` — the repeatable quest board: rolls `BEK_QUEST_TEMPLATES`
+  (`data.js`) into `S.rq`, describes an instance for the board, and merges it
+  with the fixed `BEK_QUESTS` list into the rows `menus.js` draws. See
+  **Quests and the repeatable board** below.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
+- `quest_check.js` — `node apps/bekkedal/quest_check.js`. See below.
 
 ## Why the font is a bitmap
 
@@ -248,8 +253,21 @@ spend 20-60 rects on looking like something.
 - `node apps/bekkedal/layout_check.js` — geometry invariants (canvas, viewport,
   camera clamp range, every panel on screen, all 11 maps still 24×15), the
   fishing reel zone's agreement with its hit test, and text fitting for every
-  box in both languages. Run it after touching `data.js` geometry, `font.js`,
-  `layout.js`, or any content table with user-visible strings.
+  box in both languages, including the repeatable board's own worst-case
+  generated title/detail strings. Run it after touching `data.js` geometry,
+  `font.js`, `layout.js`, or any content table with user-visible strings.
+- `node apps/bekkedal/quest_check.js` — the repeatable quest board. Asserts
+  `BEK_QUEST_TEMPLATES`' own `tool`/`animal` gates agree with an independently
+  authored table of what `index.js`'s `act()`/`tendAnimal()` actually require
+  to hold each item (so a template cannot silently drift from the engine),
+  drives a scripted 60-day progression through the real weekly cadence
+  (`isRefreshDay`/`refreshBoard`) asserting the board is never empty and no
+  quest it ever held asked for something unobtainable on the day it was
+  rolled, then stress-rolls a few hundred batches at four stages to shake out
+  item/npc choices one walkthrough would not hit, asserting every requester
+  resolves to a real `BEK_TALK` entry and no batch asks the same NPC twice.
+  Run it after touching `BEK_QUEST_TEMPLATES`, `quests.js`, or what any
+  gathering action in `index.js` requires to succeed.
 - `node scripts/bekkedal_shots.mjs <out-dir>` — the shot matrix. Boots the
   real machine in Chromium, seeds a save per shot, and captures seventy-two
   960x540 frames: every map at morning, dusk and night, the mine with and
@@ -843,6 +861,56 @@ after dark without any of them having to ask. `ditherPat`'s cache is keyed
 by the LUT as well as by the context, colour and strength, and swept when
 the hour's table changes, so patterns baked at one hour are never filled
 with at the next.
+
+## Quests and the repeatable board
+
+`BEK_QUESTS` (`data.js`) is the fixed, one-shot list gated through `BEK_TALK`
+per `.claude/rules/content.md`; `quests.js` never touches it, it only rolls a
+second, renewable set of instances from `BEK_QUEST_TEMPLATES` (`data.js`) on
+top. Same conventions as the "art siblings": pure functions of `(S, day)`
+that know nothing about the DOM, so `quest_check.js` can exercise them
+without mounting the app.
+
+`BEK_QUEST_TEMPLATES` is N shapes of quest — an item pool and a quantity
+range, plus, for the two templates that need one, a `tool`/`animal` gate read
+exactly the way `BEK_RECIPES`' `fr`/`lvl` are: declared in `data.js`, checked
+read-only in `quests.js`, never set directly. The four ungated templates
+(crops/forage/blomst/wood) are always obtainable, which is what guarantees
+the pool — and so the board — is never empty.
+
+`refreshBoard(S, day)` rolls `BEK_QUEST_BOARD_MIN..MAX` instances into the
+result: item, quantity and requester (an NPC id, same `who` contract
+`BEK_QUESTS` uses — resolved against the same `BEK_TALK` pool, so a rolled
+quest is unreachable exactly when a hand-authored one with a typo'd `who`
+would be) all picked at random from whichever templates are obtainable right
+now, with no NPC asked twice in the same batch. Reward scales with both the
+quantity asked and the requester's own `S.fr` — a markup over the item's
+`BEK_ITEMS[].sell`, never a discount. `index.js` calls this once in `fresh()`
+(so day 1 already has a board) and again in `newDay()` whenever
+`isRefreshDay(S.day)` — every `BEK_QUEST_REFRESH_DAYS` days, a fixed in-game
+weekday — replacing the whole batch together rather than topping it up
+piecemeal, which is what makes "refreshes on a fixed weekday" a real
+property instead of an average. `heal()` seeds a board immediately for any
+save from before `S.rq` existed, rather than leaving it empty until the next
+scheduled refresh.
+
+Turn-in reads `activeRepeatable(S, npc.id)` and runs right after the fixed
+list's own turn-in in `talkTo()` (`index.js`), checked second so the two
+never race for the same conversation — talk again to settle the other one. A
+completed instance is marked `state: 'done'` and stays on the board (same as
+a fixed quest) until the next scheduled refresh replaces the batch; nothing
+ever splices `S.rq` mid-week, which is what keeps "the board never goes
+empty because everything on it got claimed" true without special-casing it.
+
+`boardRows(S)` (`quests.js`) merges the fixed list and `S.rq` into the rows
+`menus.js` draws, fixed first — the fixed list's priority claim on the
+board's slots. The panel itself does not grow to fit every possible row
+count: up to seven fixed, three live repeatable and the house is eleven rows
+against `QUEST_VISIBLE_ROWS` (`layout.js`, currently 8) of headroom, so
+`drawQuests()` scrolls a window over the merged list (W/S, reset to the top
+each time the board opens) rather than resizing the box — see
+`layout_check.js`'s scroll-indicator-clears-ESC assertion for the geometry
+that guarantees the two labels never collide.
 
 ## Crafting and the chest
 

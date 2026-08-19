@@ -21,6 +21,7 @@ import { createSongs } from './music.js';
 import { createActors } from './actors.js';
 import { createMenus } from './menus.js';
 import { createCrops } from './crops.js';
+import { refreshBoard, isRefreshDay, activeRepeatable, questTitle } from './quests.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
@@ -175,8 +176,9 @@ export default {
 
       /* ---- state -------------------------------------------------------- */
       let S = null;
-      const fresh = () => ({
-        ver: 7, lang: BEK_LANG, fullscreen: 0,
+      const fresh = () => {
+        const f = {
+        ver: 8, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -212,7 +214,13 @@ export default {
         /* derived from houseBuilt; not referenced anywhere yet, it is the
            hook Phase 8 (act 2 content) will read */
         act2Unlocked: false
-      });
+        };
+        /* the repeatable quest board (quests.js) — two or three live
+           instances on top of BEK_QUESTS above, seeded here so day 1 already
+           has a board rather than waiting for the first weekly refresh */
+        f.rq = refreshBoard(f, f.day);
+        return f;
+      };
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
@@ -226,11 +234,18 @@ export default {
         ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
         if (!Array.isArray(s.animals)) s.animals = [];
+        /* a save from before the quest board existed gets one seeded on load
+           rather than waiting up to BEK_QUEST_REFRESH_DAYS for the first
+           scheduled refresh — same reasoning as fresh()'s own seed above */
+        if (!Array.isArray(s.rq)) s.rq = refreshBoard(s, s.day || 1);
         if (typeof s.chatIx === 'number') s.chatIx = {};
         return s;
       };
 
       let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
+      /* the quest board's scroll offset — transient UI state, reset each time
+         the board opens, never saved (see qScroll's use in menus.js) */
+      let qScroll = 0;
       /* ---- the swing ------------------------------------------------------
          Transient by definition — it must not survive a reload and it must
          not appear in a save, so it lives here beside `fish` and `note` and
@@ -445,6 +460,9 @@ export default {
       }
       function newDay(passedOut) {
         S.day++; S.min = 6 * 60;
+        /* the repeatable quest board turns over as one batch on a fixed
+           in-game weekday — see isRefreshDay()/refreshBoard() in quests.js */
+        if (isRefreshDay(S.day)) S.rq = refreshBoard(S, S.day);
         S.en = passedOut ? Math.round(S.enMax * 0.6) : S.enMax;
         S.water = S.waterMax; S.met = {};
         const rainy = S.weather === 'regn';
@@ -798,6 +816,19 @@ export default {
           dlg = { lines: [{ no: npc.n + ': Takk. That is exactly it.', en: npc.n + ': Thanks. That is exactly it.' }, rew], i: 0, npc: npc };
           mode = 'talk'; return;
         }
+        /* the repeatable board's own turn-in — same NPC-must-fulfill-it
+           contract as the fixed quest above, checked second so a fixed and a
+           repeatable quest for the same NPC never race: talk again to settle
+           the other one */
+        const rq = activeRepeatable(S, npc.id);
+        if (rq) {
+          add(rq.item, -rq.qty);
+          rq.state = 'done'; S.kr += rq.kr;
+          if (window.Economy) window.Economy.earn(Math.max(20, Math.round(rq.kr * 0.15)), 'BEKKEDAL: ' + questTitle(rq).en);
+          sfx.coin();
+          dlg = { lines: [{ no: npc.n + ': Takk. That is exactly it.', en: npc.n + ': Thanks. That is exactly it.' }, '+' + rq.kr + ' KR'], i: 0, npc: npc };
+          mode = 'talk'; return;
+        }
         if (!S.met[npc.id]) { S.met[npc.id] = 1; S.fr[npc.id] = Math.min(5, S.fr[npc.id] + 1); }
         const node = book.nodes.filter(n => !S.seen[npc.id + ':' + n.id] && (!n.when || n.when(S)))[0];
         if (node) {
@@ -1037,7 +1068,13 @@ export default {
           if (k === 'Escape' || k === 'm') closeMenu();
           return;
         }
-        if (mode === 'bag' || mode === 'quest') { if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') closeMenu(); return; }
+        if (mode === 'quest') {
+          if (k === 'w' || k === 'ArrowUp') qScroll = Math.max(0, qScroll - 1);
+          if (k === 's' || k === 'ArrowDown') qScroll++;          /* clamped when drawn */
+          if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') closeMenu();
+          return;
+        }
+        if (mode === 'bag') { if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') closeMenu(); return; }
         if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(500, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else newDay(false); } if (k === 'Escape') closeMenu(); return; }
 
         /* walking */
@@ -1050,7 +1087,7 @@ export default {
         if (k === 'f') { plant(); return; }
         if (k === 'c') { cycleSeed(); return; }
         if (k === 'i') { mode = 'bag'; return; }
-        if (k === 'q') { mode = 'quest'; return; }
+        if (k === 'q') { mode = 'quest'; qScroll = 0; return; }
         if (k === 'm') { openTravel(); return; }
         if (k === 'Tab' || k === 'e') { for (let i = 0; i < BEK_TOOLS.length; i++) { S.tool = (S.tool + 1) % BEK_TOOLS.length; if (S.tools[BEK_TOOLS[S.tool].id]) break; } sfx.talk(); return; }
         if (k >= '1' && k <= '5') { const ix = parseInt(k, 10) - 1; if (BEK_TOOLS[ix] && S.tools[BEK_TOOLS[ix].id]) S.tool = ix; return; }
@@ -2116,7 +2153,7 @@ export default {
       const { drawFish, drawTalk, drawOffer, drawShop, drawCraft, drawBag, drawQuests, drawTravel,
               drawEnd, toolName } = createMenus({
         S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop, craft: () => craft,
-        travel: () => travel, offer: () => offer,
+        travel: () => travel, offer: () => offer, qScroll: () => qScroll,
         T: T, TX: TX, iname: iname, price: price, houseCost: houseCost,
         recipeUnlocked: recipeUnlocked, craftCount: craftCount,
         panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,
