@@ -29,7 +29,7 @@
  * drawn zone drifts a pixel off the real one, and the player misses a catch
  * that looked like a hit. `layout_check.js` asserts they agree.
  */
-import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_QUESTS, AXE_NAME, PICK_NAME, UI,
+import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_QUESTS, BEK_RECIPES, AXE_NAME, PICK_NAME, UI,
          BEK_W, BEK_H } from './data.js';
 import { WAT, TIM, CON, WAR, SAN, SNO, ATMO } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
@@ -46,7 +46,7 @@ import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
          END_TEXT_X, END_TEXT_Y } from './layout.js';
 
 export function createMenus(A, GG, C) {
-  const { T, TX, iname, price, houseCost, panel, icon, text, textW, wrapText, dither, bear } = A;
+  const { T, TX, iname, price, houseCost, recipeUnlocked, craftCount, panel, icon, text, textW, wrapText, dither, bear } = A;
   const BEK_ART_SCALE = A.artScale;
 
   function drawFish() {
@@ -136,6 +136,35 @@ export function createMenus(A, GG, C) {
       icon(id, sx, ry);
       text((on ? '>' : ' ') + iname(id) + ' x' + S.bag[id], sx + SHOP_NAME_DX, tyy, on ? 15 : 7, FONT_SM);
       text(BEK_ITEMS[id].sell + ' kr', sx + SHOP_PRICE_DX, tyy, on ? 14 : 8, FONT_SM);
+    });
+    text(TX('PILER · SPACE · ESC', 'ARROWS · SPACE · ESC'), bx, SHOP_Y + SHOP_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
+  }
+  /* The chest's own panel — same box, same two columns, same input as
+     drawShop above, just LAGE/KOK (craft/cook) instead of BUY/SELL and
+     BEK_RECIPES instead of an NPC's stock list. The price column becomes
+     how many of the recipe the current chest+bag stock can pay for right
+     now (craftCount, index.js), which is more useful here than a kr figure
+     would be — a locked recipe shows neither, same as a locked shop row. */
+  function drawCraft() {
+      const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer(), craft = A.craft();
+    panel(SHOP_X, SHOP_Y, SHOP_W, SHOP_H, 14);
+    const bx = SHOP_X + PAD_SM, sx = bx + SHOP_COL_W;
+    let y = SHOP_Y + PAD_SM;
+    text(T(UI.craft), bx, y, 14, FONT_SM);
+    y += LINE_SM;
+    text(T(UI.make), bx, y, craft.side ? 7 : 15, FONT_SM);
+    text(T(UI.cook), sx, y, craft.side ? 15 : 7, FONT_SM);
+    const rowY = y + LINE_SM;
+    [['craft', bx, 0], ['cook', sx, 1]].forEach(([kind, cx, side]) => {
+      BEK_RECIPES[kind].forEach((r, i) => {
+        if (i >= SHOP_ROWS) return;
+        const unlocked = recipeUnlocked(r);
+        const on = craft.side === side && craft.sel === i;
+        const ry = rowY + i * SHOP_ROW, tyy = ry + Math.round((ICON_PX - GLYPH_SM) / 2);
+        icon(r.out, cx, ry);
+        text((on ? '>' : ' ') + iname(r.out), cx + SHOP_NAME_DX, tyy, !unlocked ? 8 : (on ? 15 : 7), FONT_SM);
+        if (unlocked) text('x' + craftCount(r), cx + SHOP_PRICE_DX, tyy, on ? 14 : 8, FONT_SM);
+      });
     });
     text(TX('PILER · SPACE · ESC', 'ARROWS · SPACE · ESC'), bx, SHOP_Y + SHOP_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
   }
@@ -257,6 +286,6 @@ export function createMenus(A, GG, C) {
   }
 
   return { drawFish: drawFish, drawTalk: drawTalk, drawOffer: drawOffer, drawShop: drawShop,
-           drawBag: drawBag, drawQuests: drawQuests, drawTravel: drawTravel, drawEnd: drawEnd,
-           toolName: toolName };
+           drawCraft: drawCraft, drawBag: drawBag, drawQuests: drawQuests, drawTravel: drawTravel,
+           drawEnd: drawEnd, toolName: toolName };
 }

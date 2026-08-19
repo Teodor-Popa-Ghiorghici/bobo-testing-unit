@@ -70,6 +70,9 @@ export const UI = {
   shop:   { no: 'LANDHANDEL', en: 'THE STORE'},
   buy:    { no: 'KJØP',       en: 'BUY'      },
   sell:   { no: 'SELG',       en: 'SELL'     },
+  craft:  { no: 'VERKSTED',   en: 'WORKSHOP' },
+  make:   { no: 'LAGE',       en: 'MAKE'     },
+  cook:   { no: 'KOK',        en: 'COOK'     },
   done:   { no: 'FERDIG',     en: 'DONE'     },
   active: { no: 'PÅGÅR',      en: 'ACTIVE'   },
   notyet: { no: 'IKKE ENNÅ',  en: 'NOT YET'  },
@@ -120,6 +123,8 @@ export const BEK_ITEMS = {
   /* placeable farm gear — `place: true` is read by act()'s kanne branch,
      never by the shop or the bag, which treat it like any other item */
   sprinkler:  { name: { no: 'SPREDER',    en: 'SPRINKLER'    }, buy: 250, sell: 60, icon: 'sprinkler', col: 7, place: true },
+  /* not sold anywhere — only BEK_RECIPES.craft produces it, at the chest */
+  gjerde:     { name: { no: 'GJERDE',     en: 'FENCE'        }, sell: 35, icon: 'wood', col: 6 },
   /* fish */
   orret:      { name: { no: 'ØRRET',      en: 'TROUT'        }, sell: 65,  icon: 'fish',  col: 13 },
   laks:       { name: { no: 'LAKS',       en: 'SALMON'       }, sell: 130, icon: 'fish',  col: 6  },
@@ -147,6 +152,12 @@ export const BEK_ITEMS = {
   lefse:      { name: { no: 'LEFSE',      en: 'LEFSE'        }, buy: 50,  sell: 16, eat: 50,  icon: 'food', col: 7  },
   fiskesuppe: { name: { no: 'FISKESUPPE', en: 'FISH SOUP'    }, buy: 90,  sell: 30, eat: 95,  icon: 'bowl', col: 11 },
   multekrem:  { name: { no: 'MULTEKREM',  en: 'CLOUDB. CREAM'}, buy: 120, sell: 40, eat: 110, icon: 'bowl', col: 14 },
+  /* cooked at the chest, never sold — BEK_RECIPES.cook, one raw crop plus
+     one animal product each, and each restores more than the best shop
+     food (multekrem's 110) by design */
+  potetstuing:  { name: { no: 'POTETSTUING',  en: 'POTATO STEW'      }, sell: 40, eat: 130, icon: 'bowl', col: 14 },
+  gulrotkake:   { name: { no: 'GULROTKAKE',   en: 'CARROT CAKE'      }, sell: 55, eat: 140, icon: 'bowl', col: 6  },
+  rabarbragrot: { name: { no: 'RABARBRAGRØT', en: 'RHUBARB PORR.'    }, sell: 65, eat: 150, icon: 'bowl', col: 10 },
   /* worn / carried gear (no sell) */
   lykt:       { name: { no: 'LYKT',       en: 'LANTERN'      }, icon: 'lamp', col: 14 },
   ullgenser:  { name: { no: 'ULLGENSER',  en: 'WOOL SWEATER' }, icon: 'shirt', col: 4 },
@@ -203,7 +214,7 @@ export const BEK_MAPS = {
       "TgRRRRRgggffffffffffgggT",
       "TgHHHHHgggffffffffffgggT",
       "TgHHDHHgggffffffffffgggT",
-      "Tggg.gggggffffffffffgggT",
+      "Tggg.gKgggffffffffffgggT",
       "Tggo.gggggffffffffffgggT",
       "Tggg.gggggggggggggggggg.",
       "Tgggggggggggggggggggggg.",
@@ -760,6 +771,19 @@ export const BEK_ANIMAL_KINDS = {
 };
 
 /* ==========================================================================
+   27.1e THE CHEST
+   --------------------------------------------------------------------------
+   A fixed 'K' tile baked straight into the farm map's own rows (row 5, col
+   6) — same mechanism as the well ('o') and the sign ('S'): a literal glyph,
+   not a flag-gated overlay like the plots or the pen, since it is always
+   there and needs no destination metadata the way the door does. Solid
+   (BEK_SOLID), drawn in index.js's tileDetail switch, opened by act() into
+   `mode = 'craft'` (index.js) — see BEK_RECIPES below for what it makes.
+   Its own contents (`S.chest`) are a bag-shaped `{itemId: qty}` map,
+   serialized in BEK_SAVE exactly like S.bag and healed the same way.
+   ========================================================================== */
+
+/* ==========================================================================
    27.2a WHAT GROWS ROUND THE EDGE
    --------------------------------------------------------------------------
    The mix of species in each map's treeline, and how thick it stands. Weights
@@ -836,7 +860,7 @@ export const BEK_DECOR = {
 /* D is solid too, but it is knocked on. n table, u cupboard and J bench are
    furniture you walk up to, not through; z is a rug, so it is not here. The
    space is the dead margin beyond a room's walls — nothing should stand in it. */
-export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJ ';
+export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJK ';
 
 /* ==========================================================================
    27.3 THE PEOPLE
@@ -1192,6 +1216,42 @@ export const BEK_QUESTS = [
     t: { no: 'SEKS JERN — Lars', en: 'SIX IRON — Lars' },
     d: { no: 'Bring Lars six jern for a stålhakke.', en: 'Bring Lars six iron for a steel pick.' } }
 ];
+
+/* ==========================================================================
+   27.5b RECIPES — player-side crafting and cooking, at the chest ('K' on
+   the farm map, see 27.1e above)
+   --------------------------------------------------------------------------
+   Two pools, one per column of the crafting panel (index.js's `mode ===
+   'craft'`, drawn by menus.js's drawCraft — the shop panel's own layout and
+   input, not a new one). `need` and `out` are BEK_ITEMS ids the player can
+   actually hold, same rule as a quest's `need`. `qty` is how many `out` one
+   craft yields, default 1.
+
+   `fr`/`lvl` gate a recipe exactly the way a BEK_TALK node gates on
+   friendship: read-only here, raised only through the paths that already
+   raise S.fr (dialogue choices, quests) and S.lvl (addXp in index.js). No
+   recipe spends kr — crafting has no currency of its own.
+   ========================================================================== */
+export const BEK_RECIPES = {
+  craft: [
+    { id: 'sprinkler', out: 'sprinkler', qty: 1, need: { tommer: 4, jern: 1 },
+      fr: { npc: 'astrid', min: 2 }, lvl: { kind: 'farm', min: 1 } },
+    { id: 'gjerde',     out: 'gjerde',   qty: 1, need: { tommer: 3, spiker: 4 },
+      fr: { npc: 'hakon',  min: 1 }, lvl: { kind: 'mine', min: 1 } },
+    { id: 'dyrefor',    out: 'dyrefor',  qty: 3, need: { potet: 1, nepe: 1 },
+      fr: { npc: 'sigrid', min: 1 }, lvl: { kind: 'farm', min: 1 } }
+  ],
+  /* one raw crop plus one animal product each, and every dish restores more
+     than the best shop food does (multekrem's 110) — see BEK_ITEMS */
+  cook: [
+    { id: 'potetstuing',  out: 'potetstuing',  qty: 1, need: { potet: 2, melk: 1 },
+      fr: { npc: 'sigrid', min: 2 }, lvl: { kind: 'farm', min: 1 } },
+    { id: 'gulrotkake',   out: 'gulrotkake',   qty: 1, need: { gulrot: 1, egg: 1 },
+      fr: { npc: 'sigrid', min: 3 }, lvl: { kind: 'farm', min: 2 } },
+    { id: 'rabarbragrot', out: 'rabarbragrot', qty: 1, need: { rabarbra: 1, melk: 1 },
+      fr: { npc: 'sigrid', min: 4 }, lvl: { kind: 'farm', min: 3 } }
+  ]
+};
 
 /* the finished house, drawn straight over the lake lot */
 export const BEK_HOUSE = [
