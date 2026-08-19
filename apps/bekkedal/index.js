@@ -1854,7 +1854,7 @@ export default {
       let drawMs = 0;
       const dbg = {
         perf: () => ({
-          rebuilds: perf.rebuilds, rebuildRects: perf.rects,
+          rebuilds: perf.rebuilds, lightRects: perf.rects,
           rebuildMs: Math.round(perf.ms * 100) / 100,
           groundMs: Math.round(perf.ground * 100) / 100,
           detailMs: Math.round(perf.detail * 100) / 100,
@@ -1865,6 +1865,18 @@ export default {
           particles: fx.count(),
           map: S.map, min: Math.floor(S.min), key: perf.key
         }),
+        /* Every rect one rebuild emits, which is the figure the budget in
+           this app's CLAUDE.md is stated against. Counted on demand rather
+           than always: a wrapper on `fillRect` is one extra call per rect,
+           and paying that on every rebuild would inflate the very millisecond
+           figure sitting beside it. Wraps, forces one rebuild, unwraps. */
+        rects: () => {
+          const real = terrG.fillRect;
+          let n = 0;
+          terrG.fillRect = function () { n++; return real.apply(this, arguments); };
+          try { terrKey = ''; terrain(); } finally { terrG.fillRect = real; terrKey = ''; }
+          return n;
+        },
         /* Open a panel so the harness can photograph it. Menus are the one
            part of the picture a screenshot of the world never covers, and a
            panel that throws only throws when somebody opens it. */

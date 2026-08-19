@@ -250,12 +250,72 @@ spend 20-60 rects on looking like something.
   fishing reel zone's agreement with its hit test, and text fitting for every
   box in both languages. Run it after touching `data.js` geometry, `font.js`,
   `layout.js`, or any content table with user-visible strings.
+- `node scripts/bekkedal_shots.mjs <out-dir>` — the shot matrix. Boots the
+  real machine in Chromium, seeds a save per shot, and captures seventy-two
+  960x540 frames: every map at morning, dusk and night, the mine with and
+  without a lamp, a 1-bit threshold of the mine (an ore vein you cannot find
+  in one bit is not a silhouette), both interiors, the shore laboratory, all
+  five tools at each of the three swing phases, and every menu panel. It
+  exits non-zero on *any* page error, which is the assertion that matters:
+  a draw call that throws leaves a plausible-looking half-painted canvas,
+  and it will not fail a check that only compares pixels.
+- `node scripts/bekkedal_pairs.mjs <before> <after> <out>` — composes two
+  runs of that matrix into labelled before/after pairs, grouped by which of
+  the seven reported problems each is evidence for, plus a phase strip for
+  the swing. No PNG is committed: the art is code, and a checked-in
+  screenshot goes stale the first time somebody touches a ramp. The matrix
+  is reproducible instead.
+- `node scripts/bekkedal_savetest.mjs` — save compatibility, played rather
+  than read. Runs the pre-change build until its own autosave writes a
+  genuine blob, hands that exact blob to this build, and asserts it comes up
+  without throwing, that every top-level field survives, that the day
+  carries over, and that nothing transient (a swing, a particle list, the
+  camera shake) has leaked *into* the save. Reading the migration code and
+  concluding "yes" is not a test.
 - The reel zone is the subtle one. `tickFish` compares `fish.pos` against
   `z0`/`z1` in 0..1 and knows nothing about pixels; the drawn zone and the drawn
   needle are both `FISH_TRACK_W` multiplied by those same figures, and both
   edges of the zone are rounded the same way the needle is. Round the zone's
   *width* separately and the drawn zone drifts a pixel off the real one, so the
   player misses a catch that looked like a hit.
+
+## Cost
+
+Measured, not guessed, and measured *warm* — the first rebuild after a load
+carries module init and JIT warm-up and reads two to three times the steady
+figure, which is why a single cold sample is not evidence. Median of five
+rebuilds per map, Chromium on the dev container:
+
+| map              | rebuild | rects  | live/frame |
+|------------------|---------|--------|------------|
+| farm 12:00       |  9.8ms  |  8591  |   0.47ms   |
+| farm 23:00       |  7.6ms  |  8716  |   1.65ms   |
+| lake 12:00       |  8.1ms  | 10548  |   1.65ms   |
+| lake 23:00       | 10.6ms  | 10554  |   2.98ms   |
+| gruva 23:00      |  6.5ms  |  3698  |   0.56ms   |
+| farmhouse 23:00  |  3.2ms  |  4067  |   1.20ms   |
+| forest 12:00     |  7.3ms  |  9244  |   0.43ms   |
+| fjord 12:00      | ~10ms   | 10507  |   1.76ms   |
+| vidda 12:00      |  9.7ms  |  4951  |   0.93ms   |
+| town 12:00       |  6.5ms  |  8097  |   0.48ms   |
+
+Worst rebuild 10.6ms against a 30ms budget; worst 10,554 rects against
+25,000; worst settled live pass 2.98ms of the 33.3ms a 30fps frame has.
+
+The one figure that looks wrong is fjord at 20:00, which reads 4.64ms a
+frame. That is not an expensive live pass — it is dusk. `drawMs` is an EMA
+over the whole of `draw()`, and `draw()` calls `terrain()`, which is a cheap
+early return only while the light key holds. At 20:00 the key turns over
+about ten times in four seconds and the EMA averages those rebuilds in. Move
+the same map to noon and it reads 1.76ms. Watch `rebuilds` beside `drawMs`
+before concluding anything from it.
+
+`__bekDebug.rects()` is what the rects column comes from: it wraps
+`fillRect`, forces one rebuild, and unwraps. It is on demand rather than
+always because a wrapper is an extra call per rect, and paying that on every
+rebuild would inflate the millisecond figure sitting next to it. For the
+same reason, never read `drawMs` in the same breath as calling it — a forced
+rebuild lands in the average and roughly triples the number.
 
 ## Palette
 
