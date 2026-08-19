@@ -1,9 +1,10 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
-import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
+import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
-         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT, BEK_BARN_SLOTS, BEK_ANIMAL_KINDS,
+         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
+         BEK_BARN_PLOT2, BEK_ANIMAL_KINDS,
          BEK_RECIPES,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
@@ -24,6 +25,7 @@ import { createActors } from './actors.js';
 import { createMenus } from './menus.js';
 import { createCrops } from './crops.js';
 import { refreshBoard, isRefreshDay, activeRepeatable, questTitle } from './quests.js';
+import { houseCost, houseTierCost, houseTierAvailable, barnSlots } from './progression.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
@@ -180,7 +182,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 9, lang: BEK_LANG, fullscreen: 0,
+        ver: 10, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -217,9 +219,13 @@ export default {
         /* the completed house is a permanent milestone, not part of the
            resettable run state — never touched by fresh() after game start */
         houseBuilt: false, houseBuiltDay: null,
-        /* derived from houseBuilt; not referenced anywhere yet, it is the
-           hook Phase 8 (act 2 content) will read */
-        act2Unlocked: false
+        /* derived from houseBuilt — the one flag every Act II gate reads
+           (tileAt()'s second pen, hakonTilbygg(), templateAvailable() in
+           quests.js, the BEK_TALK chat lines gated on it) */
+        act2Unlocked: false,
+        /* Act II's one house upgrade tier — see hakonTilbygg() and
+           BEK_DECOR.lakehouse_t2 (data.js) */
+        houseTier: 0
         };
         /* the repeatable quest board (quests.js) — two or three live
            instances on top of BEK_QUESTS above, seeded here so day 1 already
@@ -237,7 +243,7 @@ export default {
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
         Object.keys(f.xp).forEach(k => { if (s.xp[k] == null) s.xp[k] = 0; });
         Object.keys(f.lvl).forEach(k => { if (s.lvl[k] == null) s.lvl[k] = 0; });
-        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
         if (!Array.isArray(s.animals)) s.animals = [];
         /* a save from before the quest board existed gets one seeded on load
@@ -279,6 +285,10 @@ export default {
       const M = () => BEK_MAPS[S.map];
       const rkey = (mp, x, y) => mp + ':' + x + ',' + y;
       const key = (x, y) => x + ',' + y;
+      /* both pen tiers, tileAt() checks each the same way — see
+         BEK_BARN_PLOT2 (data.js) for why a second region rather than a
+         bigger first one */
+      const BARN_PLOTS = [BEK_BARN_PLOT, BEK_BARN_PLOT2];
       const tileAt = (mp, x, y) => {
         if (x < 0 || y < 0 || x >= BEK_COLS || y >= BEK_ROWS) return BEK_MAPS[mp] && BEK_MAPS[mp].inside ? 'H' : 'T';
         const m = BEK_MAPS[mp];
@@ -294,9 +304,13 @@ export default {
             if (S.flag[p.flag] && x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1) return 'f';
           }
           /* the pen, same mechanism — a third unlocked-region flag over the
-             farm map's own grass, never a new map or its own tile state */
-          const bp = BEK_BARN_PLOT;
-          if (S.flag[bp.flag] && x >= bp.x0 && x <= bp.x1 && y >= bp.y0 && y <= bp.y1) return 'k';
+             farm map's own grass, never a new map or its own tile state.
+             Act II's second tier (BEK_BARN_PLOT2) is a fourth such region,
+             checked the same way rather than as a special case. */
+          for (let i = 0; i < BARN_PLOTS.length; i++) {
+            const bp = BARN_PLOTS[i];
+            if (S.flag[bp.flag] && x >= bp.x0 && x <= bp.x1 && y >= bp.y0 && y <= bp.y1) return 'k';
+          }
         }
         /* the festival's map dressing — a handful of the town's own grass
            tiles standing in for the flower glyph the map already draws
@@ -363,12 +377,6 @@ export default {
         let p = BEK_ITEMS[id].buy || 0;
         if (S.flag.rabatt) p = Math.round(p * 0.9);
         return p;
-      };
-      const houseCost = () => {
-        const skog = S.flag.build === 'skog';
-        let kr = skog ? 5000 : 6500;
-        if (S.flag.rabatt2) kr -= 500;
-        return { kr: kr, tommer: skog ? 30 : 12, stein: skog ? 20 : 10 };
       };
       const gateOK = need => need === 'warm' ? has('ullgenser') : need === 'lamp' ? has('lykt') : need === 'boat' ? !!S.flag.boat : true;
       const curSeed = () => {
@@ -783,10 +791,11 @@ export default {
       function buyAnimal(id) {
         const spec = BEK_ITEMS[id];
         if (!S.flag.barn) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
-        if (S.animals.length >= BEK_BARN_SLOTS.length) { say(TX('INNHEGNINGEN ER FULL.', 'THE PEN IS FULL.')); deny(); return; }
+        const slots = barnSlots(S);
+        if (S.animals.length >= slots.length) { say(TX('INNHEGNINGEN ER FULL.', 'THE PEN IS FULL.')); deny(); return; }
         const p = price(id);
         if (S.kr < p) { say(TX('IKKE RÅD.', 'CANNOT AFFORD.')); deny(); return; }
-        const slot = BEK_BARN_SLOTS[S.animals.length];
+        const slot = slots[S.animals.length];
         const aid = 'animal' + (S.animalSeq = S.animalSeq + 1);
         S.animals.push({ id: aid, kind: spec.animal, x: slot.x, y: slot.y, fed: 0, pet: 0, ready: 0 });
         S.fr[aid] = 0;
@@ -932,16 +941,16 @@ export default {
         if (S.built) { mode = 'end'; S.ending = 0; return; }
         if (S.q.tommer !== 'done') { dlg = { lines: [{no:'SKILT: TOMT TIL SALGS.',en:'SIGN: LOT FOR SALE.'}, {no:'Håkon in town holds the papers.',en:'Håkon in town holds the papers.'}], i: 0 }; mode = 'talk'; return; }
         if (!S.flag.lot) {
-          if (S.kr < 1200) { dlg = { lines: [{no:'SKILT: TOMT — 1200 KR.',en:'SIGN: LOT — 1200 KR.'}, {no:'You do not have it. Not yet.',en:'You do not have it. Not yet.'}], i: 0 }; mode = 'talk'; return; }
-          S.kr -= 1200; S.flag.lot = 1; sfx.coin();
+          if (S.kr < BEK_LOT_COST) { dlg = { lines: [{no:'SKILT: TOMT — 1200 KR.',en:'SIGN: LOT — 1200 KR.'}, {no:'You do not have it. Not yet.',en:'You do not have it. Not yet.'}], i: 0 }; mode = 'talk'; return; }
+          S.kr -= BEK_LOT_COST; S.flag.lot = 1; sfx.coin();
           dlg = { lines: ['You sign it against the post.', {no:'The lot is yours: trees on three sides, water on the fourth.',en:'The lot is yours: trees on three sides, water on the fourth.'}, 'Now it needs a house. Go and see Håkon.'], i: 0 };
           mode = 'talk'; return;
         }
         dlg = { lines: [{no:'Your lot. Empty, for now.',en:'Your lot. Empty, for now.'}], i: 0 }; mode = 'talk';
       }
       function hakonBuild() {
-        const c = houseCost();
-        if (S.built) { dlg = { lines: ['HÅKON: It is standing. Go and live in it.'], i: 0 }; mode = 'talk'; return; }
+        if (S.built) { hakonTilbygg(); return; }
+        const c = houseCost(S);
         if (!S.flag.lot) { dlg = { lines: ['HÅKON: Buy the lot first. Sign is by the water.'], i: 0 }; mode = 'talk'; return; }
         if (S.kr < c.kr || !has('tommer', c.tommer) || !has('stein', c.stein)) {
           dlg = { lines: [{ no: 'HÅKON: ' + c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: 'HÅKON: ' + c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
@@ -951,6 +960,29 @@ export default {
         S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.built = 1;
         S.fr.hakon = Math.min(5, S.fr.hakon + 1); sfx.done();
         dlg = { lines: ['HÅKON: Right. Two weeks. Or one, if you carry.', '...', 'HÅKON: It is done. Go down to the water and see.'], i: 0 };
+        mode = 'talk';
+      }
+      /* Act II: the one purchasable house upgrade tier — split out of
+         hakonBuild() rather than folded into it, since it is a second,
+         later gate on the same funnel (talking to Håkon always ends up
+         here once the house stands) rather than a second copy of the same
+         checks. Not offered before S.act2Unlocked: the house is standing
+         (S.built) the moment hakonBuild() finishes above, but the milestone
+         — and the content that reads it — waits for the ending to be seen. */
+      function hakonTilbygg() {
+        if (!houseTierAvailable(S)) {
+          dlg = { lines: [S.houseTier ? { no: 'HÅKON: Tilbygget står. Ikke mer å legge til.', en: 'HÅKON: The annex stands. Nothing more to add.' }
+                                       : 'HÅKON: It is standing. Go and live in it.'], i: 0 };
+          mode = 'talk'; return;
+        }
+        const c = houseTierCost();
+        if (S.kr < c.kr || !has('tommer', c.tommer) || !has('stein', c.stein)) {
+          dlg = { lines: [{ no: 'HÅKON: Et tilbygg? ' + c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: 'HÅKON: An annex? ' + c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
+                          'HÅKON: Come back when you have it.'], i: 0 }; mode = 'talk'; return;
+        }
+        S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.houseTier = 1;
+        S.fr.hakon = Math.min(5, S.fr.hakon + 1); sfx.done(); terrDirty();
+        dlg = { lines: [{ no: 'HÅKON: Et rom til, mot vannet. Det er ferdig.', en: 'HÅKON: One more room, facing the water. It is finished.' }], i: 0 };
         mode = 'talk';
       }
 
@@ -1509,6 +1541,10 @@ export default {
       function propsPrepare() {
         propMap = new Map();
         (BEK_DECOR[S.map] || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
+        /* Act II: the house's own upgrade tier layers a few more things into
+           the same room rather than swapping BEK_DECOR[S.map] for a second
+           table — see BEK_DECOR.lakehouse_t2 (data.js). */
+        if (S.map === 'lakehouse' && S.houseTier) (BEK_DECOR.lakehouse_t2 || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
       }
       function drawProp(d, x, y, t) {
         const fn = PROP[d.kind];
@@ -2193,7 +2229,7 @@ export default {
               drawEnd, toolName } = createMenus({
         S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop, craft: () => craft,
         travel: () => travel, offer: () => offer, qScroll: () => qScroll,
-        T: T, TX: TX, iname: iname, price: price, houseCost: houseCost,
+        T: T, TX: TX, iname: iname, price: price, houseCost: () => houseCost(S),
         recipeUnlocked: recipeUnlocked, craftCount: craftCount,
         panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,
         dither: dither, bear: bear, artScale: BEK_ART_SCALE

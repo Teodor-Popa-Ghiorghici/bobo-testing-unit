@@ -77,11 +77,16 @@ scripts that check them:
 - `seasons.js` — the seasonal layer: derives the current season, day-of-season,
   festival (if any) and a crop's plantability from `S.day` alone, and rolls the
   morning weather off that season's own odds. See **The seasonal layer** below.
+- `progression.js` — the money-sink formulas (`houseCost`, `houseTierCost`,
+  `houseTierAvailable`, `barnSlots`), pulled out of `index.js`'s closures so
+  `act2_check.js` reads the exact numbers the game does. See **Act II**
+  below.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. See below.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See below.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See below.
 - `quest_check.js` — `node apps/bekkedal/quest_check.js`. See below.
 - `season_check.js` — `node apps/bekkedal/season_check.js`. See below.
+- `act2_check.js` — `node apps/bekkedal/act2_check.js`. See below.
 
 ## Why the font is a bitmap
 
@@ -286,6 +291,30 @@ spend 20-60 rects on looking like something.
   Run it after touching `seasons.js`, `BEK_SEASONS`/`BEK_SEASON_DAYS`/
   `BEK_SEASON_WEATHER`/`BEK_SEASON_TINT`/`BEK_FESTIVALS`, or `BEK_CROPS`'
   `seasons` lists.
+- `node apps/bekkedal/act2_check.js` — Act II. Asserts `houseTierAvailable()`
+  stays false before `S.act2Unlocked` (even with the house standing) and
+  becomes true once it is; that every story NPC's `chat[]` gains at least one
+  entry (two for Håkon: the pen offer and the completion line) that is
+  ineligible before `S.act2Unlocked` and eligible after, evaluated against a
+  synthetic end-game-ish state so only that one flag is doing the work; that
+  the pen's two tiers total the right slot count and that no two farm-map
+  overlay regions (`BEK_BARN_PLOT`/`BEK_BARN_PLOT2`/`BEK_FARM_PLOTS`)
+  overlap; that `BEK_DECOR.lakehouse_t2` never reuses a `lakehouse`
+  coordinate, sits on a real room tile, and every `kind` exists in
+  `decor.js`; that the board's `act2`-flagged templates never roll across
+  400 trials before `S.act2Unlocked` and both roll at least once across 400
+  after. Then the balance pass itself: a day-by-day energy-budget simulation
+  reading real sell prices, `BEK_TOOLS`' own energy costs, `houseCost()` and
+  `BEK_LOT_COST` (never a hand-copied number for anything exported), which
+  deliberately ignores every level-up bonus, the steel axe and fishing —  a
+  documented lower bound, not a prediction — and asserts a mixed
+  mining/felling/farming policy reaches `houseBuilt` near the ~8-10 day
+  target while an all-in-on-mining policy is not dramatically faster, which
+  is the operational meaning of "no single money loop dominating". Run it
+  after touching `BEK_TOOLS`, `BEK_ITEMS`' sell prices, `houseCost()`/
+  `houseTierCost()`, `BEK_LOT_COST`, `BEK_QUEST_TEMPLATES`' `act2` entries,
+  `BEK_BARN_PLOT2`/`BEK_BARN_SLOTS2`, `BEK_DECOR.lakehouse_t2`, or any
+  `BEK_TALK` chat line gated on `S.act2Unlocked`.
 - `node scripts/bekkedal_shots.mjs <out-dir>` — the shot matrix. Boots the
   real machine in Chromium, seeds a save per shot, and captures seventy-two
   960x540 frames: every map at morning, dusk and night, the mine with and
@@ -1016,6 +1045,68 @@ goes to the bag through the usual soft cap, overflowing to the chest
 (uncapped) rather than being lost — so the chest is both where a farmer
 stockpiles ingredients ahead of a session and where a full bag's surplus
 ends up.
+
+## Act II
+
+`S.act2Unlocked` was added by the house-completion-milestone fix (bumped
+`ver` to 3, back when the ending screen's SPACE handler still called
+`S = fresh()`) as a hook nothing read yet. This is that hook wired up, plus
+the balance pass to go with it — reaching `houseBuilt` used to be
+unconstrained by anything but patience, and `act2_check.js`'s own balance
+simulation is what found the actual problem: `hakke` mining at its old
+5-energy cost paid roughly 21 kr/energy against ~17 for the best early crop
+and single digits for everything else, so a rational first playthrough
+bought a pick on day one and never touched farming, animals or fishing
+again. `hakke`'s energy cost moved to 7 (`BEK_TOOLS`, `data.js`) — not the
+ore sell prices, which this file already cites as measured values in **The
+veins** above, and not fishing, whose real throughput is gated by the reel
+minigame rather than by this table.
+
+Four surfaces, all read-only against `S.act2Unlocked` — nothing here ever
+sets it, only `S.houseBuilt` does (`index.js`'s `mode === 'end'` SPACE
+handler):
+
+- **The house's own upgrade tier.** `hakonTilbygg()` (`index.js`) is split
+  out of `hakonBuild()` rather than folded into it, since talking to Håkon
+  always funnels into one or the other (`openMenu()`'s `hakon` branch) and
+  it is a second, later gate on that same funnel: `S.built` reaching
+  `hakonBuild()` at all, `houseTierAvailable()` (`progression.js`) —
+  `S.act2Unlocked && S.built && !S.houseTier` — deciding what happens once
+  it does. Buying it (`houseTierCost()`: kr/tømmer/stein, the same shape
+  `houseCost()` already is, priced under it) sets `S.houseTier` and layers
+  `BEK_DECOR.lakehouse_t2` over `BEK_DECOR.lakehouse` in `propsPrepare()`
+  (`index.js`) — three more props in the same room, never a second map or a
+  second `BEK_MAPS` entry, the same overlay-not-replace convention the farm
+  plots and the pen already use.
+- **The pen's second tier.** `BEK_BARN_PLOT2`/`BEK_BARN_SLOTS2` (`data.js`)
+  sit immediately east of the first pen (farm map cols 9-14, clear of
+  `BEK_FARM_PLOTS`' plot3 which starts at col 15) — a fourth unlocked-region
+  flag `tileAt()` reads exactly like the first three, not a special case.
+  `progression.js`'s `barnSlots(S)` is the one place tier 1 and tier 2
+  concatenate, so `buyAnimal()`'s capacity check and the slot a new animal
+  is placed at can never disagree about how many there are. Bought from
+  Håkon like the first tier, kr-only, so it is a normal `buy`-carrying chat
+  entry rather than code of its own.
+- **The board's higher tier.** Two more `BEK_QUEST_TEMPLATES` entries
+  (`rich_ore`, `rare_fish`), each carrying `act2: true` — read by
+  `quests.js`'s `templateAvailable()` exactly the way it already reads
+  `tool`/`animal`, never set there. No second reward formula: a rich vein or
+  a rare fish is just a bigger number through `questReward()`'s existing
+  markup.
+- **One NPC beat each.** A `chat[]` entry per story NPC (two for Håkon),
+  gated `if: S => S.act2Unlocked` the same way `BEK_TALK.astrid`'s four
+  festival lines gate on `S.festival` — a chat entry rather than a `nodes`
+  entry, since a beat that keeps resurfacing once the house is finished
+  reads better here than one that fires once and is spent.
+
+The ending screen itself (`drawEnd()`, `menus.js`) stopped being a screen
+that ends play when the house-completion-milestone fix landed, but its own
+SPACE prompt kept saying `START OVER` — true of the old behaviour, a lie
+about the current one. It now reads `CONTINUE`, and the quest board's own
+house row (`drawQuests()`, `menus.js`) stops reporting a construction status
+once `S.act2Unlocked` (`BYGGET`/BUILT is a word for something under
+construction) and reads as a title instead (`DITT HJEM`/HOME) — a status,
+not a screen, matching what actually happens when you press SPACE on it.
 
 ## Autosave
 

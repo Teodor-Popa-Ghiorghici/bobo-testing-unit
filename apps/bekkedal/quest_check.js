@@ -44,6 +44,7 @@ console.log('\n-- template gates --');
 const GATE = {
   jern: 'hakke', kobber: 'hakke', solv: 'hakke',
   orret: 'stang', laks: 'stang', roye: 'stang', torsk: 'stang', makrell: 'stang',
+  kveite: 'stang', gullorret: 'stang',
   melk: 'animal', ull: 'animal', egg: 'animal'
 };
 let gateMismatch = 0;

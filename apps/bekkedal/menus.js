@@ -214,10 +214,10 @@ export function createMenus(A, GG, C) {
        ones, then the house — see boardRows() (quests.js) */
     const rows = boardRows(S);
     if (S.flag.build || S.flag.lot) {
-      const c = houseCost();
+      const c = houseCost();          /* act2Unlocked: the row reads as a title, not a build status */
       rows.push({ t: TX('HUSET VED VANNET', 'THE HOUSE BY THE WATER'), tc: 14,
-        st: S.built ? TX('BYGGET', 'BUILT') : (S.flag.lot ? TX('TOMT KJØPT', 'LOT BOUGHT') : TX('TOMT 1200 KR', 'LOT 1200 KR')),
-        stc: S.built ? 10 : 11,
+        st: S.act2Unlocked ? TX('DITT HJEM', 'HOME') : S.built ? TX('BYGGET', 'BUILT') : (S.flag.lot ? TX('TOMT KJØPT', 'LOT BOUGHT') : TX('TOMT 1200 KR', 'LOT 1200 KR')),
+        stc: S.act2Unlocked || S.built ? 10 : 11,
         d: S.built ? null : c.kr + ' kr + ' + c.tommer + ' ' + iname('tommer') + ' + ' + c.stein + ' ' + iname('stein') });
     }
     if (!rows.length) text(TX('Ingen oppdrag ennå. Snakk med folk.', 'No quests yet. Go and talk to people.'), bx, y, 7, FONT_SM);
@@ -288,8 +288,9 @@ export function createMenus(A, GG, C) {
     for (let i = 0; i < lines.length; i++) if (S.ending > 1.6 + i * 0.7) text(lines[i], END_TEXT_X, ly + i * LINE_SM, i === 0 ? 15 : 11, FONT_SM);
     const stat = 'DAG ' + S.day + ' — ' + S.kr + ' KR';
     if (S.ending > 1.6 + lines.length * 0.7 + 0.5) text(stat, Math.round((BEK_W - textW(stat, FONT_SM)) / 2), ly + lines.length * LINE_SM + LINE_SM, 11, FONT_SM);
-    const again = TX('SPACE — BEGYNN PÅ NYTT', 'SPACE — START OVER');
-    if (S.ending > 1.6 + lines.length * 0.7 + 1.2) text(again, Math.round((BEK_W - textW(again, FONT_SM)) / 2), BEK_H - PAD_LG - GLYPH_SM, 8, FONT_SM);
+    /* not "start over" — this screen no longer resets S, so SPACE says what it does */
+    const cont = TX('SPACE — FORTSETT', 'SPACE — CONTINUE');
+    if (S.ending > 1.6 + lines.length * 0.7 + 1.2) text(cont, Math.round((BEK_W - textW(cont, FONT_SM)) / 2), BEK_H - PAD_LG - GLYPH_SM, 8, FONT_SM);
   }
 
   return { drawFish: drawFish, drawTalk: drawTalk, drawOffer: drawOffer, drawShop: drawShop,
