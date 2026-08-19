@@ -46,6 +46,7 @@ export function groundOf(mapId, c) {
        darkest hour is nearly the same value. */
     case 'P': return TIM[3];
     case 'f': return SOI[2];                  /* a plot, turned or not                  */
+    case 'k': return DRY[1];                  /* the pen, strewn with straw             */
     case 'L': return GRASS[2];                /* the lot, still just grass              */
     case 'x': return TIM[2];                  /* a bridge                               */
     /* A shore tile begins as deep water and ends as sand and bank. What you

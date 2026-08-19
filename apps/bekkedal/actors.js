@@ -21,7 +21,7 @@
  * carry position — a tool is in the hand whether or not it is moving, which
  * is what makes a swing legible as a swing *of* something.
  */
-import { TIM, STO, SAN, SNO, DRY, WAT, GRASS, CON, ATMO } from './palette.js';
+import { TIM, STO, SAN, SNO, DRY, WAT, GRASS, CON, ATMO, WAR } from './palette.js';
 import { BEK_ITEMS } from './data.js';
 import { toolAt, drawHeld } from './fx.js';
 
@@ -51,6 +51,8 @@ export function createActors(GG, C) {
     else if (ic === 'lamp') { R(5, 3, 5, 3, 7); R(4, 6, 7, 6, col); R(6, 8, 3, 3, 15); }
     else if (ic === 'shirt') { R(3, 5, 10, 7, col); R(2, 5, 3, 3, col); R(11, 5, 3, 3, col); R(5, 5, 5, 2, 15); }
     else if (ic === 'sprinkler') { R(7, 4, 2, 9, col); R(3, 3, 10, 2, 7); R(4, 10, 8, 2, col); R(6, 2, 1, 2, 9); R(9, 2, 1, 2, 9); }
+    else if (ic === 'egg') { R(5, 4, 6, 9, col); R(6, 6, 4, 1, 15); }
+    else if (ic === 'hen') { R(4, 6, 8, 6, col); R(9, 4, 4, 4, col); R(12, 5, 2, 2, 14); R(3, 12, 1, 2, 14); R(9, 12, 1, 2, 14); }
     else R(4, 4, 8, 8, col);
   }
 
@@ -108,6 +110,16 @@ export function createActors(GG, C) {
     GG().fillStyle = C(STO[0]); GG().fillRect(px + 4, py + 13, 1, 4); GG().fillRect(px + 12, py + 13, 1, 4); GG().fillRect(px + 15, py + 5 + bob, 1, 1);
     GG().fillStyle = C(SAN[0]); GG().fillRect(px + 13, py + 1 + bob, 1, 3); GG().fillRect(px + 16, py + 1 + bob, 1, 3);
   }
+  /* the pen's other tenant: much smaller than the goat, so it reads by
+     silhouette rather than by detail — a round body, a comb, two legs. */
+  function chicken(px, py, t) {
+    const bob = Math.floor(t * 2.2) % 2;
+    GG().fillStyle = C(SNO[1]); GG().fillRect(px + 4, py + 8 + bob, 8, 7);
+    GG().fillStyle = C(SNO[0]); GG().fillRect(px + 9, py + 5 + bob, 4, 5);
+    GG().fillStyle = C(WAR[2]); GG().fillRect(px + 11, py + 3 + bob, 2, 3);
+    GG().fillStyle = C(WAR[3]); GG().fillRect(px + 12, py + 6 + bob, 2, 1);
+    GG().fillStyle = C(STO[0]); GG().fillRect(px + 5, py + 15, 1, 3); GG().fillRect(px + 9, py + 15, 1, 3);
+  }
 
-  return { drawIcon: drawIcon, person: person, bear: bear, goat: goat };
+  return { drawIcon: drawIcon, person: person, bear: bear, goat: goat, chicken: chicken };
 }

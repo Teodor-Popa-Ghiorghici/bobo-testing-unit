@@ -134,6 +134,13 @@ export const BEK_ITEMS = {
   melk:       { name: { no: 'MELK',       en: 'MILK'         }, sell: 22,  icon: 'milk',  col: 15 },
   brunost:    { name: { no: 'BRUNOST',    en: 'BROWN CHEESE' }, buy: 55, sell: 20, eat: 55, icon: 'cheese', col: 6 },
   ull:        { name: { no: 'ULL',        en: 'WOOL'         }, sell: 30,  icon: 'wool',  col: 7  },
+  egg:        { name: { no: 'EGG',        en: 'EGG'          }, sell: 18,  icon: 'egg',   col: 15 },
+  /* animal feed, and the two animals themselves — `animal` is read by
+     shopBuy() in index.js: an item that carries it never goes in the bag,
+     it goes in the pen (see BEK_BARN_PLOT / BEK_ANIMAL_KINDS below) */
+  dyrefor:    { name: { no: 'DYREFOR',    en: 'ANIMAL FEED'  }, buy: 15, icon: 'leaf', col: 6 },
+  geit:       { name: { no: 'GEIT',       en: 'GOAT'         }, buy: 600, icon: 'wool', col: 15, animal: 'goat' },
+  hone:       { name: { no: 'HØNE',       en: 'CHICKEN'      }, buy: 250, icon: 'hen',  col: 6,  animal: 'chicken' },
   /* food you eat */
   kaffe:      { name: { no: 'KAFFE',      en: 'COFFEE'       }, buy: 40,  sell: 12, eat: 35,  icon: 'cup',  col: 6  },
   vaffel:     { name: { no: 'VAFFEL',     en: 'WAFFLE'       }, buy: 65,  sell: 20, eat: 65,  icon: 'food', col: 14 },
@@ -724,6 +731,35 @@ export const BEK_FARM_PLOTS = [
 ];
 
 /* ==========================================================================
+   27.1d THE PEN
+   --------------------------------------------------------------------------
+   A third purchasable region over the farm map's own grass, same mechanism
+   as the two field expansions above — a flag `tileAt` reads to swap the base
+   'g' for a ground glyph ('k', straw) once bought, never a new map. It sits
+   on plain grass at the farm's south-west corner (rows 11-13, cols 4-8),
+   clear of the well/path (cols 1-4), the two flowers at (2,10) and (2,13)
+   and both field expansions.
+
+   BEK_BARN_SLOTS are the fixed stand positions inside it an owned animal is
+   placed at, in purchase order; BEK_BARN_SLOTS.length is the pen's capacity.
+   Bought from Håkon (BEK_TALK.hakon); the animals themselves are Sigrid's
+   stock (BEK_TALK.sigrid.shop) — see BEK_ANIMAL_KINDS and index.js's
+   buyAnimal()/tendAnimal().
+   ========================================================================== */
+export const BEK_BARN_PLOT = { flag: 'barn', x0: 4, y0: 11, x1: 8, y1: 13 };
+export const BEK_BARN_SLOTS = [
+  { x: 5, y: 11 }, { x: 7, y: 11 }, { x: 5, y: 13 }, { x: 7, y: 13 }
+];
+
+/* what an owned animal is, and what it pays out once fed and content. The
+   affection that gates `produce` is not tracked here — it lives in S.fr,
+   keyed by the animal's own instance id, exactly like an NPC's friendship. */
+export const BEK_ANIMAL_KINDS = {
+  goat:    { name: { no: 'GEIT', en: 'GOAT' },    produce: { melk: 1, ull: 1 } },
+  chicken: { name: { no: 'HØNE', en: 'CHICKEN' }, produce: { egg: 1 } }
+};
+
+/* ==========================================================================
    27.2a WHAT GROWS ROUND THE EDGE
    --------------------------------------------------------------------------
    The mix of species in each map's treeline, and how thick it stands. Weights
@@ -944,7 +980,12 @@ export const BEK_TALK = {
         if: S => S.flag.plot2 && !S.flag.plot3,
         buy: { label: { no: 'STØRRE JORDE — 1500 kr', en: 'BIGGER FIELD — 1500 kr' }, kr: 1500, flag: { plot3: 1 },
                ok: ['HÅKON: That is most of the flat ground gone now.'],
-               no: ['HÅKON: 1500 kr. No rush.'] } }
+               no: ['HÅKON: 1500 kr. No rush.'] } },
+      { t: [{ no: 'HÅKON: A pen in the corner would keep animals off what you just cleared.', en: 'HÅKON: A pen in the corner would keep animals off what you just cleared.' }],
+        if: S => S.flag.plot3 && !S.flag.barn,
+        buy: { label: { no: 'DYREINNHEGNING — 1100 kr', en: 'ANIMAL PEN — 1100 kr' }, kr: 1100, flag: { barn: 1 },
+               ok: ['HÅKON: Fenced and strawed. Sigrid will sell you what goes in it.'],
+               no: ['HÅKON: 1100 kr. The fence will keep.'] } }
     ]
   },
 
@@ -1064,9 +1105,11 @@ export const BEK_TALK = {
       { t: ['SIGRID: Mind the goats. They will eat your bootlaces.'] },
       { t: [{ no: 'SIGRID: Multe first, then the vidda. In that order, or you freeze.', en: 'SIGRID: Cloudberries first, then the plateau. In that order, or you freeze.' }] },
       { t: ['SIGRID: A wool genser is all that stands between you and the wind.'] },
-      { t: ['SIGRID: You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva }
+      { t: ['SIGRID: You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva },
+      { t: [{ no: 'SIGRID: Håkon fences it, I stock it. Geit or høne, your pen.', en: 'SIGRID: Håkon fences it, I stock it. Goat or chicken, your pen.' }],
+        if: S => S.flag.barn }
     ],
-    shop: ['brunost', 'ullgenser', 'multekrem', 'lefse']
+    shop: ['brunost', 'ullgenser', 'multekrem', 'lefse', 'dyrefor', 'geit', 'hone']
   },
 
   gunnar: {
