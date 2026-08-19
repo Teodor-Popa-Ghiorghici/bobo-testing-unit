@@ -120,7 +120,8 @@ export function createMenus(A, GG, C) {
     const rowY = y + LINE_SM;
     shop.list.forEach((id, i) => {
       if (i >= SHOP_ROWS) return;
-      const locked = (id === 'jordbarfro' && !S.flag.jordbar) || (id === 'rabarbrafro' && !S.flag.rabarbra);
+      const locked = (id === 'jordbarfro' && !S.flag.jordbar) || (id === 'rabarbrafro' && !S.flag.rabarbra) ||
+                     (BEK_ITEMS[id].animal && !S.flag.barn);
       const on = !shop.side && shop.sel === i;
       const ry = rowY + i * SHOP_ROW, tyy = ry + Math.round((ICON_PX - GLYPH_SM) / 2);
       icon(id, bx, ry);

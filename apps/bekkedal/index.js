@@ -3,7 +3,7 @@ import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
-         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS,
+         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT, BEK_BARN_SLOTS, BEK_ANIMAL_KINDS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
@@ -175,7 +175,7 @@ export default {
       /* ---- state -------------------------------------------------------- */
       let S = null;
       const fresh = () => ({
-        ver: 5, lang: BEK_LANG, fullscreen: 0,
+        ver: 6, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -186,6 +186,10 @@ export default {
         bagCap: 80, bagTier: 0,
         bag: { potetfro: 5 },
         soil: {}, felled: {}, mined: {}, picked: {}, drops: [],
+        /* owned animals: { id, kind, x, y, fed, pet, ready }. `id` is also
+           the key S.fr reads their affection off — the same counter an NPC
+           uses, never a second table. animalSeq hands out those ids. */
+        animals: [], animalSeq: 0,
         fr: { astrid: 0, hakon: 0, ingrid: 0, olav: 0, marit: 0, sigrid: 0, gunnar: 0, lars: 0 },
         /* one XP counter and one derived level per gathering activity — see
            addXp(). Farming/mining/foraging/fishing only; felling and selling
@@ -212,8 +216,9 @@ export default {
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
         Object.keys(f.xp).forEach(k => { if (s.xp[k] == null) s.xp[k] = 0; });
         Object.keys(f.lvl).forEach(k => { if (s.lvl[k] == null) s.lvl[k] = 0; });
-        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
+        if (!Array.isArray(s.animals)) s.animals = [];
         if (typeof s.chatIx === 'number') s.chatIx = {};
         return s;
       };
@@ -255,6 +260,10 @@ export default {
             const p = BEK_FARM_PLOTS[i];
             if (S.flag[p.flag] && x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1) return 'f';
           }
+          /* the pen, same mechanism — a third unlocked-region flag over the
+             farm map's own grass, never a new map or its own tile state */
+          const bp = BEK_BARN_PLOT;
+          if (S.flag[bp.flag] && x >= bp.x0 && x <= bp.x1 && y >= bp.y0 && y <= bp.y1) return 'k';
         }
         return m.rows[y].charAt(x);
       };
@@ -457,6 +466,20 @@ export default {
             nc.wet = 1;
           });
         });
+        /* the pen: fed yesterday raises affection and, past the first point
+           of it, leaves produce waiting; unfed lets it drift back down and
+           stops production — it never removes the animal. Same S.fr clamp
+           as an NPC's friendship, keyed by the animal's own id. */
+        S.animals.forEach(a => {
+          if (a.fed) {
+            S.fr[a.id] = Math.min(5, (S.fr[a.id] || 0) + 1);
+            a.ready = S.fr[a.id] >= 1 ? 1 : 0;
+          } else {
+            S.fr[a.id] = Math.max(0, (S.fr[a.id] || 0) - 1);
+            a.ready = 0;
+          }
+          a.fed = 0; a.pet = 0;
+        });
         const r = Math.random();
         S.weather = r < 0.20 ? 'regn' : r < 0.30 ? 'take' : 'klar';
         spawnDrops();
@@ -531,6 +554,10 @@ export default {
         const t = tileAt(S.map, f.x, f.y);
         const who = npcsHere().filter(n => n.x === f.x && n.y === f.y)[0];
         if (who) return talkTo(who);
+        if (S.map === 'farm') {
+          const anim = S.animals.filter(a => a.x === f.x && a.y === f.y)[0];
+          if (anim) return tendAnimal(anim);
+        }
         if (t === 'b') { mode = 'sleep'; return; }
         /* a bench is not a task. You sit, the afternoon moves on a little,
            and you get up less tired than you sat down. */
@@ -661,6 +688,51 @@ export default {
         add(seed, -1); c.seed = BEK_ITEMS[seed].seed; c.age = 0; c.ready = 0; sfx.pick();
         startSwing('hand', 'sprout');
         say(TX('SÅDDE ', 'PLANTED ') + iname(seed));
+      }
+      /* ---- the pen -------------------------------------------------------
+         One button, same as everything else act() resolves, reading the
+         animal's own state to decide what pressing it means right now:
+         collect what is ready, else feed it for the day, else pet it once.
+         Affection is S.fr[a.id] — the same 0..5 counter and the same
+         Math.min(5, ...) clamp every NPC's friendship already uses, raised
+         here and by newDay()'s daily tick, never a second table. */
+      function tendAnimal(a) {
+        const spec = BEK_ANIMAL_KINDS[a.kind];
+        if (a.ready) {
+          const ids = Object.keys(spec.produce);
+          if (!gainCapped(ids[0], spec.produce[ids[0]])) return;
+          if (ids[1]) gainCapped(ids[1], spec.produce[ids[1]]);
+          a.ready = 0; sfx.pick();
+          say('+' + ids.map(id => spec.produce[id] + ' ' + iname(id)).join('  '));
+          return;
+        }
+        if (!a.fed) {
+          if (!has('dyrefor')) { say(TX('INGEN FOR I SEKKEN.', 'NO FEED IN THE BAG.')); deny(); return; }
+          add('dyrefor', -1); a.fed = 1;
+          S.fr[a.id] = Math.min(5, (S.fr[a.id] || 0) + 1);
+          sfx.pick(); say(TX('MATET ', 'FED ') + T(spec.name));
+          return;
+        }
+        if (!a.pet) {
+          a.pet = 1; S.fr[a.id] = Math.min(5, (S.fr[a.id] || 0) + 1);
+          sfx.talk(); say(T(spec.name) + TX(' NYTER KLAPP.', ' ENJOYS THE PETTING.'));
+          return;
+        }
+        say(TX('DEN ER FORNØYD.', 'IT IS CONTENT.'));
+      }
+      /* the pen's own purchase path — shopBuy() routes here for any BEK_ITEMS
+         entry that carries `animal` rather than adding it to the bag */
+      function buyAnimal(id) {
+        const spec = BEK_ITEMS[id];
+        if (!S.flag.barn) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
+        if (S.animals.length >= BEK_BARN_SLOTS.length) { say(TX('INNHEGNINGEN ER FULL.', 'THE PEN IS FULL.')); deny(); return; }
+        const p = price(id);
+        if (S.kr < p) { say(TX('IKKE RÅD.', 'CANNOT AFFORD.')); deny(); return; }
+        const slot = BEK_BARN_SLOTS[S.animals.length];
+        const aid = 'animal' + (S.animalSeq = S.animalSeq + 1);
+        S.animals.push({ id: aid, kind: spec.animal, x: slot.x, y: slot.y, fed: 0, pet: 0, ready: 0 });
+        S.fr[aid] = 0;
+        S.kr -= p; sfx.coin(); say(TX('KJØPTE ', 'BOUGHT ') + iname(id));
       }
       function cycleSeed() {
         const owned = BEK_SEED_ORDER.filter(id => (S.bag[id] || 0) > 0);
@@ -816,6 +888,7 @@ export default {
         const id = shop.list[shop.sel];
         if (id === 'jordbarfro' && !S.flag.jordbar) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
         if (id === 'rabarbrafro' && !S.flag.rabarbra) { say(TX('IKKE PÅ LAGER ENNÅ.', 'NOT IN STOCK YET.')); deny(); return; }
+        if (BEK_ITEMS[id].animal) return buyAnimal(id);
         const p = price(id);
         if (S.kr < p) { say(TX('IKKE RÅD.', 'CANNOT AFFORD.')); deny(); return; }
         if (!gainCapped(id, 1)) return;
@@ -998,6 +1071,7 @@ export default {
         if (nx < 0 || ny < 0 || nx >= BEK_COLS || ny >= BEK_ROWS) return;
         if (solid(S.map, nx, ny)) return;
         if (npcsHere().some(n => n.x === nx && n.y === ny)) return;
+        if (S.map === 'farm' && S.animals.some(a => a.x === nx && a.y === ny)) return;
         S.px = nx; S.py = ny;
         if (S.step % 2 === 0) sfx.step();
         for (let i = S.drops.length - 1; i >= 0; i--) {
@@ -1380,7 +1454,7 @@ export default {
       const snow_ = () => snowy(S.map);
       const rim_ = (x, y) => !ins_() && (x === 0 || y === 0 || x === BEK_COLS - 1 || y === BEK_ROWS - 1);
       /* a tile that lays its own ground has no grass or boards under it */
-      const ownGround = (c, x, y) => 'W~P.MOQHRDLf '.indexOf(c) >= 0 || (c === 'T' && rim_(x, y));
+      const ownGround = (c, x, y) => 'W~P.MOQHRDLfk '.indexOf(c) >= 0 || (c === 'T' && rim_(x, y));
 
       function tileGround(c, x, y) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
@@ -1399,7 +1473,7 @@ export default {
         /* the plain fills come straight out of surface.js, so the colour the
            check reasons about at the darkest hour is the colour that is
            actually on screen */
-        if (c === 'P' || c === 'f' || c === 'L') { g.fillStyle = C(groundOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        if (c === 'P' || c === 'f' || c === 'L' || c === 'k') { g.fillStyle = C(groundOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (c === 'H' || c === 'R' || c === 'D') { g.fillStyle = C(solidOf(S.map, c === 'R' ? 'H' : c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (ins_()) native(() => interior.floor(x, y)); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
       }
@@ -1503,6 +1577,7 @@ export default {
         if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
         if (c === 'L') { g.fillStyle = C(TIM[3]); g.fillRect(px, py, BEK_T_SRC, 1); g.fillRect(px, py, 1, BEK_T_SRC); }
         if (c === 'f') { g.fillStyle = C(SOI[1]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
+        if (c === 'k') { g.fillStyle = C(DRY[2]); g.fillRect(px, py + 19, BEK_T_SRC, 1); g.fillRect(px + 19, py, 1, BEK_T_SRC); }
         /* ---- indoors, and the benches ----------------------------------
            The rug and the five pieces of furniture live in interior.js and
            draw at native density; this is the last of the glyph ladder that
@@ -1755,7 +1830,7 @@ export default {
       /* The people, the animals and the item icons live in actors.js. It is
          handed `() => g` rather than `g`, because `g` is repointed at the
          offscreen terrain canvas for the length of a cache rebuild. */
-      const { drawIcon, person, bear, goat } = createActors(() => g, C);
+      const { drawIcon, person, bear, goat, chicken } = createActors(() => g, C);
 
       const { text, textW, wrapText } = createText(g, C);
 
@@ -1877,6 +1952,12 @@ export default {
 
         S.drops.filter(d => d.map === S.map).forEach(d => drawIcon(d.item, d.x * BEK_T_SRC + 3, d.y * BEK_T_SRC + 3));
         BEK_GOATS.filter(gt => gt.map === S.map).forEach(gt => goat(gt.x * BEK_T_SRC + 1, gt.y * BEK_T_SRC + 1, t));
+        /* owned animals are their own system — collidable, stateful, never
+           merged with the decorative herd above */
+        if (S.map === 'farm') S.animals.forEach(a => {
+          if (a.kind === 'goat') goat(a.x * BEK_T_SRC + 1, a.y * BEK_T_SRC + 1, t);
+          else chicken(a.x * BEK_T_SRC + 3, a.y * BEK_T_SRC + 3, t);
+        });
 
         const actors = npcsHere().map(n => ({ n: n, y: n.y }));
         actors.push({ me: 1, y: S.py });
