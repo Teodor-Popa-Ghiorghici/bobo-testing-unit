@@ -168,14 +168,75 @@ export const BEK_ITEMS = {
 export const BEK_SEED_ORDER = ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro'];
 
 /* `col` is what the ripe head is drawn in — a palette index, and deliberately
-   one per crop you can tell apart across a field at a glance. */
+   one per crop you can tell apart across a field at a glance. `seasons` is
+   which of BEK_SEASONS (below) the seed may be planted in — checked by
+   plant() in index.js via seasons.js's cropInSeason(), never enforced as a
+   hard error: a crop asked for out of season is a spoken line, not a wall. */
 export const BEK_CROPS = {
-  potet:    { days: 3, out: 'potet',    col: SAN[1] },
-  nepe:     { days: 2, out: 'nepe',     col: SNO[0] },
-  gulrot:   { days: 4, out: 'gulrot',   col: WAR[3] },
-  kal:      { days: 4, out: 'kal',      col: GRASS[4] },
-  jordbar:  { days: 5, out: 'jordbar',  col: WAR[2], regrow: 2 },
-  rabarbra: { days: 6, out: 'rabarbra', col: WAR[1], regrow: 3 }
+  potet:    { days: 3, out: 'potet',    col: SAN[1],   seasons: ['var', 'sommer'] },
+  nepe:     { days: 2, out: 'nepe',     col: SNO[0],   seasons: ['var', 'host', 'vinter'] },
+  gulrot:   { days: 4, out: 'gulrot',   col: WAR[3],   seasons: ['var', 'sommer'] },
+  kal:      { days: 4, out: 'kal',      col: GRASS[4], seasons: ['sommer', 'host'] },
+  jordbar:  { days: 5, out: 'jordbar',  col: WAR[2], regrow: 2, seasons: ['var', 'sommer'] },
+  rabarbra: { days: 6, out: 'rabarbra', col: WAR[1], regrow: 3, seasons: ['var', 'sommer', 'host'] }
+};
+
+/* ---- 27.1a the four seasons -----------------------------------------------
+   Not a random overlay — a returning cycle the day counter itself drives.
+   Four BEK_SEASON_DAYS-long seasons, in fixed order, wrapping forever.
+   index.js derives S.season and S.festival from S.day fresh every morning
+   (seasons.js's pure seasonIndexOf()/festivalOf()) rather than stepping them
+   on their own, so the two can never drift apart from the day count that
+   defines them — there is nothing to increment, only to recompute.
+   ========================================================================== */
+export const BEK_SEASON_DAYS = 20;
+export const BEK_SEASONS = [
+  { id: 'var',    n: { no: 'VÅR',    en: 'SPRING' } },
+  { id: 'sommer', n: { no: 'SOMMER', en: 'SUMMER' } },
+  { id: 'host',   n: { no: 'HØST',   en: 'AUTUMN' } },
+  { id: 'vinter', n: { no: 'VINTER', en: 'WINTER' } }
+];
+
+/* rain/fog odds by season, everything left over is 'klar' — the spring thaw
+   and the autumn rains are the wettest, high summer the clearest, winter the
+   foggiest. Weather itself is still rolled fresh every morning; only the
+   odds move with the season. */
+export const BEK_SEASON_WEATHER = {
+  var:    { regn: 0.30, take: 0.15 },
+  sommer: { regn: 0.12, take: 0.05 },
+  host:   { regn: 0.35, take: 0.25 },
+  vinter: { regn: 0.15, take: 0.35 }
+};
+
+/* the one seasonal tint, fed through the same dither()/ditherPat() call the
+   weather overlay already draws fog with — no new renderer, just another
+   colour and strength handed to a call that already exists. Strength stays
+   low on purpose: a wash over the picture, not a filter over it. */
+export const BEK_SEASON_TINT = {
+  var:    { col: GRASS[3], n: 1 },
+  sommer: { col: WAR[0],   n: 1 },
+  host:   { col: WAR[2],   n: 2 },
+  vinter: { col: SNO[0],   n: 3 }
+};
+
+/* one small recurring festival per season, on a fixed day-of-season so it
+   returns every year without drifting off it. `dress` overlays a handful of
+   the town map's own grass tiles with the flower glyph the map already
+   draws elsewhere on itself (see BEK_MAPS.town) — tileAt() in index.js reads
+   it exactly the way it already reads the two farm-plot overlays in
+   BEK_FARM_PLOTS, so the change costs no new glyph and no new draw path,
+   only a different day to show the existing one on. The dialogue beat lives
+   in BEK_TALK.astrid.chat below, gated on S.festival the same way every
+   other chat line there gates on S.flag/S.fr. */
+export const BEK_FESTIVALS = {
+  var:    { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+            title: { no: 'VÅRBLOT',    en: 'SPRING FESTIVAL' } },
+  sommer: { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+            title: { no: 'SOLSNU',     en: 'MIDSUMMER FAIR' } },
+  host:   { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+            title: { no: 'HAUSTGILDE', en: 'HARVEST FAIR' } },
+  vinter: { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+            title: { no: 'JULEBLOT',   en: 'MIDWINTER FEAST' } }
 };
 
 /* ---- 27.1b tools ---------------------------------------------------------
@@ -956,7 +1017,19 @@ export const BEK_TALK = {
         if: S => !S.kanneLv && S.fr.astrid >= 2,
         buy: { label: { no: 'STOR VANNKANNE — 700 kr', en: 'BIG WATERING CAN — 700 kr' }, kr: 700, kanneLv: 1, waterMaxAdd: 15,
                ok: ['ASTRID: Mind your wrist. It is heavier full.'],
-               no: ['ASTRID: 700 kr. Come back when you have it.'] } }
+               no: ['ASTRID: 700 kr. Come back when you have it.'] } },
+      /* the four festival beats — one per season, gated on S.festival the
+         same way every other chat line here gates on S.flag/S.fr. See
+         BEK_FESTIVALS above for the day and the map dressing that goes with
+         each. */
+      { t: [{ no: 'ASTRID: Vårblot i dag! Se — noen har satt blomster på torget.', en: 'ASTRID: Spring Festival today! Look — someone has put flowers up in the square.' }],
+        if: S => S.festival === 'var' },
+      { t: [{ no: 'ASTRID: Solsnu i dag. Torget er pyntet for den lyseste natten.', en: 'ASTRID: Midsummer Fair today. The square is dressed for the lightest night.' }],
+        if: S => S.festival === 'sommer' },
+      { t: [{ no: 'ASTRID: Haustgilde i dag — takk for avlingen, før frosten tar den.', en: 'ASTRID: Harvest Fair today — thanks for the crop, before the frost takes it.' }],
+        if: S => S.festival === 'host' },
+      { t: [{ no: 'ASTRID: Juleblot i dag. Kaldt ute, men torget er pyntet likevel.', en: 'ASTRID: Midwinter Feast today. Cold out, but the square is dressed all the same.' }],
+        if: S => S.festival === 'vinter' }
     ],
     shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro', 'kaffe', 'vaffel', 'lefse', 'lykt', 'sprinkler']
   },

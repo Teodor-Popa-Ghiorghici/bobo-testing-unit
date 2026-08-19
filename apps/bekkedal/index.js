@@ -5,12 +5,14 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, UI, BEK_
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT, BEK_BARN_SLOTS, BEK_ANIMAL_KINDS,
          BEK_RECIPES,
+         BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
          BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
          soilVar, objVar, seamVar, treeVar, LOW, PATCH, JIT } from './noise.js';
+import { seasonIndexOf, festivalOf, cropInSeason, rollWeather } from './seasons.js';
 import { createShore } from './shore.js';
 import { createWater } from './water.js';
 import { createRock, oreKind } from './rock.js';
@@ -178,7 +180,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 8, lang: BEK_LANG, fullscreen: 0,
+        ver: 9, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -207,6 +209,10 @@ export default {
         lvl: { farm: 0, mine: 0, forage: 0, fish: 0 },
         met: {}, seen: {}, flag: {}, q: {},
         chatIx: {}, disc: { farm: 1 }, weather: 'klar',
+        /* the seasonal layer — always recomputed from `day` (seasons.js),
+           never incremented on its own, so it cannot drift from it. See
+           heal() below for the same recompute on an old save's load. */
+        season: seasonIndexOf(1), festival: festivalOf(1) ? BEK_SEASONS[seasonIndexOf(1)].id : null,
         built: 0, ending: 0,
         /* the completed house is a permanent milestone, not part of the
            resettable run state — never touched by fresh() after game start */
@@ -239,6 +245,11 @@ export default {
            scheduled refresh — same reasoning as fresh()'s own seed above */
         if (!Array.isArray(s.rq)) s.rq = refreshBoard(s, s.day || 1);
         if (typeof s.chatIx === 'number') s.chatIx = {};
+        /* always recomputed from s.day rather than backfilled once — a
+           stale save's season/festival are derived fresh on every load, the
+           same as fresh()'s own day-1 seed above, so there is nothing
+           stored that could ever disagree with the day count it comes from */
+        s.season = seasonIndexOf(s.day); s.festival = festivalOf(s.day) ? BEK_SEASONS[s.season].id : null;
         return s;
       };
 
@@ -286,6 +297,16 @@ export default {
              farm map's own grass, never a new map or its own tile state */
           const bp = BEK_BARN_PLOT;
           if (S.flag[bp.flag] && x >= bp.x0 && x <= bp.x1 && y >= bp.y0 && y <= bp.y1) return 'k';
+        }
+        /* the festival's map dressing — a handful of the town's own grass
+           tiles standing in for the flower glyph the map already draws
+           elsewhere on itself, same overlay mechanism as the plots above.
+           S.festival is recomputed from S.day every morning (newDay()), so
+           this never needs its own cache-busting: S.day is already part of
+           the terrain cache key. */
+        if (S.festival) {
+          const fest = BEK_FESTIVALS[S.festival];
+          if (fest && fest.map === mp && fest.dress.some(d => d[0] === x && d[1] === y)) return 'F';
         }
         return m.rows[y].charAt(x);
       };
@@ -460,6 +481,11 @@ export default {
       }
       function newDay(passedOut) {
         S.day++; S.min = 6 * 60;
+        /* recomputed, never incremented — see the comment on fresh()'s own
+           seed and on heal() above for why that is what keeps this from
+           ever drifting off S.day */
+        S.season = seasonIndexOf(S.day);
+        S.festival = festivalOf(S.day) ? BEK_SEASONS[S.season].id : null;
         /* the repeatable quest board turns over as one batch on a fixed
            in-game weekday — see isRefreshDay()/refreshBoard() in quests.js */
         if (isRefreshDay(S.day)) S.rq = refreshBoard(S, S.day);
@@ -505,8 +531,9 @@ export default {
           }
           a.fed = 0; a.pet = 0;
         });
-        const r = Math.random();
-        S.weather = r < 0.20 ? 'regn' : r < 0.30 ? 'take' : 'klar';
+        /* the odds move with the season (BEK_SEASON_WEATHER); the roll
+           itself is still one call, still fully random */
+        S.weather = rollWeather(S.day);
         spawnDrops();
         S.map = 'farm'; S.px = 4; S.py = 8; S.dir = 1;
         sfx.sleep();
@@ -710,8 +737,13 @@ export default {
         if (c.seed) { say(TX('ALLEREDE PLANTET.', 'ALREADY PLANTED.')); return; }
         const seed = curSeed();
         if (!seed) { say(TX('INGEN FRØ I SEKKEN.', 'NO SEED IN THE BAG.')); deny(); return; }
+        const cropId = BEK_ITEMS[seed].seed;
+        if (!cropInSeason(BEK_CROPS[cropId], S.day)) {
+          say(TX('IKKE SESONGEN FOR DEN. JORDA VIL IKKE HA DEN NÅ.', 'WRONG SEASON. THE GROUND WILL NOT TAKE IT NOW.'));
+          deny(); return;
+        }
         if (!spend(1)) return;
-        add(seed, -1); c.seed = BEK_ITEMS[seed].seed; c.age = 0; c.ready = 0; sfx.pick();
+        add(seed, -1); c.seed = cropId; c.age = 0; c.ready = 0; sfx.pick();
         startSwing('hand', 'sprout');
         say(TX('SÅDDE ', 'PLANTED ') + iname(seed));
       }
@@ -2093,10 +2125,17 @@ export default {
            and the valley, which is exactly what an overlay is for. The hour
            is no longer here at all — it went into the palette. Both still
            draw through the hour's LUT, so fog at midnight is night fog and
-           rain at dusk catches the last of the light. */
+           rain at dusk catches the last of the light.
+
+           The season adds one more layer under those two, through the exact
+           same dither() call fog already makes — no new renderer, just
+           another colour and strength (BEK_SEASON_TINT) handed to a call
+           that already exists, and it too draws through the hour's LUT. */
         g.save();
         viewClip();
         if (!inside) {
+          const tint = BEK_SEASON_TINT[BEK_SEASONS[S.season].id];
+          if (tint) dither(tint.col, tint.n);
           if (S.weather === 'regn') {
             g.fillStyle = C(WAT[4]);
             for (let i = 0; i < BEK_RAIN_N; i++) {
