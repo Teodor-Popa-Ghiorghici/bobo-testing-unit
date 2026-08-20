@@ -1,16 +1,16 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
-import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
+import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
          BEK_BARN_PLOT2, BEK_ANIMAL_KINDS,
          BEK_RECIPES,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
-         BEK_CAM_MAX_X, BEK_CAM_MAX_Y,
+         mapCols, mapRows, camMaxX, camMaxY,
          BEK_RAIN_N, BEK_RAIN_STRIDE_X, BEK_RAIN_STRIDE_Y, BEK_RAIN_LEN, BEK_RAIN_VX, BEK_RAIN_VY,
-         BEK_DITHER_CELL, BEK_DITHER_PX, BEK_MAP_W, BEK_MAP_H } from './data.js';
+         BEK_DITHER_CELL, BEK_DITHER_PX } from './data.js';
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
          soilVar, objVar, seamVar, treeVar, LOW, PATCH, JIT } from './noise.js';
 import { seasonIndexOf, festivalOf, cropInSeason, rollWeather } from './seasons.js';
@@ -291,8 +291,15 @@ export default {
          BEK_BARN_PLOT2 (data.js) for why a second region rather than a
          bigger first one */
       const BARN_PLOTS = [BEK_BARN_PLOT, BEK_BARN_PLOT2];
+      /* The current map's size, which is now a question rather than a
+         constant. Everything that walks the whole grid hoists these into
+         locals first: they are two property lookups, and an inner loop that
+         asks 360 (or 1440) times is paying for nothing. Anything that reads a
+         square on a map that may not be the one we are standing on — dropAt,
+         the sprinkler's neighbours — asks about that map by name instead. */
+      const COLS = () => mapCols(S.map), ROWS = () => mapRows(S.map);
       const tileAt = (mp, x, y) => {
-        if (x < 0 || y < 0 || x >= BEK_COLS || y >= BEK_ROWS) return BEK_MAPS[mp] && BEK_MAPS[mp].inside ? 'H' : 'T';
+        if (x < 0 || y < 0 || x >= mapCols(mp) || y >= mapRows(mp)) return BEK_MAPS[mp] && BEK_MAPS[mp].inside ? 'H' : 'T';
         const m = BEK_MAPS[mp];
         if (S.built && mp === 'lake' && BEK_HOUSE[y] && BEK_HOUSE[y][x] !== ' ') return BEK_HOUSE[y][x];
         if (S.felled[rkey(mp, x, y)] > S.day) return 'g';
@@ -493,8 +500,8 @@ export default {
       function markDisc(m){ if (BEK_MAPS[m] && !BEK_MAPS[m].inside) S.disc[m] = 1; }
       function dropAt(mp, item, tries, area) {
         for (let k = 0; k < (tries || 40); k++) {
-          const x = (area ? area[0] : 1) + Math.floor(Math.random() * (area ? area[2] : 22));
-          const y = (area ? area[1] : 1) + Math.floor(Math.random() * (area ? area[3] : 13));
+          const x = (area ? area[0] : 1) + Math.floor(Math.random() * (area ? area[2] : mapCols(mp) - 2));
+          const y = (area ? area[1] : 1) + Math.floor(Math.random() * (area ? area[3] : mapRows(mp) - 2));
           const t = tileAt(mp, x, y);
           if (!solid(mp, x, y) && t !== '.' && t !== 'P') { S.drops.push({ map: mp, x: x, y: y, item: item }); return; }
         }
@@ -1258,7 +1265,7 @@ export default {
         const nx = S.px + dx, ny = S.py + dy;
         const ex = (M().exits || []).filter(x => x.x === nx && x.y === ny)[0];
         if (ex) { if (ex.need && !gateOK(ex.need)) { say(T(ex.why)); deny(); return; } S.map = ex.to; S.px = ex.tx; S.py = ex.ty; markDisc(ex.to); say(T(BEK_MAPS[S.map].title)); return; }
-        if (nx < 0 || ny < 0 || nx >= BEK_COLS || ny >= BEK_ROWS) return;
+        if (nx < 0 || ny < 0 || nx >= COLS() || ny >= ROWS()) return;
         if (solid(S.map, nx, ny)) return;
         if (npcsHere().some(n => n.x === nx && n.y === ny)) return;
         if (S.map === 'farm' && S.animals.some(a => a.x === nx && a.y === ny)) return;
@@ -1532,7 +1539,8 @@ export default {
         },
         seam: i => seamVar(S.map, i),
         spot: spot,
-        tileAt: (x, y) => tileAt(S.map, x, y)
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        cols: COLS, rows: ROWS
       };
       const shore = createShore(waterArt);
       const water = createWater(waterArt);
@@ -1553,7 +1561,8 @@ export default {
           g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
         },
         tileAt: (x, y) => tileAt(S.map, x, y),
-        salt: () => mapSalt(S.map)
+        salt: () => mapSalt(S.map),
+        cols: COLS, rows: ROWS
       });
       /* what decor.js draws with — the same shape the other art modules take */
       const propArt = { fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); } };
@@ -1590,7 +1599,8 @@ export default {
         tree: (i, layer) => treeVar(S.map, i, layer),
         tileAt: (x, y) => tileAt(S.map, x, y),
         map: () => S.map,
-        snowy: () => snow_()
+        snowy: () => snow_(),
+        cols: COLS, rows: ROWS
       });
 
       const rock = createRock({
@@ -1602,7 +1612,8 @@ export default {
         rockVar: (x, y) => rockVar(S.map, x, y),
         patch: (x, y, name) => pAmt(x, y, PATCH[name]),
         spot: spot,
-        tileAt: (x, y) => tileAt(S.map, x, y)
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        cols: COLS, rows: ROWS
       });
 
       /* deep water: the depth ramp is in the cache, and what is left per frame
@@ -1646,7 +1657,7 @@ export default {
          palette_check has to read the same answers the art draws from */
       const ins_ = () => insideMap(S.map);
       const snow_ = () => snowy(S.map);
-      const rim_ = (x, y) => !ins_() && (x === 0 || y === 0 || x === BEK_COLS - 1 || y === BEK_ROWS - 1);
+      const rim_ = (x, y) => !ins_() && (x === 0 || y === 0 || x === COLS() - 1 || y === ROWS() - 1);
       /* a tile that lays its own ground has no grass or boards under it */
       const ownGround = (c, x, y) => 'W~P.MOQHRDLfk '.indexOf(c) >= 0 || (c === 'T' && rim_(x, y));
 
@@ -1804,18 +1815,28 @@ export default {
       const LIVE = 'W~vOQ';
 
       /* ---- the terrain cache ----------------------------------------------
-         The two passes above used to be one function run for all 360 tiles
-         every single frame, which is what kept the per-tile detail budget
-         down to a handful of rects. They now render once into an offscreen
-         canvas the size of the whole map and the frame blits that, so the
-         cost of a tile's detail is paid when the map changes rather than
-         sixty times a second — and the ground can afford to be interesting.
-         The key is everything the static passes read: which map, which day
-         (felled/mined/picked all expire against S.day), whether the house is
-         up, and a counter bumped by every mutation to those three tables.
+         The two passes above used to be one function run for every tile on
+         the map every single frame, which is what kept the per-tile detail
+         budget down to a handful of rects. They now render into an offscreen
+         canvas the size of the map and the frame blits that, so the cost of
+         a tile's detail is paid when the map changes rather than sixty times
+         a second — and the ground can afford to be interesting. The key is
+         everything the static passes read: which map, how big it is, which
+         day (felled/mined/picked all expire against S.day), whether the
+         house is up, a counter bumped by every mutation to those three
+         tables, and — see `regionOf` below — which part of the map this
+         rebuild is responsible for.
          `terrLive` is the list the frame still has to draw itself. */
       const terrCv = document.createElement('canvas');
-      terrCv.width = BEK_MAP_W; terrCv.height = BEK_MAP_H;
+      /* Sized to the *current* map, not to one fixed world: `terrain()` sets
+         it before every rebuild, so walking from a 24x15 map onto a bigger
+         one grows the cache with it. The dimensions are part of the cache key
+         as well, which costs a few characters and means a map whose rows
+         changed under us can never be blitted out of a canvas cut for the old
+         size. Setting .width/.height resets the context — harmless here,
+         since the rebuild lays down its own transform and clears first — but
+         it does drop `tag`, so that is reapplied with the size. */
+      terrCv.width = BEK_W; terrCv.height = BEK_H;
       const terrG = terrCv.getContext('2d');
       if (terrG) terrG.tag = 'terrain';
       let terrKey = '', terrLive = [], terrHearths = [];
@@ -1928,7 +1949,17 @@ export default {
       /* One field per canvas the pass runs on: the map-sized terrain cache,
          and the screen, which is the only place a light that walks can be
          applied after the things it ought to be lighting are on it. */
-      const lampT = createLamp(BEK_MAP_W, BEK_MAP_H, DITHER, BEK_DITHER_PX);
+      /* `createLamp` sizes its strength field at construction, so the
+         map-sized one is built per size rather than once — one live instance,
+         rebuilt only when you walk onto a map of a different shape. The
+         screen-sized one never changes, because the canvas never does. */
+      let lampT = null, lampTW = 0, lampTH = 0;
+      const lampFor = (w, h) => {
+        if (!lampT || lampTW !== w || lampTH !== h) {
+          lampT = createLamp(w, h, DITHER, BEK_DITHER_PX); lampTW = w; lampTH = h;
+        }
+        return lampT;
+      };
       const lampV = createLamp(BEK_W, BEK_H, DITHER, BEK_DITHER_PX);
       const VIEW_RECT = { x: BEK_VIEW_X, y: BEK_VIEW_Y, w: BEK_VIEW_W, h: BEK_VIEW_H };
       const LANTERN_R = 2.4 * BEK_T, LANTERN_PEAK = 15;
@@ -1943,21 +1974,21 @@ export default {
 
          Drawn through the hour's own table rather than in daylight, because
          moonlight is the ambient — it is not a lamp somebody lit. */
-      function moonKey(dark) {
+      function moonKey(dark, R) {
         /* and not indoors. There is no moon in a room, and a rim light along
            the top of every wall from inside reads as a dotted line ruled
            around the picture rather than as anything lighting anything. */
         if (dark < 0.25 || ins_()) return;
         const top = Math.round(5 * dark), side = Math.round(2.5 * dark);
         if (top < 2) return;
-        native(() => moonRim(top, side));
+        native(() => moonRim(top, side, R));
       }
-      function moonRim(top, side) {
+      function moonRim(top, side, R) {
         const put = (px, py, w, h, str) => {
           if (str <= 0) return;
           g.fillStyle = ditherPat(SNO[1], str > 16 ? 16 : str); g.fillRect(px, py, w, h);
         };
-        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+        for (let y = R.y0; y < R.y1; y++) for (let x = R.x0; x < R.x1; x++) {
           const c = tileAt(S.map, x, y);
           if (c === ' ' || c === 'W' || c === '~' || BEK_SOLID.indexOf(c) < 0) continue;
           /* Never on the border ring. A whole row of it lit at one strength
@@ -1987,13 +2018,20 @@ export default {
          very little for the pool to reveal. That is the falloff doing the
          work the old `* dark` had to do by hand. */
       const litPeak = (P, dark) => Math.round(P * (0.62 + 0.38 * dark));
-      function lightSources(dark) {
+      /* Bounded to the rebuild's own region, widened by the furthest a pool
+         reaches (LIGHT_REACH tiles) so a hearth just outside it still lights
+         the floor just inside. */
+      const LIGHT_REACH = 3;
+      function lightSources(dark, R) {
         const out = [];
         if (dark <= 0.02) return out;
         const ins = ins_();
         const at = (x, y, dy, r, peak, hearth) =>
           out.push({ px: (x + 0.5) * BEK_T, py: (y + dy) * BEK_T, r: r, peak: peak, hearth: hearth });
-        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+        const cols = COLS(), rows = ROWS();
+        const y0 = Math.max(0, R.y0 - LIGHT_REACH), y1 = Math.min(rows, R.y1 + LIGHT_REACH);
+        const x0 = Math.max(0, R.x0 - LIGHT_REACH), x1 = Math.min(cols, R.x1 + LIGHT_REACH);
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
           const c = tileAt(S.map, x, y);
           if (c === 'v') { at(x, y, 0.1, 2.7 * BEK_T, litPeak(16, dark), 1); continue; }
           const dp = propMap.get(x + ',' + y);
@@ -2019,43 +2057,107 @@ export default {
          and "the detail pass got slower" is. */
       const perf = { rects: 0, lit: 0, pool: 0, veil: 0, ms: 0, ground: 0, detail: 0, forest: 0, light: 0, rebuilds: 0, key: '' };
       const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      /* ---- what one rebuild covers ---------------------------------------
+         A map used to be one screen wide and a screen and a bit tall, so
+         rasterising all of it was 6-15ms and the cache never had to know
+         where the camera was. It is proportional to area, though, and a
+         48x30 map is four times the area: measured 42-50ms warm here,
+         against a 30ms budget — a dropped frame every time the light key
+         turns over, which at dusk is about ten times in four seconds.
+
+         So a rebuild covers the tiles the camera can see plus a margin,
+         snapped outward to a whole number of REGION_SNAP tiles. The snap is
+         what stops a step from being a rebuild: the region only turns over
+         when the camera leaves it, which is every REGION_SNAP tiles at
+         worst, rather than every tile. Outside the region the cache holds
+         whatever the last rebuild that reached there left, and that is safe
+         because the region always contains the viewport — stale pixels are
+         never on screen.
+
+         Every map that fits inside viewport-plus-margin resolves to its
+         whole self, so all eleven shipped maps rebuild exactly what they
+         always did, in the same order, and the region drops out of the key
+         as a constant. That is what keeps this refactor a no-op.
+
+         The camera the region is measured from is the clamped one *without*
+         the strike-frame shake: three pixels of jolt must not be able to
+         flip a tile boundary and cost a rebuild. */
+      const REGION_MARGIN = 4, REGION_SNAP = 4;
+      function regionOf(cols, rows) {
+        const cx = track(S.px, BEK_VIEW_W, camMaxX(S.map));
+        const cy = track(S.py, BEK_VIEW_H, camMaxY(S.map));
+        const vx = Math.floor(cx / BEK_T), vy = Math.floor(cy / BEK_T);
+        const vw = Math.ceil(BEK_VIEW_W / BEK_T) + 1, vh = Math.ceil(BEK_VIEW_H / BEK_T) + 1;
+        const lo = v => Math.max(0, Math.floor((v - REGION_MARGIN) / REGION_SNAP) * REGION_SNAP);
+        const hi = (v, n) => Math.min(n, Math.ceil((v + REGION_MARGIN) / REGION_SNAP) * REGION_SNAP);
+        return { x0: lo(vx), y0: lo(vy), x1: hi(vx + vw, cols), y1: hi(vy + vh, rows) };
+      }
+
       function terrain() {
         const L = lighting();
-        const k = S.map + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump + '|' + L.key;
+        const cols = COLS(), rows = ROWS(), mw = cols * BEK_T, mh = rows * BEK_T;
+        const R = regionOf(cols, rows);
+        /* Everything the two static passes read, plus how big the map is and
+           which part of it this rebuild is responsible for. */
+        const kMap = S.map + '|' + cols + 'x' + rows + '|' + S.day + '|' + (S.built ? 1 : 0) + '|' + terrBump + '|' + L.key;
+        const k = kMap + '|' + R.x0 + ',' + R.y0 + ',' + R.x1 + ',' + R.y1;
         if (k === terrKey) return terrCv;
         terrKey = k; terrLive = []; terrHearths = [];
         const t0 = now();
         let rects = 0;
         const prev = g;
+        if (terrCv.width !== mw || terrCv.height !== mh) {
+          terrCv.width = mw; terrCv.height = mh;
+          if (terrG) terrG.tag = 'terrain';
+        }
+        /* The skirt: one tile past the region on every side, clamped to the
+           map. A detail is allowed to hang over into the next tile, so the
+           tiles just outside the region have to be laid down too or the
+           region's own border loses what should have reached into it. */
+        const sx0 = Math.max(0, R.x0 - 1), sx1 = Math.min(cols, R.x1 + 1);
+        const sy0 = Math.max(0, R.y0 - 1), sy1 = Math.min(rows, R.y1 + 1);
         g = terrG;
         try {
           g.setTransform(1, 0, 0, 1, 0, 0);
-          g.fillStyle = C(0); g.fillRect(0, 0, BEK_MAP_W, BEK_MAP_H);
-          shore.prepare(k); water.prepare(k); rock.prepare(k); interior.prepare(k);
-          forest.prepare(k); propsPrepare();
+          g.fillStyle = C(0); g.fillRect(R.x0 * BEK_T, R.y0 * BEK_T, (R.x1 - R.x0) * BEK_T, (R.y1 - R.y0) * BEK_T);
+          /* The distance fields, the boards and the wear are whole-map and
+             know nothing about the region, so they are keyed without it —
+             walking across a big map must not relay every floorboard. */
+          shore.prepare(kMap); water.prepare(kMap); rock.prepare(kMap); interior.prepare(kMap);
+          forest.prepare(kMap); propsPrepare();
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
           const tA = now();
-          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) tileGround(tileAt(S.map, x, y), x, y);
+          for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) tileGround(tileAt(S.map, x, y), x, y);
           const tB = now();
-          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+          for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) {
             const c = tileAt(S.map, x, y);
             tileDetail(c, x, y);
-            if (LIVE.indexOf(c) >= 0) terrLive.push(x, y);
+            /* the live list is the region's, not the skirt's: a tile outside
+               the region is outside the viewport and has nothing to animate
+               at */
+            if (LIVE.indexOf(c) >= 0 && x >= R.x0 && x < R.x1 && y >= R.y0 && y < R.y1) terrLive.push(x, y);
           }
           const tC = now();
           perf.ground = tB - tA; perf.detail = tC - tB;
           const tD = now();
-          if (!ins_()) native(() => forest.draw(snow_()));
+          if (!ins_()) native(() => forest.draw(snow_(), R));
           perf.forest = now() - tD;
-          moonKey(L.dark);
+          moonKey(L.dark, R);
           /* The pool resolves what is already on the canvas, so it has to run
              after everything static is on it — and the warm veil has to run
              after the pool, or the pool would resolve the warmth straight back
-             out of the pixels it had just been painted onto. */
-          const srcs = lightSources(L.dark);
+             out of the pixels it had just been painted onto.
+
+             It is clipped to the region for a reason beyond cost: the
+             transform it applies is affine on the pixels it finds, so running
+             it twice over the same pixels would resolve them twice. Outside
+             the region those pixels are a previous rebuild's, already
+             resolved. */
+          const srcs = lightSources(L.dark, R);
           if (srcs.length) {
             const tP = now();
-            perf.lit = lampT.apply(terrG, srcs, L.st, lampState(L.st, L.dark));
+            const clip = { x: R.x0 * BEK_T, y: R.y0 * BEK_T, w: (R.x1 - R.x0) * BEK_T, h: (R.y1 - R.y0) * BEK_T };
+            perf.lit = lampFor(mw, mh).apply(terrG, srcs, L.st, lampState(L.st, L.dark), clip);
             const tQ = now();
             rects += veil(srcs, L.dark);
             perf.pool = tQ - tP; perf.veil = now() - tQ;
@@ -2066,7 +2168,7 @@ export default {
              walls is deliberate dead black and a warm pool creeping out over
              it reads as the room leaking, so it is painted back afterwards
              rather than the glow being clipped to a shape. */
-          for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+          for (let y = R.y0; y < R.y1; y++) for (let x = R.x0; x < R.x1; x++) {
             if (tileAt(S.map, x, y) !== ' ') continue;
             g.fillStyle = C(0); g.fillRect(x * BEK_T_SRC, y * BEK_T_SRC, BEK_T_SRC, BEK_T_SRC);
           }
@@ -2112,15 +2214,22 @@ export default {
       }
 
       /* ---- the camera ----------------------------------------------------
-         24 tiles is exactly the canvas width, so X has nowhere to travel and
-         clamps to zero. The valley is 600px tall against a 480px viewport, so
-         Y follows the player and clamps at both ends — which is what keeps the
-         top and bottom map rows welded to the frame instead of letting blank
-         space creep in past the edge of the world. */
+         One axis, written once and applied to both. `track` centres the
+         viewport on the player's tile and then clamps at *both* ends, which
+         is what keeps the outermost map rows and columns welded to the frame
+         instead of letting blank space creep in past the edge of the world.
+
+         This was always the vertical behaviour; horizontally the travel used
+         to be `max(0, 960 - 960)` and so was always zero, which read as "the
+         camera does not scroll horizontally" when what was true is that no
+         map had ever been wider than the screen. A map that is wider now
+         scrolls, and clamps, by the same expression. */
       let camX = 0, camY = 0;
+      const track = (tile, view, max) =>
+        Math.max(0, Math.min(max, Math.round(tile * BEK_T + BEK_T / 2 - view / 2)));
       function camTrack() {
-        camX = Math.max(0, Math.min(BEK_CAM_MAX_X, Math.round(S.px * BEK_T + BEK_T / 2 - BEK_VIEW_W / 2)));
-        camY = Math.max(0, Math.min(BEK_CAM_MAX_Y, Math.round(S.py * BEK_T + BEK_T / 2 - BEK_VIEW_H / 2)));
+        camX = track(S.px, BEK_VIEW_W, camMaxX(S.map));
+        camY = track(S.py, BEK_VIEW_H, camMaxY(S.map));
         /* The kick on the strike frame — the whole difference between an
            animation and a hit. Kept under three pixels and under two frames,
            because past that it is motion sickness. Applied after the clamp so
@@ -2190,7 +2299,9 @@ export default {
           const lx = terrLive[i], ly = terrLive[i + 1];
           tileLive(tileAt(S.map, lx, ly), lx, ly, t);
         }
-        for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) if (tileAt(S.map, x, y) === 'f') drawSoil(x, y);
+        const sCols = COLS(), sRows = ROWS();
+        for (let y = 0; y < sRows; y++) for (let x = 0; x < sCols; x++)
+          if (tileAt(S.map, x, y) === 'f') drawSoil(x, y);
 
         /* The moving half of the light. The pools themselves are in the cache;
            what cannot be is a fire whose reach breathes on the same cycle as

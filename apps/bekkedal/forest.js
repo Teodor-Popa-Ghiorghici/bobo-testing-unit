@@ -35,7 +35,7 @@
  * legible than the wall around it, not a hole in a fence.
  */
 import { CON, GRASS, DRY, TIM, SNO, STO, ATMO, SOI } from './palette.js';
-import { BEK_T, BEK_COLS, BEK_ROWS, BEK_MAP_W, BEK_MAP_H, BEK_TREES } from './data.js';
+import { BEK_T, BEK_TREES } from './data.js';
 
 /* the three depth layers, outermost first: how far back, how big, and which
    four colours. Contrast falls away with distance and that is the depth cue —
@@ -58,7 +58,8 @@ export function createForest(A) {
      A.tree(i, layer)            — noise.js's declared treeline stream
      A.tileAt(x, y)              — the glyph at a grid square
      A.map()                     — the current map id
-     A.snowy()                   — whether it is a snowed map */
+     A.snowy()                   — whether it is a snowed map
+     A.cols() / A.rows()         — how big this map is, in tiles */
 
   /* ---- one tree ------------------------------------------------------------
      `cx` is the trunk's centre, `by` the foot of it, `h` the height. Every
@@ -130,11 +131,15 @@ export function createForest(A) {
   }
   const SPECIES = { fir: fir, spruce: spruce, birch: birch, snag: snag, stump: stump, fallen: fallen };
 
-  /* the weighted bag for this map, expanded once per rebuild */
+  /* the weighted bag for this map, expanded once per rebuild — and the map's
+     own size with it, because the band runs the length of whatever edge it is
+     drawn along and no two maps need agree on how long that is */
   let bag = ['fir'], density = 1, ready = '';
+  let cols = 0, rows = 0, MW = 0, MH = 0;
   function prepare(key) {
     if (key === ready) return;
     ready = key;
+    cols = A.cols(); rows = A.rows(); MW = cols * BEK_T; MH = rows * BEK_T;
     const w = BEK_TREES[A.map()] || BEK_TREES.default;
     bag = [];
     Object.keys(w.mix).forEach(k => { for (let i = 0; i < w.mix[k]; i++) bag.push(k); });
@@ -145,7 +150,13 @@ export function createForest(A) {
   /* ---- the band ------------------------------------------------------------
      `along` maps a distance down the band and a depth 0..1 to a world point;
      `openAt` says whether the ring is open there, which is where an exit is. */
-  function band(len, along, openAt, snow) {
+  /* `u0`/`u1` bound the stretch of the band that is worth drawing — see
+     `draw` below. The walk itself is never shortened: `i` keeps advancing
+     over the whole length so every trunk draws from the same step of the
+     same stream whatever stretch is being rebuilt, and only the drawing is
+     skipped. A band that decided where its trees stood from where the
+     rebuild started would grow a different wood every time you walked. */
+  function band(len, along, openAt, snow, u0, u1) {
     for (let li = 0; li < LAYERS.length; li++) {
       const L = LAYERS[li];
       let u = -20, i = 0;
@@ -154,6 +165,7 @@ export function createForest(A) {
         i++;
         const step = L.gap[0] + Math.round(v.gap * (L.gap[1] - L.gap[0]) / 7);
         u += Math.max(6, Math.round(step / density));
+        if (u < u0 || u > u1) continue;                /* outside the rebuild */
         if (openAt(u)) continue;                       /* the mouth of a gap */
         const d = L.d + (v.d - 3) * 0.035;
         const p = along(u, d);
@@ -169,6 +181,7 @@ export function createForest(A) {
     while (u < len + 8) {
       const v = A.tree(i, 2); i++;
       u += 7 + v.br * 3;
+      if (u < u0 || u > u1) continue;
       /* not across a gap: the mouth of a way out stays clear, and its own
          ground is what the eye should follow through it */
       if (openAt(u)) continue;
@@ -184,7 +197,16 @@ export function createForest(A) {
      of the band to 1 a few pixels *inside* the playfield, so the near layer
      overhangs — which is what stops the band looking like a strip of wallpaper
      pasted along the edge. */
-  function draw(snow) {
+  /* `R` is the tile rect the rebuild covers, `{x0, y0, x1, y1}` — the whole
+     map on every map that fits one screen, which is all of the ones that
+     shipped. A band is a perimeter and the region is an area, so each side
+     draws only where the two meet — and `SLOP` is how far past the region a
+     trunk may still stand and reach into it. A tree is drawn upward from its
+     foot and the tallest LAYERS can ask for is (26 + 7*4) * 1.00 = 54px, so
+     two tiles clears it with room; a band that trimmed exactly to the region
+     would drop the crown of whatever stood just past the edge of it. */
+  const SLOP = BEK_T * 2;
+  function draw(snow, R) {
     const O = 5;                       /* how far the near layer may overhang */
     const open = (x, y) => A.tileAt(x, y) !== 'T';
     /* The floor of the wood: dark, but not the void it was — and laid per
@@ -194,17 +216,23 @@ export function createForest(A) {
       if (open(x, y)) return;
       A.fill(ATMO[0], x * BEK_T, y * BEK_T, BEK_T, BEK_T);
     };
-    for (let x = 0; x < BEK_COLS; x++) { floor(x, 0); floor(x, BEK_ROWS - 1); }
-    for (let y = 0; y < BEK_ROWS; y++) { floor(0, y); floor(BEK_COLS - 1, y); }
+    const rg = R || { x0: 0, y0: 0, x1: cols, y1: rows };
+    const ux = [rg.x0 * BEK_T - SLOP, rg.x1 * BEK_T + SLOP];
+    const uy = [rg.y0 * BEK_T - SLOP, rg.y1 * BEK_T + SLOP];
+    const onTop = rg.y0 <= 1, onBot = rg.y1 >= rows - 1;
+    const onLeft = rg.x0 <= 1, onRight = rg.x1 >= cols - 1;
 
-    band(BEK_MAP_W, (u, d) => [u, 6 + d * (BEK_T - 6 + O)], u => open((u / BEK_T) | 0, 0), snow);
-    band(BEK_MAP_H, (u, d) => [BEK_T - 2 - d * (BEK_T - 6 + O), u + 14],
-         u => open(0, (u / BEK_T) | 0), snow);
-    band(BEK_MAP_H, (u, d) => [BEK_MAP_W - BEK_T + 2 + d * (BEK_T - 6 + O), u + 14],
-         u => open(BEK_COLS - 1, (u / BEK_T) | 0), snow);
+    for (let x = rg.x0; x < rg.x1; x++) { if (onTop) floor(x, 0); if (onBot) floor(x, rows - 1); }
+    for (let y = rg.y0; y < rg.y1; y++) { if (onLeft) floor(0, y); if (onRight) floor(cols - 1, y); }
+
+    if (onTop) band(MW, (u, d) => [u, 6 + d * (BEK_T - 6 + O)], u => open((u / BEK_T) | 0, 0), snow, ux[0], ux[1]);
+    if (onLeft) band(MH, (u, d) => [BEK_T - 2 - d * (BEK_T - 6 + O), u + 14],
+         u => open(0, (u / BEK_T) | 0), snow, uy[0], uy[1]);
+    if (onRight) band(MH, (u, d) => [MW - BEK_T + 2 + d * (BEK_T - 6 + O), u + 14],
+         u => open(cols - 1, (u / BEK_T) | 0), snow, uy[0], uy[1]);
     /* the bottom band recedes downward, so its near layer stands highest */
-    band(BEK_MAP_W, (u, d) => [u, BEK_MAP_H - 2 - (1 - d) * (BEK_T - 10)],
-         u => open((u / BEK_T) | 0, BEK_ROWS - 1), snow);
+    if (onBot) band(MW, (u, d) => [u, MH - 2 - (1 - d) * (BEK_T - 10)],
+         u => open((u / BEK_T) | 0, rows - 1), snow, ux[0], ux[1]);
 
     /* The corners used to place the same tree twice at right angles. They are
        where two bands of wood meet, so they are the deepest part of it and
@@ -212,8 +240,9 @@ export function createForest(A) {
        cost nothing and are the difference between a frame with corners and a
        wood that closes round you. */
     for (const reach of [96, 62, 34]) {
-      for (const cx of [0, BEK_MAP_W - BEK_T]) for (const cy of [0, BEK_MAP_H - BEK_T]) {
-        const ax = cx ? BEK_MAP_W - reach : 0, ay = cy ? BEK_MAP_H - reach : 0;
+      for (const cx of [0, MW - BEK_T]) for (const cy of [0, MH - BEK_T]) {
+        if (!(cx ? onRight : onLeft) || !(cy ? onBot : onTop)) continue;
+        const ax = cx ? MW - reach : 0, ay = cy ? MH - reach : 0;
         A.wash(ax, cy, reach, BEK_T, ATMO[0], 3);
         A.wash(cx, ay, BEK_T, reach, ATMO[0], 3);
       }
@@ -229,7 +258,7 @@ export function createForest(A) {
      its keep. */
   function edge(x, y, isOpen) {
     const px = x * BEK_T, py = y * BEK_T;
-    const L = x === 0, R = x === BEK_COLS - 1, U = y === 0, D = y === BEK_ROWS - 1;
+    const L = x === 0, R = x === cols - 1, U = y === 0, D = y === rows - 1;
     const fade = (fx, fy, w, h, n) => { for (let k = 0; k < n; k++) A.wash(fx(k), fy(k), w, h, ATMO[0], 14 - k * 3); };
     if (U) fade(() => px, k => py + k * 3, BEK_T, 3, 4);
     if (D) fade(() => px, k => py + BEK_T - 3 - k * 3, BEK_T, 3, 4);

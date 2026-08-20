@@ -31,7 +31,7 @@
  * so they are held to the opposite standard from everything above.
  */
 import * as N from './noise.js';
-import { BEK_MAPS, BEK_COLS, BEK_ROWS } from './data.js';
+import { BEK_MAPS, mapCols, mapRows } from './data.js';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -47,9 +47,12 @@ const MIN_PAIRS = 8;                 /* below this a lag has too few samples   *
    nothing to vary (the black margin outside a room, the planks of a pier). */
 function fieldOf(mapId) {
   const rows = BEK_MAPS[mapId].rows, out = [];
-  for (let y = 0; y < BEK_ROWS; y++) {
+  /* sized from the map itself, so every consumer below can walk `f` by its
+     own length rather than against a grid size that no longer exists */
+  const H = mapRows(mapId), W = mapCols(mapId);
+  for (let y = 0; y < H; y++) {
     const line = [];
-    for (let x = 0; x < BEK_COLS; x++) {
+    for (let x = 0; x < W; x++) {
       const c = rows[y].charAt(x);
       const t = N.tileVariation(mapId, c, x, y);
       line.push(t ? { c: c, k: t.join(',') } : null);
@@ -98,7 +101,7 @@ console.log('\n-- determinism --');
   let drift = 0;
   for (const mp of MAPS) {
     const a = fieldOf(mp), b = fieldOf(mp);
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+    for (let y = 0; y < a.length; y++) for (let x = 0; x < a[y].length; x++) {
       const p = a[y][x], q = b[y][x];
       if ((p === null) !== (q === null)) drift++;
       else if (p && p.k !== q.k) drift++;
@@ -123,13 +126,14 @@ console.log('\n-- determinism --');
 console.log('\n-- uniformity --');
 {
   const specs = N.channels();
-  const SAMPLES = MAPS.length * BEK_COLS * BEK_ROWS;
+  const SAMPLES = MAPS.reduce((n, mp) => n + mapCols(mp) * mapRows(mp), 0);
   let worst = 0, worstName = '', over = [];
   for (const f of specs) {
     const count = new Array(f.n).fill(0);
     for (const mp of MAPS) {
       const s = N.mapSalt(mp);
-      for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) count[N.hv(x, y, s + f.ch, f.n)]++;
+      const H = mapRows(mp), W = mapCols(mp);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) count[N.hv(x, y, s + f.ch, f.n)]++;
     }
     const exp = SAMPLES / f.n;
     let dev = 0;
@@ -154,7 +158,7 @@ console.log('\n-- periodicity --');
     const f = fieldOf(mp);
     /* baseline, per glyph */
     const all = new Map();
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+    for (let y = 0; y < f.length; y++) for (let x = 0; x < f[y].length; x++) {
       const t = f[y][x]; if (!t) continue;
       if (!all.has(t.c)) all.set(t.c, []);
       all.get(t.c).push(t.k);
@@ -172,9 +176,9 @@ console.log('\n-- periodicity --');
     for (let dy = -LAG; dy <= LAG; dy++) for (let dx = -LAG; dx <= LAG; dx++) {
       if (!dx && !dy) continue;
       let pairs = 0, same = 0;
-      for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+      for (let y = 0; y < f.length; y++) for (let x = 0; x < f[y].length; x++) {
         const x2 = x + dx, y2 = y + dy;
-        if (x2 < 0 || y2 < 0 || x2 >= BEK_COLS || y2 >= BEK_ROWS) continue;
+        if (x2 < 0 || y2 < 0 || x2 >= f[y].length || y2 >= f.length) continue;
         const a = f[y][x], b = f[y2][x2];
         if (!a || !b || a.c !== b.c) continue;
         pairs++; if (a.k === b.k) same++;
@@ -202,7 +206,7 @@ console.log('\n-- separation --');
   for (const mp of MAPS) {
     const f = fieldOf(mp);
     const byTuple = new Map();
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+    for (let y = 0; y < f.length; y++) for (let x = 0; x < f[y].length; x++) {
       const t = f[y][x]; if (!t) continue;
       const key = t.c + '|' + t.k;
       if (!byTuple.has(key)) byTuple.set(key, []);
@@ -236,9 +240,10 @@ console.log('\n-- patches --');
     const { ch, period, max } = N.PATCH[name];
     let runs = 0, tiles = 0, seenLow = false, seenHigh = false;
     for (const mp of MAPS) {
-      for (let y = 0; y < BEK_ROWS; y++) {
+      const H = mapRows(mp), W = mapCols(mp);
+      for (let y = 0; y < H; y++) {
         let prev = -1;
-        for (let x = 0; x < BEK_COLS; x++) {
+        for (let x = 0; x < W; x++) {
           const v = N.patchAmt(mp, x, y, ch, period, max);
           if (v === 0) seenLow = true;
           if (v === max) seenHigh = true;
@@ -261,8 +266,8 @@ console.log('\n-- patches --');
   let breaks = 0;
   for (const [name, ch, period] of [['MEADOW', N.LOW.MEADOW, 8], ['VEIN', N.LOW.VEIN, 4]]) {
     for (const mp of MAPS) {
-      const s = N.mapSalt(mp);
-      for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+      const s = N.mapSalt(mp), H = mapRows(mp), W = mapCols(mp);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
         const cellX = x - (x % period), cellY = y - (y % period);
         if (N.hLowV(x, y, s + ch, period, 4) !== N.hLowV(cellX, cellY, s + ch, period, 4)) breaks++;
       }

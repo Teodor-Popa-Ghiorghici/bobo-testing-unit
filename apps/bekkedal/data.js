@@ -1,9 +1,16 @@
 import { ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR } from './palette.js';
 
 /* ---- geometry -------------------------------------------------------------
- * The map is 24x15 tiles and that never changes: every row string in
+ * A map is as big as its own rows: `mapRows(id)` tall, `mapCols(id)` wide.
+ * There is no global BEK_COLS/BEK_ROWS any more, because there is no one
+ * size — the valley used to be eleven screens of exactly 24x15 joined by a
+ * travel menu, and that ceiling is why every map was one idea with grass
+ * round it. Every consumer asks the map it is drawing.
+ *
+ * What has *not* changed is the coordinate system: every row string in
  * BEK_MAPS, every NPC and goat position, and every per-tile key in S.soil /
- * S.felled / S.mined / S.picked / S.drops is a grid coordinate, not a pixel.
+ * S.felled / S.mined / S.picked / S.drops is still a grid coordinate, not a
+ * pixel.
  *
  * Tile art and sprites are still authored on the original 20px tile
  * (BEK_T_SRC). They reach the screen through a whole-number BEK_ART_SCALE
@@ -11,20 +18,20 @@ import { ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR } from './pale
  * and the diff stays readable. Phase 3 redraws them at native density and
  * BEK_ART_SCALE goes to 1.
  *
- * 24 tiles x 40px is exactly the 960px canvas width, so the camera never
- * scrolls horizontally. 15 tiles x 40px is 600px against a 480px viewport,
- * which leaves BEK_CAM_MAX_Y of vertical travel — the camera follows the
- * player down the valley and clamps at both ends.
+ * BEK_MIN_COLS x BEK_MIN_ROWS is the floor every map is held to
+ * (layout_check.js). It is not an arbitrary minimum: 24 tiles x 40px is
+ * exactly the 960px canvas, and 15 tiles is 600px against a 480px viewport,
+ * so the smallest legal map is one screen wide with the vertical overhang
+ * the camera has always had. A map narrower or shorter than that would leave
+ * blank space past the edge of the world where the clamp has nothing to
+ * clamp against. Anything larger scrolls, on both axes.
  */
 export const BEK_T_SRC = 20;                              /* art authoring tile */
 export const BEK_ART_SCALE = 2;                           /* source px -> screen px */
 export const BEK_T = BEK_T_SRC * BEK_ART_SCALE;           /* 40 — presented tile */
-export const BEK_COLS = 24, BEK_ROWS = 15;                /* the map, untouched */
+export const BEK_MIN_COLS = 24, BEK_MIN_ROWS = 15;        /* the smallest legal map */
 
-export const BEK_MAP_W = BEK_COLS * BEK_T;                /* 960 */
-export const BEK_MAP_H = BEK_ROWS * BEK_T;                /* 600 */
-
-export const BEK_W = BEK_MAP_W;                           /* 960 — exact fit */
+export const BEK_W = BEK_MIN_COLS * BEK_T;                /* 960 — one screen wide */
 export const BEK_H = BEK_W * 9 / 16;                      /* 540 — 16:9 */
 
 /* The two HUD bands are reserved chrome: the playfield no longer draws
@@ -35,8 +42,26 @@ export const BEK_VIEW_X = 0;
 export const BEK_VIEW_Y = BEK_HUD_H;
 export const BEK_VIEW_W = BEK_W;                          /* 960 */
 export const BEK_VIEW_H = BEK_H - BEK_HUD_H * 2;          /* 480 */
-export const BEK_CAM_MAX_X = Math.max(0, BEK_MAP_W - BEK_VIEW_W);   /* 0 */
-export const BEK_CAM_MAX_Y = Math.max(0, BEK_MAP_H - BEK_VIEW_H);   /* 120 */
+
+/* ---- a map's own size -----------------------------------------------------
+   Derived from the rows themselves rather than declared beside them, so a map
+   cannot claim a size its content does not have and no existing map needed
+   editing when the ceiling came off. These reference BEK_MAPS, which is
+   declared further down this file — they are functions, so the reference is
+   resolved when a caller asks rather than while this module initialises, and
+   all the geometry stays in one block where it can be read together.
+
+   Both camera clamps are the same expression. The vertical one was always
+   right; the horizontal one was `max(0, 960 - 960)` and so was always zero,
+   which is why the camera appeared not to scroll rather than being unable to.
+   Nothing about the clamp changed — only what the maps feed it. */
+const mapDef = id => BEK_MAPS[id];
+export const mapCols = id => { const m = mapDef(id); return m ? m.rows[0].length : BEK_MIN_COLS; };
+export const mapRows = id => { const m = mapDef(id); return m ? m.rows.length : BEK_MIN_ROWS; };
+export const mapW = id => mapCols(id) * BEK_T;
+export const mapH = id => mapRows(id) * BEK_T;
+export const camMaxX = id => Math.max(0, mapW(id) - BEK_VIEW_W);
+export const camMaxY = id => Math.max(0, mapH(id) - BEK_VIEW_H);
 
 /* Weather. The drop count is a density carried over from the 480x300 build
    (46 drops over 144000px) rescaled to the viewport; the strides stay 53/91

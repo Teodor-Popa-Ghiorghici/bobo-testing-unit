@@ -37,7 +37,7 @@
  */
 import { STO, SNO, WAT, CON, ATMO, MARKS, SHADOWS, FEATURES } from './palette.js';
 import { distanceField } from './autotile.js';
-import { BEK_T, BEK_COLS, BEK_ROWS } from './data.js';
+import { BEK_T } from './data.js';
 
 /* ---- what a vein is made of ----------------------------------------------
    Four steps each — the matrix shadow it sits in, the body, the lit face and
@@ -73,12 +73,16 @@ export function createRock(A) {
   let near = null, ready = '';
   const isVein = c => c === 'O' || c === 'Q';
 
+  /* The map's own size, taken once per rebuild — see water.js. `near` is
+     strided by it. */
+  let cols = 0, rows = 0;
   function prepare(key) {
     if (key === ready) return;
     ready = key;
     /* how many tiles from the nearest vein, capped at the range a trace can
        carry — this is what lets the wall thicken toward the ore */
-    near = distanceField((x, y) => isVein(A.tileAt(x, y)), BEK_COLS, BEK_ROWS, 4);
+    cols = A.cols(); rows = A.rows();
+    near = distanceField((x, y) => isVein(A.tileAt(x, y)), cols, rows, 4);
   }
 
   /* the colour of whatever vein is nearest, for the traces in the wall */
@@ -87,7 +91,7 @@ export function createRock(A) {
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= BEK_COLS || ny >= BEK_ROWS) continue;
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
         const c = A.tileAt(nx, ny);
         if (isVein(c)) return ORE_KIND[oreKind(A.rockVar(nx, ny), c === 'Q')];
       }
@@ -125,7 +129,7 @@ export function createRock(A) {
        is one speck you would not notice; one tile out is a run of them in the
        vein's own colour, and by then you are looking the right way. */
     if (snow) return;
-    const d = near[y * BEK_COLS + x];
+    const d = near[y * cols + x];
     if (d > 3) return;
     const k = traceKind(x, y);
     if (!k) return;

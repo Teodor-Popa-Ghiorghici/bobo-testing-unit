@@ -31,7 +31,7 @@ import { PAL, PAL_N, VGA16, RAMPS, MARKS, SHADOWS, FEATURES, lum, sameRampNeighb
 import { lightAt, lutAt, lutOf, LIGHT_ANCHORS, lightKey, CAVE_LIGHT, DAY_LUT, lumOf,
          shelter } from './light.js';
 import { lampState, relightCoef } from './lamp.js';
-import { BEK_MAPS, BEK_COLS, BEK_ROWS, BEK_SOLID } from './data.js';
+import { BEK_MAPS, mapCols, mapRows, BEK_SOLID } from './data.js';
 import { groundOf, solidOf, inside as insideMap, isCave } from './surface.js';
 
 let fails = 0, checks = 0;
@@ -266,13 +266,14 @@ console.log('\n-- floors at the darkest hour --');
     const rows = BEK_MAPS[mp].rows;
     const L = isCave(mp) ? lutOf(CAVE_LIGHT) : lutAt(darkMin, insideMap(mp));
     const lu = i => lumOf(L[i]);
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+    const H = mapRows(mp), W = mapCols(mp);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = rows[y].charAt(x);
       if (c === ' ') continue;                    /* the dead margin is meant to be black */
       if (BEK_SOLID.indexOf(c) >= 0) {
         for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const nx = x + d[0], ny = y + d[1];
-          if (nx < 0 || ny < 0 || nx >= BEK_COLS || ny >= BEK_ROWS) continue;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
           const n = rows[ny].charAt(nx);
           if (n === ' ' || BEK_SOLID.indexOf(n) >= 0) continue;
           const v = contrast(lu(solidOf(mp, c)), lu(groundOf(mp, n)));

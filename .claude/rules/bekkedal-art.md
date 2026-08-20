@@ -86,13 +86,19 @@ count whenever the content is fixed and knowable.
 
 ## Canvas, camera and tile coordinates
 
-The canvas is 960×540 (16:9) and the map is 24×15 tiles at `BEK_T` 40, so the
-world is 960×600. Horizontally that is an exact fit and the camera never
-scrolls; vertically the valley overhangs the 480px viewport by
-`BEK_CAM_MAX_Y` (120px), so the camera follows the player down and **clamps at
-both ends**. Clamping is what keeps the top and bottom map rows welded to the
-frame instead of letting blank space creep in past the edge of the world —
-`layout_check.js` and the camera assertions exist to keep it that way.
+The canvas is 960×540 (16:9) at `BEK_T` 40. **The map is whatever size its own
+rows are** — `mapCols(id)`/`mapRows(id)` (`data.js`), at least 24×15 and with
+no ceiling. The camera scrolls and clamps on **both** axes off that map's own
+`camMaxX`/`camMaxY`, and clamping is what keeps the outermost map rows and
+columns welded to the frame instead of letting blank space creep in past the
+edge of the world. `layout_check.js`'s camera assertions exist to keep it that
+way. Full doctrine — the per-map dimensions, the one clamp written once, and
+the region a rebuild covers — is in `.claude/rules/bekkedal-engine.md`
+(**Maps are not one size**).
+
+A 24×15 map is 960×600, which is an exact fit horizontally and a 120px
+overhang vertically, so on those maps the camera still only travels down the
+valley. That is a property of those maps and not of the camera.
 
 The 540px height is two 30px HUD bands (`BEK_HUD_H`) with a 480px viewport
 between them. The bands are reserved chrome outside the playfield: the status
@@ -102,8 +108,8 @@ after dark.
 
 All map data in `BEK_MAPS.*.rows`, all NPC/goat positions, and all per-tile
 state keys (`S.soil`, `S.felled`, `S.mined`, `S.picked`, `S.drops`) are stored
-in tile coordinates (grid x/y), never pixels. **The map grid is 24×15 and does
-not change with the resolution.**
+in tile coordinates (grid x/y), never pixels. **The grid does not change with
+the resolution** — it changes with the map, and only with the map.
 
 
 
@@ -159,14 +165,20 @@ that stays wet in a hollow:
 `tileGround` fills a tile's ground and stops. `tileDetail` then runs over the
 whole map *afterwards*, which is the point of the split: a detail may hang
 over into the next tile without that tile's ground painting it out a moment
-later. Both render into `terrCv`, an offscreen canvas the size of the whole
-map (`BEK_MAP_W` x `BEK_MAP_H`, device pixels, so nothing that has already
-converted to native resolution loses half of it), and `draw` blits that at
-1:1 before it applies the art transform.
+later. Both render into `terrCv`, an offscreen canvas sized to the current map
+(device pixels, so nothing that has already converted to native resolution
+loses half of it), and `draw` blits that at 1:1 before it applies the art
+transform.
 
-The cache key is everything the two static passes read: `S.map`, `S.day`
-(felled/mined/picked all expire against it), `S.built`, and `terrBump`, a
-counter. **Any new mutation of `S.felled`, `S.mined` or `S.picked` must call
+The cache key is everything the two static passes read: `S.map`, that map's
+dimensions, `S.day` (felled/mined/picked all expire against it), `S.built`,
+`terrBump` (a counter) — and the tile region this rebuild is responsible for.
+On every map that fits one screen the region is the whole map and drops out
+as a constant; on a larger one it is the viewport plus a margin, and
+`.claude/rules/bekkedal-engine.md` (**One rebuild covers a region, not a
+map**) carries why, with the measured numbers.
+
+**Any new mutation of `S.felled`, `S.mined` or `S.picked` must call
 `terrDirty()`**, or the ground will keep showing a tree you just felled until
 something else happens to change the key.
 
@@ -208,7 +220,8 @@ spend 20-60 rects on looking like something.
   shadow and feature obeys the contrast rule above. Run it after touching
   `palette.js` or any table the art picks colours out of.
 - `node apps/bekkedal/layout_check.js` — geometry invariants (canvas, viewport,
-  camera clamp range, every panel on screen, all 11 maps still 24×15), the
+  every panel on screen, and per map: rectangular rows, no smaller than
+  24×15, and a camera clamp range matching its own dimensions), the
   fishing reel zone's agreement with its hit test, and text fitting for every
   box in both languages, including the repeatable board's own worst-case
   generated title/detail strings. Run it after touching `data.js` geometry,
@@ -242,6 +255,10 @@ rebuilds per map, Chromium on the dev container:
 
 Worst rebuild 10.6ms against a 30ms budget; worst 10,554 rects against
 25,000; worst settled live pass 2.98ms of the 33.3ms a 30fps frame has.
+
+Those are 24×15 maps, and the figures are proportional to area — a 48×30 map
+rasterised whole measures 42–50ms and 26,011 rects, which is why a rebuild
+covers a region rather than a map. See `.claude/rules/bekkedal-engine.md`.
 
 The one figure that looks wrong is fjord at 20:00, which reads 4.64ms a
 frame. That is not an expensive live pass — it is dusk. `drawMs` is an EMA
