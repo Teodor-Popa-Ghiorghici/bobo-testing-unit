@@ -1,5 +1,5 @@
 ---
-paths: ["apps/bekkedal/palette.js", "apps/bekkedal/light.js", "apps/bekkedal/noise.js", "apps/bekkedal/surface.js", "apps/bekkedal/autotile.js", "apps/bekkedal/shore.js", "apps/bekkedal/water.js", "apps/bekkedal/rock.js", "apps/bekkedal/forest.js", "apps/bekkedal/interior.js", "apps/bekkedal/decor.js", "apps/bekkedal/crops.js", "apps/bekkedal/actors.js", "apps/bekkedal/fx.js", "apps/bekkedal/font.js", "apps/bekkedal/text.js", "apps/bekkedal/layout.js"]
+paths: ["apps/bekkedal/palette.js", "apps/bekkedal/light.js", "apps/bekkedal/noise.js", "apps/bekkedal/surface.js", "apps/bekkedal/autotile.js", "apps/bekkedal/shore.js", "apps/bekkedal/water.js", "apps/bekkedal/rock.js", "apps/bekkedal/forest.js", "apps/bekkedal/interior.js", "apps/bekkedal/decor.js", "apps/bekkedal/crops.js", "apps/bekkedal/actors.js", "apps/bekkedal/fx.js", "apps/bekkedal/font.js", "apps/bekkedal/text.js", "apps/bekkedal/layout.js", "apps/bekkedal/music.js", "apps/bekkedal/ambience.js"]
 ---
 
 # Bekkedal art and rendering
@@ -62,6 +62,8 @@ This file carries the full art/rendering doctrine for the siblings above.
 - `menus.js` — every panel the game puts over the picture. All chrome, so all
   of it draws after the LUT goes back to daylight.
 - `music.js` — five tunes and the crossfading scheduler that rotates them.
+- `ambience.js` — a bed per map, weather and the hour layered over it,
+  positional hearth crackle, and material footsteps. See **Ambience** below.
 - `decor.js` — the things in a room. The five pieces of glyph furniture, and
   a *kind* per prop; where each prop stands is content, in `BEK_DECOR`
   (`data.js`).
@@ -650,6 +652,76 @@ for some time: a farmhouse rebuild measures 3.0ms here, of which the light
 pass was 0.9ms before the local-light rework and 5.4ms after. The current
 figures are in **Local light is a palette too → Cost** above. Measure before
 quoting, and measure warm.
+
+## Ambience
+
+Five chiptune loops and about twenty one-shot SFX and the valley still read
+as silent the moment you stood still: no wind, no water, no birds, no rain
+you could hear falling, no crackle standing next to the hearth, no room
+tone indoors, no drip in the mine, and one filtered noise burst for every
+surface a boot could land on. `ambience.js` is the fix, in the same shape
+`music.js` already set: `createAmbience(A)` takes a handful of accessors
+rather than closing over the app, so it imports nothing from `kernel/` and
+touches no DOM.
+
+**It answers to SND, not MUS.** The five tunes are the soundtrack and stay
+on the MUS knob; a bed of wind and water is closer kin to the footsteps and
+the hearth's own one-shot crackle, both of which already run through
+`Snd`'s SND-gated bus. Turning MUS to zero should not also silence the rain.
+
+**A bed per map, crossfaded, never a stack.** `BED` is six recipes — wind,
+water, forest, room, mine, valley — each filtered noise plus one or two
+slow, slightly detuned oscillators, and `MAP_BED` sorts all eleven maps
+into one of them. Two alternating gain buses do the crossfade: the
+outgoing bed ramps down while the incoming one, built fresh on the idle
+bus, ramps up over the same `FADE` window, so the two overlap instead of
+leaving the gap a mute-then-play would. The old bed's oscillators are only
+stopped once the ramp is behind them — a `setTimeout` after the ramp, the
+same shape `music.js`'s own `swap` already uses, which is why nothing here
+needed a second scheduler invented for it.
+
+**Weather and the hour are multipliers on that bed, not new beds.** Rain
+is its own always-running noise bus, silent until it rains, ramped up only
+when the weather roll says `regn` and the current bed is outdoors — a
+loudness, not a different sound, so it never needs tearing down between
+showers. Fog leans the current bed's target gain up a little
+(`wind rising`); rain leans it down a little (the bed ducks under the
+rain, not the other way round). The hour multiplies again on top: dusk and
+night quiet the bed, and `hourLayer` schedules the dawn chorus and evening
+crickets straight off `dt` — a chorus envelope that rises fast and releases
+over real tens of seconds after `dawn()` goes false, which is what "fades
+by mid-morning" comes out as once you remember `S.min` runs at four
+game-minutes a real second. No new clock boundary was invented for any of
+this: `dawn()`/`dusk()`/`night()` are exactly the three index.js already
+declares, reused as the one hour signal `A.hour()` reports.
+
+**The hearth is read, not re-declared.** `lightSources()` in index.js is
+already the one table of what gives light in a room; a hearth is also the
+one thing in that table that makes fire noise, so `A.hearths()` just
+filters that same list for the `hearth` flag instead of a second table of
+fire positions. `hearthLayer` finds the nearest one, turns the distance to
+the player into a 0–1 falloff, and schedules irregular crackle pops off
+`dt` at a rate that quickens the closer you stand — pops, not a drone,
+because a fire's presence is heard as irregularity, not as a hum.
+
+**Footsteps read the ground.** `sfx.step()` used to be one filtered noise
+burst regardless of what was underfoot; it now takes the tile the player
+is standing on, `ambience.js`'s own `material()` sorts it into one of seven
+keys (grass, path, boards, pier, stone, snow, water) off the glyph and,
+where the glyph alone can't tell — a mine floor, a room floor, a snowbound
+map — off `isCave()`/`inside()`/`snowy()` from `surface.js`. The *sound*
+each key makes is content, not behaviour: `BEK_STEP_SOUNDS` (`data.js`) is
+the recipe table, the same split `BEK_ITEMS`/`BEK_CROPS` already keep from
+the code that reads them.
+
+**Warmth, not detail.** Every gain in `BED` sits under 0.06 and every
+oscillator under 0.02 — a bed you consciously notice is a bed that is
+already too loud; the test that matters is that you notice when it stops.
+`unmount()`'s obligations are the same ones `music.js` already carries:
+every oscillator and buffer source `ambience.js` starts is either a
+transient one-shot through `Snd` (footsteps, hearth pops, chorus, crickets
+— self-cleaning, nothing to leak) or a node this file itself stops on
+`Amb.stop()`, called from the same three places `Song.stop()` already is.
 
 ## The swing
 
