@@ -278,19 +278,22 @@ export function createForest(A) {
     }
   }
 
-  /* A `T` that is not on the ring — scenery inside a map. Still a tile, still
-     stamped, because there are only a handful and they are not a frame. */
   /* A tree standing inside a map rather than on the ring — scenery, and the
-     birch and spruce you fell. Still per tile, because there are a handful of
-     them and they are not a frame; drawn by the same species functions, so a
-     tree in a field and a tree in the wall are the same tree. */
+     birch and spruce you fell, drawn by the same species functions so a
+     tree in a field is the same tree as one in the wall. `cx` used to be a
+     constant `x*BEK_T+20`, the same 40px cadence the ring was fixed for;
+     `T`/`G` each already declare an unused `sx`/`sy`, `Y` falls back to its
+     own unused `lx`/`ly`, and `by` jitters too or every trunk shares one
+     baseline. */
   function loneTree(c, x, y, o, snow) {
-    const L = LAYERS[2], by = y * BEK_T + 39;
+    const L = LAYERS[2];
+    const cx = x * BEK_T + 12 + Math.round((o.sx == null ? o.lx : o.sx) * 16 / 8);
+    const by = y * BEK_T + 36 + Math.round((o.sy == null ? o.ly : o.sy) * 6 / 8);
     /* a contact shadow, so it stands on the ground rather than floating on it */
-    A.wash(x * BEK_T + 8, by - 4, 24, 6, ATMO[0], 9);
-    if (c === 'Y') { birch(L, x * BEK_T + 20, by, 36, 15, 1, o.turn === 3 ? 0 : 2, snow); return; }
-    if (c === 'G') { spruce(L, x * BEK_T + 20, by, 34, 18, 1, o.lit, snow); return; }
-    fir(L, x * BEK_T + 20 + (o.lean - 1) * 3, by, 30 + o.bare * 2, 17, o.lean, o.lit, snow);
+    A.wash(cx - 12, by - 4, 24, 6, ATMO[0], 9);
+    if (c === 'Y') { birch(L, cx, by, 36, 15, 1, o.turn === 3 ? 0 : 2, snow); return; }
+    if (c === 'G') { spruce(L, cx, by, 34, 18, 1, o.lit, snow); return; }
+    fir(L, cx + (o.lean - 1) * 3, by, 30 + o.bare * 2, 17, o.lean, o.lit, snow);
   }
 
   return { prepare: prepare, draw: draw, edge: edge, loneTree: loneTree };

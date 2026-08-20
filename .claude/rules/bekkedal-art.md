@@ -591,6 +591,123 @@ one or two pixels of amplitude, and a permanently animated border is the
 opposite of the soothing thing that was asked for. If you add it, measure the
 rebuild first: the band alone is 12ms of a 24–29ms rebuild.
 
+## Density
+
+The report was that a wide shot of any of the six wild maps, HUD covered,
+told you nothing but the treeline: forest read as a mown lawn with trees on
+a grid, the vidda read as the farm's grass with boulders dropped on it, and
+the setra, enga, fjord and gruva were some shade of the same undifferentiated
+green or grey with a building or a rock wall standing in it. `959660d`
+(**Populate the farm, town, lake and both interiors**) had already done the
+equivalent job for the valley floor — `wear.js` for desire-line paths off a
+map's own door/road/field glyphs, `decor_outdoor.js` for outdoor prop kinds,
+placements in `BEK_DECOR` — without writing down the pattern as doctrine.
+This is that doctrine, now that the wild half of the valley has been through
+the same pass.
+
+**Ground gets patch-level variation from channels that already exist.**
+`noise.js`'s `PATCH`/`LOW` tables (DRY, LUSH, MOSS, DAMP, WORN, DUST, plus the
+discrete MEADOW and VEIN) are declared, salted per map, and covered by
+`tile_check.js` — reusing one at a *different call site*, with a different
+mark colour, is free: `pathGround` and `grassGround` already shared DUST and
+DRY this way before this pass, and the wild maps' own ground now does the
+same. The forest's needle litter is DUST washed in DRY[1] rather than SOI —
+the same field pathGround already uses for dry grit, painted where grass
+detail runs instead of where path detail does. Its moss-in-shade is MOSS
+washed in a new `SHADOWS.MOSS_SHADE` (CON[1] on GRASS[2], darker and so a
+shadow rather than a mark). The vidda's exposed bedrock is DAMP washed in a
+new `MARKS.BEDROCK` (STO[2] on GRASS[2], which lands inside the band on its
+own — no feature exemption needed), its lichen is MOSS washed in CON[3],
+already a declared TUFT colour and so needing no new table entry at all, and
+its LUSH wash is switched off outright: an alpine plateau has no wetter,
+greener run to speak of. None of that added a channel `tile_check.js` does
+not already cover. The one exception is `FEATURES.SNOWDRIFT` (SNO[0]/SNO[1]
+on GRASS[2], the one mark on grass this game draws *lighter* than its
+surface) — a drift in the lee of a boulder is genuinely a different thing
+from a patch of ground, not a recoloured existing field, so it earns a new
+declared table the way ore's three hues did. It is placed per-boulder off
+`^`'s own already-declared `cap`/`my` channels rather than as a region field,
+because a drift belongs to a specific rock and not to a stretch of map.
+
+**A cadence bug hides in a tile that looks fixed even when its ring
+doesn't.** `forest.js`'s treeline ring already draws as one continuous band
+off `treeVar`, nothing on a 40px grid — but the handful of `T`/`G`/`Y` trees
+loose *inside* a map were still stamped dead-centre of their own tile,
+`x*BEK_T+20`, every time. Two of the three recipes in `noise.js`'s `R_OBJ`
+table already declared a spare pair of channels nothing drew from (`sx`/`sy`
+on `T`, `lx`/`ly` doing double duty as the fallback on `G`/`Y`, since `Y`
+never had its own `sx`/`sy`) — spending those on a jittered trunk position,
+the same way `spot()` places a blade of grass, breaks the cadence without a
+new channel or a new declaration. Check for this kind of thing wherever a
+band and a stamped scatter of the same object coexist on one map: fixing the
+band's own cadence does not fix the loose copies of the thing the band is
+made of.
+
+**Man-made and scenery evidence is decor, split by budget rather than by
+theme.** `decor_wild.js` is a new sibling next to `decor_outdoor.js` for the
+same reason `decor_outdoor.js` exists at all — `decor.js` was already at the
+300-line ceiling and `decor_outdoor.js` had no room left for fifteen more
+prop kinds — not a second organising principle. It holds deadfall/fungi/root
+for the forest floor, a cairn for the vidda, milk churns for the setra
+(which reuses the farm's own `stonewall` kind for its dry-stone walls rather
+than declaring a second wall), a hay rack for the enga, kelp/driftwood/
+gullrock/slipway/jetty posts for the fjord, and timbering/rail track/an ore
+cart/spoil heaps/a ladder for the gruva — the only map in this pass whose
+*ground* art (`rock.js`) was left untouched by design, because it was
+already the best-looking map in the game and the report only ever asked for
+more evidence of people having worked it. Every kind still answers the three
+rules `decor.js`'s own header states: it must not touch `BEK_SOLID`, it must
+carry a material, an ink outline or a contact shadow so it does not vanish
+against what it stands on, and nothing here animates so none of it needs
+`LIVE`. Placement is still content, in `BEK_DECOR`, checked the same way
+`world_check.js` already checks the valley floor's: every coordinate lands
+inside the room it claims to be in, never on the dead margin.
+
+**Two marks were placed rather than derived, and that is a deliberate
+exception, not a slide back to hand-authoring.** The setra's goat-track and
+the dairy hut's own turf roof needed no new code at all — `wear.js` already
+derives a desire line from whichever door and landmark glyphs a map
+actually has, and `surface.js`'s `rustic()` already lists the setra among
+the turf-and-laft maps, so both requirements from the brief were already
+true the moment the hut's `D` and `.` existed on the map. The enga's mown
+strip and its flower clustering are the two marks in this pass that are not
+derived that way. The strip is a straight column range in `grassGround`
+washed in `GRASS[1]` (an in-ramp neighbour of the base fill, so it needs no
+declaration) — a literal cut, because a scythe does not run a desire-line
+algorithm, it runs a straight line, and pretending otherwise would be
+derivation for its own sake. The clustering reuses `LOW.VEIN` — declared,
+salted, tested, but never otherwise drawn on grass — at its own period to
+pick a flower's *species* from the coarse cell a tile falls in rather than
+from the tile's own high-frequency channel, so one corner of the meadow
+reads gold and the next reads blue instead of every colour scattered evenly
+across the whole field. Both changes stayed inside the discipline that
+matters — no new channel, no per-frame cost, nothing outside the terrain
+cache — even though neither one is "derived from the map's own content" in
+the sense `wear.js` is.
+
+### Cost
+
+Measured warm, median of five forced rebuilds via `__bekDebug.rects()`/
+`perf()`, same methodology as every other table in this file — see **The
+terrain cache → Cost** for the six wild maps' own before/after figures.
+
+| map          | rebuild | rects | live/frame |
+|--------------|---------|-------|------------|
+| forest 12:00 | 15.9ms  | 12840 |   9.52ms   |
+| vidda 12:00  | 13.3ms  |  9820 |   6.81ms   |
+| setra 12:00  | 11.3ms  |  7184 |   5.68ms   |
+| enga 12:00   | 12.2ms  | 10342 |   6.33ms   |
+| fjord 12:00  | 13.0ms  | 13636 |   8.20ms   |
+| gruva 12:00  | 13.7ms  |  7559 |   7.43ms   |
+
+Worst rebuild 15.9ms against the 30ms budget, worst 13,636 rects against
+25,000 — both well inside, and these are the six largest maps in the game
+(42x26 to 44x30, the region path already carrying the cost of that). All six
+routed through the same `grassGround`/`grassDetail`/`tileDetail` passes every
+other outdoor map already pays for; nothing here runs outside the terrain
+cache, so none of it costs anything per frame beyond the existing live
+glyphs (`W`/`~`/`v`/`O`/`Q`/`R`).
+
 ## Inside a house
 
 A room used to be three tiled textures, and the report said so. `floorGround`

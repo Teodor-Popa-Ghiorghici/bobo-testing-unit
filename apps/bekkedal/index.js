@@ -120,12 +120,15 @@ export default {
             ROCK_FACE = MARKS.ROCK_FACE.cols, FLOOR_GRAIN = MARKS.FLOOR_GRAIN.cols,
             WATER_DEEP = MARKS.WATER_DEEP.cols;
       const PATH_CRACK = SHADOWS.PATH_CRACK.cols[0], ROCK_CRACK = SHADOWS.ROCK_CRACK.cols[0],
-            FLOOR_JOINT = SHADOWS.FLOOR_JOINT.cols[0], TREE_INK = SHADOWS.TREE_INK.cols;
+            FLOOR_JOINT = SHADOWS.FLOOR_JOINT.cols[0], TREE_INK = SHADOWS.TREE_INK.cols,
+            MOSS_SHADE = SHADOWS.MOSS_SHADE.cols[0];
       /* the player, who has no entry in BEK_NPCS because there is only one */
       const PLAYER_HAIR = TIM[1], PLAYER_SHIRT = WAT[4], PLAYER_PANTS = ATMO[2];
       const FLOWER = FEATURES.FLOWER.cols, PICKABLE = FEATURES.PICKABLE.cols,
             WATER_SUN = FEATURES.WATER_SUN.cols, FOAM = FEATURES.FOAM.cols,
-            ORE_GLINT = FEATURES.ORE_GLINT.cols, HEARTH = FEATURES.HEARTH.cols;
+            ORE_GLINT = FEATURES.ORE_GLINT.cols, HEARTH = FEATURES.HEARTH.cols,
+            SNOWDRIFT = FEATURES.SNOWDRIFT.cols;
+      const BEDROCK = MARKS.BEDROCK.cols[0];
       const TX = (no, en) => BEK_LANG === 'en' ? en : no;      /* resolve a dynamic pair now */
       const iname = id => T(BEK_ITEMS[id].name);
       const refreshBar = () => {
@@ -1494,6 +1497,8 @@ export default {
          map's salt goes on here — without it every valley gets its flowers
          and its mineral veins in exactly the same places. */
       const pLow = (x, y, ch, period, n) => hLowV(x, y, mapSalt(S.map) + ch, period, n);
+      /* the mown strip through the meadow — see grassGround's 'enga' branch */
+      const ENGA_MOW_X0 = 32, ENGA_MOW_X1 = 35;
 
       /* A mark's position from one channel: nine steps spread across all the
          room the mark's own size leaves it, edge to edge. x and y come off
@@ -1522,14 +1527,34 @@ export default {
          check reads are the same tables. */
       function grassGround(x, y) {
         const px = x * BEK_T, py = y * BEK_T;
+        const mp = S.map;
         native(() => { g.fillStyle = C(GRASS[2]); g.fillRect(px, py, BEK_T, BEK_T); });
         wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DRY));      /* a corner gone to straw */
-        wash(px, py, BEK_T, BEK_T, GRASS[3], pAmt(x, y, PATCH.LUSH));   /* a wetter, greener run  */
+        /* The vidda has no wetter, greener run to speak of — the LUSH patch
+           reads as fed pasture, and an alpine plateau is not fed. */
+        if (mp !== 'vidda') wash(px, py, BEK_T, BEK_T, GRASS[3], pAmt(x, y, PATCH.LUSH));
         /* the desire line from a door to its field, its road, its well —
            derived, not hand-placed; see wear.js. Same SOI[1] "trodden hard"
            colour pathGround washes onto the path glyph itself, so a worn
            strip of grass reads as the same material as the road it leads to */
         wash(px, py, BEK_T, BEK_T, SOI[1], wear.amt(x, y));
+        /* Each wild map wants one more region-scale field no farm/lake tile
+           needs — reusing PATCH's own declared channels at their own period
+           with a different mark colour, exactly the way DUST/DRY already
+           serve both pathGround and this function, rather than adding a
+           channel nothing else in this file draws from. */
+        if (mp === 'forest') {
+          wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DUST));      /* needle litter  */
+          wash(px, py, BEK_T, BEK_T, MOSS_SHADE, pAmt(x, y, PATCH.MOSS));  /* moss, in shade */
+        } else if (mp === 'vidda') {
+          wash(px, py, BEK_T, BEK_T, BEDROCK, pAmt(x, y, PATCH.DAMP));     /* bedrock through */
+          wash(px, py, BEK_T, BEK_T, CON[3], pAmt(x, y, PATCH.MOSS));      /* lichen          */
+        } else if (mp === 'enga') {
+          /* the one mown strip through the hay meadow — a straight cut, so
+             it is the one ground mark in this whole file that is placed
+             rather than derived from the map's own content */
+          if (x >= ENGA_MOW_X0 && x < ENGA_MOW_X1) wash(px, py, BEK_T, BEK_T, GRASS[1], 6);
+        }
       }
 
       /* the floor of a room: boards, never grass */
@@ -1566,18 +1591,29 @@ export default {
         const v = groundVar(S.map, x, y);
         const pal = pAmt(x, y, PATCH.DRY) * 2 > PATCH.DRY.max ? TUFT_DRY : TUFT;
         const meadow = pLow(x, y, LOW.MEADOW, 8, 3) === 0;
+        const mp = S.map;
+        /* the setra is grazed short; the vidda's heather is wind-flattened
+           and thinner on the ground than either — fewer blades, not new art */
+        const n = mp === 'vidda' ? 2 : 4;
+        const bh = mp === 'setra' ? 2 : 4;
         native(() => {
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < n; i++) {
             g.fillStyle = C(pal[v['c' + i]]);
-            g.fillRect(px + spot(v['x' + i], BEK_T, 2), py + spot(v['y' + i], BEK_T, 4), 2, 4);
+            g.fillRect(px + spot(v['x' + i], BEK_T, 2), py + spot(v['y' + i], BEK_T, bh), 2, bh);
           }
           /* a flowering head, but only in the stretch of map that flowers —
              one pixel, so the cell edge of the low-frequency field is
              invisible and this one does not need feathering. A flower is a
              declared feature: it is allowed out of the band precisely
-             because it is one pixel and rare. */
+             because it is one pixel and rare. On the enga the *species* is
+             read off the coarse MEADOW cell rather than the tile's own high-
+             frequency channel, so one stand of gold and the next of blue read
+             as two different corners of the meadow rather than a scatter of
+             every colour everywhere — reusing LOW.VEIN at its own period,
+             unused on any grass tile, rather than declaring a new channel. */
           if (meadow && v.c3 < 3) {
-            g.fillStyle = C(FLOWER[v.c0 % FLOWER.length]);
+            const species = mp === 'enga' ? pLow(x, y, LOW.VEIN, 8, FLOWER.length) : v.c0 % FLOWER.length;
+            g.fillStyle = C(FLOWER[species]);
             g.fillRect(px + spot(v.x2, BEK_T, 1), py + spot(v.y3, BEK_T, 1), 1, 1);
           }
         });
@@ -1873,6 +1909,17 @@ export default {
           g.fillStyle = C(STO[3]); g.fillRect(px + 4 + spot(o.sx, 12, 8), py + 7 + spot(o.sy, 8, 5), 8, 5);
           g.fillStyle = C(ROCK_CRACK); g.fillRect(px + 4, py + 15, 12, 1);
           if (o.cap === 1) { g.fillStyle = C(CON[2]); g.fillRect(px + 4 + spot(o.mx, 12, 3), py + 7 + spot(o.my, 8, 2), 3, 2); }
+          /* an old drift lying in the lee of the stone, on the two snowed
+             maps only — not the same thing as `snowy()`'s own whole-map
+             read, which is why a boulder needs its own drift and not just a
+             tinted cap. The one mark on grass this game draws lighter than
+             its surface, so it is a declared FEATURE (SNOWDRIFT) rather than
+             a MARK. Reuses `cap`'s own spare values and `my`'s own jitter
+             rather than adding a channel for one small feature. */
+          if (snow && (o.cap === 2 || o.cap === 3)) {
+            g.fillStyle = C(SNOWDRIFT[o.cap - 2]);
+            g.fillRect(px + 1, py + 15 + spot(o.my, 4, 3), 6 + o.cap, 4);
+          }
         }
         if (c === '=') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(TIM[4]); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
         if (c === 'x') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(TIM[1]); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }

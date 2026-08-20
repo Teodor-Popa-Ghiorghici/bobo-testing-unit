@@ -486,6 +486,62 @@ export const BEK_DECOR = {
     { x: 9,  y: 20, kind: 'washline' },
     { x: 16, y: 16, kind: 'netframe' }
   ],
+  /* ---- the wild -----------------------------------------------------------
+     Same rule again: kinds in decor_wild.js, placement here. `deadfall`,
+     `fungi` and `root` are the forest floor evidence a tree-covered map has
+     that a field does not; `cairn` is the vidda's one way-marker; the
+     setra's dry-stone walls reuse the farm's own `stonewall` kind rather
+     than declaring a second one — a wall is a wall wherever it stands. */
+  forest: [
+    { x: 3,  y: 18, kind: 'deadfall' },
+    { x: 20, y: 26, kind: 'deadfall' },
+    { x: 12, y: 21, kind: 'deadfall' },
+    { x: 12, y: 18, kind: 'fungi' },
+    { x: 24, y: 15, kind: 'fungi' },
+    { x: 20, y: 18, kind: 'root' },
+    { x: 6,  y: 15, kind: 'root' },
+    { x: 30, y: 27, kind: 'root' }
+  ],
+  vidda: [
+    { x: 6,  y: 6,  kind: 'cairn' },
+    { x: 27, y: 18, kind: 'cairn' },
+    { x: 8,  y: 20, kind: 'cairn' },
+    { x: 24, y: 21, kind: 'cairn' }
+  ],
+  setra: [
+    { x: 6,  y: 7,  kind: 'milkchurn' },
+    { x: 9,  y: 9,  kind: 'stonewall' },
+    { x: 27, y: 8,  kind: 'stonewall' },
+    { x: 33, y: 9,  kind: 'stonewall' }
+  ],
+  enga: [
+    { x: 10, y: 3,  kind: 'hayrack' },
+    { x: 36, y: 3,  kind: 'hayrack' },
+    { x: 30, y: 15, kind: 'hayrack' }
+  ],
+  fjord: [
+    { x: 3,  y: 7,  kind: 'kelp' },
+    { x: 10, y: 7,  kind: 'kelp' },
+    { x: 4,  y: 10, kind: 'gullrock' },
+    { x: 8,  y: 10, kind: 'gullrock' },
+    { x: 3,  y: 15, kind: 'driftwood' },
+    { x: 12, y: 15, kind: 'driftwood' },
+    { x: 10, y: 11, kind: 'slipway' },
+    { x: 13, y: 12, kind: 'jettypost' },
+    { x: 14, y: 12, kind: 'jettypost' },
+    { x: 16, y: 12, kind: 'jettypost' },
+    { x: 17, y: 12, kind: 'jettypost' }
+  ],
+  gruva: [
+    { x: 13, y: 5,  kind: 'timbering' },
+    { x: 30, y: 8,  kind: 'timbering' },
+    { x: 20, y: 5,  kind: 'railtrack' },
+    { x: 25, y: 19, kind: 'railtrack' },
+    { x: 25, y: 5,  kind: 'orecart' },
+    { x: 20, y: 12, kind: 'spoilheap' },
+    { x: 15, y: 19, kind: 'spoilheap' },
+    { x: 20, y: 22, kind: 'ladder' }
+  ],
   farmhouse: [
     { x: 18, y: 4,  kind: 'kettle' },
     { x: 20, y: 4,  kind: 'jars' },

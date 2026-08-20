@@ -34,8 +34,11 @@
 import { TIM, STO, SAN, SNO, WAR, WAT, GRASS, CON, DRY, ATMO } from './palette.js';
 import { BEK_T } from './data.js';
 /* the outdoor kinds live in decor_outdoor.js, purely for the 300-line rule —
-   merged into one PROP table below so callers never see the split */
+   merged into one PROP table below so callers never see the split. The five
+   wild maps' kinds are a second sibling for the same reason, not a second
+   split rule — decor_outdoor.js was already full. */
 import { PROP_OUTDOOR } from './decor_outdoor.js';
+import { PROP_WILD } from './decor_wild.js';
 
 /* kinds that are redrawn every frame rather than baked into the cache */
 export const LIVE = { cat: 1 };
@@ -220,7 +223,7 @@ const PROP_ROOM = {
 
 /* the outdoor kinds (decor_outdoor.js) merged in, so every other caller
    still just sees one PROP table keyed by kind name */
-export const PROP = Object.assign({}, PROP_ROOM, PROP_OUTDOOR);
+export const PROP = Object.assign({}, PROP_ROOM, PROP_OUTDOOR, PROP_WILD);
 
 /* ---- the furniture -------------------------------------------------------
    Moved out of `tileDetail`'s glyph ladder and redrawn at native density on

@@ -62,6 +62,7 @@ coordinates") lives in `bekkedal-art.md`.
 - `ambience.js` — a bed per map, weather and the hour layered over it, positional hearth crackle, and material footsteps. See `.claude/rules/bekkedal-art.md`.
 - `decor.js` — room prop kinds; placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.
 - `decor_outdoor.js` — the farm/town/lake prop kinds, split out of `decor.js` purely for the 300-line rule and merged back into one `PROP` table there. See `.claude/rules/bekkedal-art.md`.
+- `decor_wild.js` — the forest/vidda/setra/enga/fjord/gruva prop kinds, a second sibling for the same 300-line reason, merged into the same `PROP` table. See **Density**, `.claude/rules/bekkedal-art.md`.
 - `wear.js` — the paths worn between the places people actually walk (door to field, road, pier, well), derived from a map's own landmark glyphs the same way `interior.js`'s `traceWear()` derives indoor wear. See `.claude/rules/bekkedal-art.md`.
 - `quests.js` — the repeatable quest board. See `.claude/rules/bekkedal-content.md`.
 - `seasons.js` — the seasonal layer (season/day-of-season/festival/weather). See `.claude/rules/bekkedal-content.md`.
