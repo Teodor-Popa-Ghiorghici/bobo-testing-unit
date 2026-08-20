@@ -18,7 +18,7 @@
 import { WAT } from './palette.js';
 import { distanceField } from './autotile.js';
 import { isShoreLand } from './surface.js';
-import { BEK_T, BEK_COLS, BEK_ROWS } from './data.js';
+import { BEK_T } from './data.js';
 
 /* Indexed by distance from land in tiles. Entry 1 is where the shore
    profile's far edge leaves off, so the two meet without a step. */
@@ -36,24 +36,30 @@ export function createWater(A) {
      A.tileAt(x, y)                 — the glyph at a grid square */
   let depth = null, ready = '';
 
+  /* The map's own size, taken once per rebuild rather than imported as a
+     constant: a map is as big as its rows and no two need agree. Everything
+     below indexes `depth` by `cols`, so the two can never disagree about the
+     stride. */
+  let cols = 0, rows = 0;
   function prepare(key) {
     if (key === ready) return;
     ready = key;
-    const raw = distanceField((x, y) => isShoreLand(A.tileAt(x, y)), BEK_COLS, BEK_ROWS, 4);
-    depth = new Float32Array(BEK_COLS * BEK_ROWS);
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+    cols = A.cols(); rows = A.rows();
+    const raw = distanceField((x, y) => isShoreLand(A.tileAt(x, y)), cols, rows, 4);
+    depth = new Float32Array(cols * rows);
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
       let sum = 0, cnt = 0;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= BEK_COLS || ny >= BEK_ROWS) continue;
-        sum += raw[ny * BEK_COLS + nx]; cnt++;
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+        sum += raw[ny * cols + nx]; cnt++;
       }
-      depth[y * BEK_COLS + x] = sum / cnt;
+      depth[y * cols + x] = sum / cnt;
     }
   }
 
-  const dAt = (x, y) => depth[(y < 0 ? 0 : y >= BEK_ROWS ? BEK_ROWS - 1 : y) * BEK_COLS +
-                              (x < 0 ? 0 : x >= BEK_COLS ? BEK_COLS - 1 : x)];
+  const dAt = (x, y) => depth[(y < 0 ? 0 : y >= rows ? rows - 1 : y) * cols +
+                              (x < 0 ? 0 : x >= cols ? cols - 1 : x)];
 
   function deep(x, y) {
     const c = dAt(x, y);

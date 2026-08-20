@@ -27,7 +27,7 @@
  *                        squares on the map it names.
  */
 import { BEK_SEASON_DAYS, BEK_SEASONS, BEK_SEASON_WEATHER, BEK_FESTIVALS,
-         BEK_CROPS, BEK_MAPS, BEK_SOLID, BEK_COLS, BEK_ROWS } from './data.js';
+         BEK_CROPS, BEK_MAPS, BEK_SOLID, mapCols, mapRows } from './data.js';
 import { seasonIndexOf, seasonOf, dayOfSeason, festivalOf, isFestivalDay, cropInSeason, rollWeather } from './seasons.js';
 
 let fails = 0, checks = 0;
@@ -145,7 +145,7 @@ Object.entries(BEK_FESTIVALS).forEach(([sid, f]) => {
     const key = x + ',' + y;
     if (seen.has(key)) { dressBad++; console.log('  ' + sid + ': duplicate dressing tile ' + key); }
     seen.add(key);
-    if (x < 0 || y < 0 || x >= BEK_COLS || y >= BEK_ROWS) { dressBad++; console.log('  ' + sid + ': dressing tile off the map ' + key); return; }
+    if (x < 0 || y < 0 || x >= mapCols(f.map) || y >= mapRows(f.map)) { dressBad++; console.log('  ' + sid + ': dressing tile off the map ' + key); return; }
     const base = map.rows[y].charAt(x);
     if (BEK_SOLID.indexOf(base) >= 0 || base === 'D') { dressBad++; console.log('  ' + sid + ': dressing tile ' + key + ' sits on solid ' + JSON.stringify(base)); }
   });

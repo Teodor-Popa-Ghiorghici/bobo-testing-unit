@@ -35,7 +35,7 @@
 import { WAT, SAN, SOI, STO, GRASS, SNO } from './palette.js';
 import { profileT, maskNormal, mask4 } from './autotile.js';
 import { isWater, isShoreLand } from './surface.js';
-import { BEK_T, BEK_COLS, BEK_ROWS } from './data.js';
+import { BEK_T } from './data.js';
 
 /* How far into a shore tile the land reaches. The rest is water, which puts
    the waterline a third of the way in. It matches BANK_REACH below, which is
@@ -100,21 +100,25 @@ export function createShore(A) {
   }
 
   /* Once per cache rebuild. Everything after this is a lookup. */
+  /* The map's own size, taken once per rebuild — see water.js. `masks` and
+     `wet` are both strided by it, so a stale stride is not expressible. */
+  let cols = 0, rows = 0;
   function prepare(key) {
     if (key === ready) return;
     ready = key;
     seamMemo = new Map();
-    masks = new Uint8Array(BEK_COLS * BEK_ROWS);
-    wet = new Uint8Array(BEK_COLS * BEK_ROWS);
+    cols = A.cols(); rows = A.rows();
+    masks = new Uint8Array(cols * rows);
+    wet = new Uint8Array(cols * rows);
     const land = (x, y) => isShoreLand(A.tileAt(x, y));
     const water = (x, y) => isWater(A.tileAt(x, y));
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
-      masks[y * BEK_COLS + x] = mask4(land, x, y);      /* which way the land is  */
-      wet[y * BEK_COLS + x] = mask4(water, x, y);       /* and which way the water */
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      masks[y * cols + x] = mask4(land, x, y);          /* which way the land is  */
+      wet[y * cols + x] = mask4(water, x, y);           /* and which way the water */
     }
   }
-  const maskOf = (x, y) => masks[y * BEK_COLS + x];
-  const wetOf = (x, y) => wet[y * BEK_COLS + x];
+  const maskOf = (x, y) => masks[y * cols + x];
+  const wetOf = (x, y) => wet[y * cols + x];
 
   /* Everything below asks this rather than `profileT` directly, so the sand,
      the surf and the ripples are all measuring from the same waterline. */

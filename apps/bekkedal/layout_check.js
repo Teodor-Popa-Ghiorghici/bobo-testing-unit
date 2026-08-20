@@ -59,19 +59,38 @@ const widest = arr => arr.reduce((a, b) => (b != null && String(b).length > Stri
 /* ---- 1. geometry --------------------------------------------------------- */
 console.log('\n-- geometry --');
 ok(D.BEK_W / D.BEK_H === 16 / 9, 'canvas is 16:9', D.BEK_W + 'x' + D.BEK_H);
-ok(D.BEK_COLS * D.BEK_T === D.BEK_W, 'map spans the canvas horizontally', D.BEK_COLS + '*' + D.BEK_T + ' = ' + D.BEK_W);
+ok(D.BEK_MIN_COLS * D.BEK_T === D.BEK_W, 'the smallest legal map spans the canvas horizontally',
+   D.BEK_MIN_COLS + '*' + D.BEK_T + ' = ' + D.BEK_W);
 ok(D.BEK_VIEW_H === D.BEK_H - D.BEK_HUD_H * 2, 'viewport is the canvas less both HUD bands');
-ok(D.BEK_CAM_MAX_X === 0, 'camera never scrolls horizontally');
-ok(D.BEK_CAM_MAX_Y === D.BEK_MAP_H - D.BEK_VIEW_H, 'vertical camera travel matches the overhang', D.BEK_CAM_MAX_Y + 'px');
 ok(D.BEK_T === D.BEK_T_SRC * D.BEK_ART_SCALE, 'presented tile is a whole multiple of the source tile');
 ok(Number.isInteger(D.BEK_ART_SCALE), 'art scale is a whole number', 'x' + D.BEK_ART_SCALE);
-ok(D.BEK_MAP_H > D.BEK_VIEW_H, 'the valley is taller than the viewport, so the camera has work to do');
-pass('canvas / viewport / camera', D.BEK_W + 'x' + D.BEK_H + ' view ' + D.BEK_VIEW_W + 'x' + D.BEK_VIEW_H + ' camY 0..' + D.BEK_CAM_MAX_Y);
+ok(D.BEK_MIN_ROWS * D.BEK_T > D.BEK_VIEW_H,
+   'even the smallest map is taller than the viewport, so the camera always has work to do');
+pass('canvas / viewport', D.BEK_W + 'x' + D.BEK_H + ' view ' + D.BEK_VIEW_W + 'x' + D.BEK_VIEW_H +
+     ' floor ' + D.BEK_MIN_COLS + 'x' + D.BEK_MIN_ROWS);
 
-/* the map data this all rests on must not have moved */
+/* ---- the maps' own dimensions ------------------------------------------
+   Maps no longer have to be one size, so this is no longer a single equality
+   against BEK_COLS/BEK_ROWS. What has to hold instead is that each map's
+   rows are rectangular (a short row would read as 'T' past its end and put a
+   wall through the middle of a field), that no map is smaller than the
+   viewport plus the overhang the camera has always had, and that each map's
+   own camera clamp range is exactly its overhang on both axes — which is
+   what welds its outermost rows and columns to the frame. */
 const maps = Object.entries(D.BEK_MAPS);
-ok(maps.every(([, m]) => m.rows.length === D.BEK_ROWS && m.rows.every(r => r.length === D.BEK_COLS)),
-   'all maps are still ' + D.BEK_COLS + 'x' + D.BEK_ROWS + ' tiles', maps.length + ' maps');
+for (const [id, m] of maps) {
+  const cols = D.mapCols(id), rows = D.mapRows(id);
+  ok(m.rows.length === rows && m.rows.every(r => r.length === cols),
+     'map rows are rectangular: ' + id, cols + 'x' + rows);
+  ok(cols >= D.BEK_MIN_COLS && rows >= D.BEK_MIN_ROWS,
+     'map is at least ' + D.BEK_MIN_COLS + 'x' + D.BEK_MIN_ROWS + ': ' + id, cols + 'x' + rows);
+  ok(D.camMaxX(id) === Math.max(0, cols * D.BEK_T - D.BEK_VIEW_W) &&
+     D.camMaxY(id) === Math.max(0, rows * D.BEK_T - D.BEK_VIEW_H),
+     'camera clamp range matches its own dimensions: ' + id,
+     'camX 0..' + D.camMaxX(id) + '  camY 0..' + D.camMaxY(id));
+}
+pass('every map sized and clamped from its own rows', maps.length + ' maps, largest ' +
+     maps.reduce((a, [id]) => Math.max(a, D.mapCols(id) * D.mapRows(id)), 0) + ' tiles');
 
 /* every panel must sit inside the canvas */
 const boxes = [

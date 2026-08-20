@@ -32,7 +32,7 @@
  */
 import { TIM, STO, SAN, WAR, WAT, ATMO, MARKS, SHADOWS } from './palette.js';
 import { hash, hv } from './noise.js';
-import { BEK_T, BEK_COLS, BEK_ROWS, BEK_MAP_W, BEK_MAP_H } from './data.js';
+import { BEK_T } from './data.js';
 
 const GRAIN = MARKS.FLOOR_GRAIN.cols, JOINT = SHADOWS.FLOOR_JOINT.cols[0];
 const WALL_FOOT = SHADOWS.WALL_FOOT.cols;
@@ -43,9 +43,14 @@ export function createInterior(A) {
   /* A.fill(col, x, y, w, h)     — device pixels, inside a native() block
      A.wash(x, y, w, h, col, s)  — the ordered stipple, likewise
      A.tileAt(x, y)              — the glyph at a grid square
-     A.salt()                    — the current map's channel salt */
+     A.salt()                    — the current map's channel salt
+     A.cols() / A.rows()         — how big this map is, in tiles */
 
+  /* The room's own size, taken once per rebuild. The boards are laid across
+     the whole floor and the wear is traced over the whole grid, so both have
+     to know how far that is — and a room is now as big as its rows say. */
   let boards = null, wear = null, ready = '';
+  let cols = 0, rows = 0, MW = 0, MH = 0;
 
   /* ---- the carpentry -------------------------------------------------------
      Laid once for the whole room and then read per tile, which is what lets a
@@ -54,7 +59,7 @@ export function createInterior(A) {
   function layBoards(salt) {
     const out = [];
     let y = 0, i = 0;
-    while (y < BEK_MAP_H) {
+    while (y < MH) {
       const h = 7 + hv(i, 0, salt + CH_BOARD, 4);          /* 7..10 px wide    */
       const segs = [];
       /* end joints, staggered board to board: a run of 3 to 7 tiles, with the
@@ -62,28 +67,28 @@ export function createInterior(A) {
          never line up into a column */
       let x = -hv(i, 1, salt + CH_BOARD + 1, 5) * 24;
       let j = 0;
-      while (x < BEK_MAP_W) {
+      while (x < MW) {
         const w = (3 + hv(i, j + 2, salt + CH_BOARD + 2, 5)) * BEK_T;
-        segs.push({ x0: x, x1: Math.min(BEK_MAP_W, x + w),
+        segs.push({ x0: x, x1: Math.min(MW, x + w),
                     col: GRAIN[hv(i, j + 3, salt + CH_BOARD + 3, GRAIN.length)] });
         x += w; j++;
       }
       /* which segment a tile column starts in, so a tile does not walk the
          whole board to find the two segments it overlaps */
-      const byCol = new Int16Array(BEK_COLS);
-      for (let c = 0; c < BEK_COLS; c++) {
+      const byCol = new Int16Array(cols);
+      for (let c = 0; c < cols; c++) {
         let k = 0;
         while (k + 1 < segs.length && segs[k + 1].x0 <= c * BEK_T) k++;
         byCol[c] = k;
       }
-      out.push({ y0: y, h: Math.min(h, BEK_MAP_H - y), segs: segs, byCol: byCol });
+      out.push({ y0: y, h: Math.min(h, MH - y), segs: segs, byCol: byCol });
       y += h; i++;
     }
     /* and which board a device row falls in, for the same reason: fifty
        boards scanned per tile over sixty tiles was most of a 57ms rebuild */
-    const rowOf = new Int16Array(BEK_MAP_H);
+    const rowOf = new Int16Array(MH);
     for (let b = 0; b < out.length; b++)
-      for (let yy = out[b].y0; yy < out[b].y0 + out[b].h && yy < BEK_MAP_H; yy++) rowOf[yy] = b;
+      for (let yy = out[b].y0; yy < out[b].y0 + out[b].h && yy < MH; yy++) rowOf[yy] = b;
     out.rowOf = rowOf;
     return out;
   }
@@ -93,10 +98,10 @@ export function createInterior(A) {
      between the door and the bed, and the ring around the table — so that is
      what it is computed from. */
   function traceWear() {
-    const w = new Uint8Array(BEK_COLS * BEK_ROWS);
+    const w = new Uint8Array(cols * rows);
     const find = ch => {
       const out = [];
-      for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++)
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
         if (A.tileAt(x, y) === ch) out.push([x, y]);
       return out;
     };
@@ -111,7 +116,7 @@ export function createInterior(A) {
       const dx = px - (a[0] + vx * t), dy = py - (a[1] + vy * t);
       return Math.sqrt(dx * dx + dy * dy);
     };
-    for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
       let best = 99;
       for (const d of door) for (const h of hubs) {
         const v = segDist(x, y, d, h);
@@ -120,7 +125,7 @@ export function createInterior(A) {
       /* a path about two tiles wide, fading out — plus a per-tile step of
          jitter so the edge of it is not a drawn contour */
       const f = Math.max(0, 1 - best / 2.2);
-      w[y * BEK_COLS + x] = Math.floor(f * f * 7 + hash(x, y, CH_BOARD + 9) / 4294967296);
+      w[y * cols + x] = Math.floor(f * f * 7 + hash(x, y, CH_BOARD + 9) / 4294967296);
     }
     return w;
   }
@@ -128,6 +133,7 @@ export function createInterior(A) {
   function prepare(key) {
     if (key === ready) return;
     ready = key;
+    cols = A.cols(); rows = A.rows(); MW = cols * BEK_T; MH = rows * BEK_T;
     boards = layBoards(A.salt());
     wear = traceWear();
   }
@@ -135,7 +141,7 @@ export function createInterior(A) {
   /* ---- the floor, as boards ------------------------------------------------ */
   function floor(x, y) {
     const px = x * BEK_T, py = y * BEK_T, salt = A.salt();
-    const first = boards.rowOf[py], last = boards.rowOf[Math.min(BEK_MAP_H - 1, py + BEK_T - 1)];
+    const first = boards.rowOf[py], last = boards.rowOf[Math.min(MH - 1, py + BEK_T - 1)];
     for (let bi = first; bi <= last; bi++) {
       const b = boards[bi];
       const y0 = Math.max(b.y0, py), y1 = Math.min(b.y0 + b.h, py + BEK_T);
@@ -146,7 +152,7 @@ export function createInterior(A) {
         const x0 = Math.max(sg.x0, px), x1 = Math.min(sg.x1, px + BEK_T);
         A.fill(sg.col, x0, y0, x1 - x0, y1 - y0);
         /* the end joint, and only where the board actually ends */
-        if (sg.x1 <= px + BEK_T && sg.x1 < BEK_MAP_W) A.fill(JOINT, sg.x1 - 1, y0, 1, y1 - y0);
+        if (sg.x1 <= px + BEK_T && sg.x1 < MW) A.fill(JOINT, sg.x1 - 1, y0, 1, y1 - y0);
       }
       /* the gap between two boards */
       if (b.y0 >= py && b.y0 < py + BEK_T) A.fill(JOINT, px, b.y0, BEK_T, 1);
@@ -163,7 +169,7 @@ export function createInterior(A) {
         A.fill(STO[2], nx + 3, ny, 1, 1);
       }
     }
-    A.wash(px, py, BEK_T, BEK_T, TIM[1], wear[y * BEK_COLS + x]);
+    A.wash(px, py, BEK_T, BEK_T, TIM[1], wear[y * cols + x]);
   }
 
   /* ---- volume --------------------------------------------------------------
