@@ -134,9 +134,34 @@ The whole-map fields (`shore`/`water`/`rock`/`interior`/`forest`'s
 not relay every floorboard.
 
 **Every map that fits inside viewport-plus-margin resolves to its whole
-self** — which is all eleven of the maps that shipped — so the region drops
-out of the key as a constant and they rebuild exactly what they always did,
-in the same order. That is what let this whole change be verified as a no-op.
+self** — so the region drops out of the key as a constant and such a map
+rebuilds exactly what it always did, in the same order. That was true of all
+eleven maps when the region path went in, which is what let that change be
+verified as a no-op. **It is no longer true of any outdoor map.** The nine
+outdoor maps are 42x26 to 46x30 now (the seams, `apps/bekkedal/maps.js`), so
+the region is live on every one of them, and `REGION_MARGIN`/`REGION_SNAP`
+are load-bearing rather than theoretical. Only the two interiors still
+resolve whole.
+
+Measured on the container this was written on, warm, same probe on both
+builds — a real region rebuild off `__bekDebug.perf()` after the light key
+has turned over, median over the nine outdoor maps:
+
+| build                          | rebuild | rects        |
+|--------------------------------|---------|--------------|
+| 24x15 maps, whole map           | ~44ms   | 3,761-10,548 |
+| 42x26-46x30 maps, one region    | ~77ms   | 6,905-13,258 |
+
+That is 1.75x for a 1.78x region-area growth (32x20 tiles against 24x15) —
+the cost the region path was built to bound, and it lands where the table
+further up predicts. Do not read the two tables against each other: the
+absolute figures in this file were measured on a faster machine, and *both*
+builds measure three to four times those numbers here. Only ever compare two
+builds you measured yourself, on the same machine, in the same sitting.
+
+`node scripts/smoke.mjs` grew with the maps for the same reason — it drives a
+rebuild-shaped `draw()` on essentially every step. Same machine: 3m30s before
+the maps grew, 9m30s after.
 
 ### Verifying a change to any of this is a no-op
 

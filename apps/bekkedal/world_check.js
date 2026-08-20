@@ -156,19 +156,29 @@ for (const id of outdoor) {
 }
 ok(holeBad === 0, 'no opening in the world edge that is not a seam', holeBad + ' holes');
 
-/* a door is solid, so what has to be reachable is the square you knock from */
-let doorBad = 0;
+/* Everything you use by facing it is solid, so what has to be reachable is
+   the square you stand on to use it: a door is knocked on, the sign carries
+   the lot, the chest opens the workshop, the well and the bench and the bed
+   are all act()'d from beside them. One of these walled in is a mechanic the
+   player can see and never reach. */
+const FACED = { D: 'a door', S: 'a sign', K: 'the chest', o: 'a well', J: 'a bench', b: 'a bed' };
+let doorBad = 0, faced = 0;
 for (const id of ids) {
+  const spots = [];
   const d = BEK_MAPS[id].door;
-  const doors = [];
-  if (d) doors.push([d.x, d.y]);
-  for (let y = 0; y < mapRows(id); y++) for (let x = 0; x < mapCols(id); x++) if (at(id, x, y) === 'D') doors.push([x, y]);
-  for (const [x, y] of doors) {
+  if (d) spots.push([d.x, d.y, 'a door']);
+  for (let y = 0; y < mapRows(id); y++) for (let x = 0; x < mapCols(id); x++) {
+    const what = FACED[at(id, x, y)];
+    if (what) spots.push([x, y, what]);
+  }
+  for (const [x, y, what] of spots) {
+    faced++;
     const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => REACH[id].has((x + dx) + ',' + (y + dy)));
-    if (!near) { doorBad++; console.log('  ' + id + ': the door at ' + x + ',' + y + ' cannot be knocked on'); }
+    if (!near) { doorBad++; console.log('  ' + id + ': ' + what + ' at ' + x + ',' + y + ' has nowhere to stand in front of it'); }
   }
 }
-ok(doorBad === 0, 'every door has a square in front of it you can stand on', doorBad + ' walled-in doors');
+ok(doorBad === 0, 'everything you use by facing it can be stood in front of',
+   doorBad ? doorBad + ' walled in' : faced + ' doors, signs, chests, wells, benches and beds');
 /* the boat is stood on, not faced */
 let boatBad = 0;
 for (const id of ids) {
