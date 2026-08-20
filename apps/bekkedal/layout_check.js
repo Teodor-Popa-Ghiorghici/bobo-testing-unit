@@ -152,7 +152,8 @@ const longestTool = widest([].concat(
 const longestUI = widest(Object.values(D.UI).flatMap(both));
 
 /* every glyph the content can ask for must exist */
-const src = ['index.js', 'data.js'].map(f => readFileSync(join(HERE, f), 'utf8')).join('\n');
+const src = ['index.js', 'data.js', 'maps.js', 'maps_valley.js', 'maps_wild.js']
+  .map(f => readFileSync(join(HERE, f), 'utf8')).join('\n');
 const used = new Set();
 for (const m of src.matchAll(/'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g))
   for (const ch of (m[1] ?? m[2]).replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))))

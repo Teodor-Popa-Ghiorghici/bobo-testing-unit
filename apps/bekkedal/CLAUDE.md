@@ -9,9 +9,15 @@ there is no separate dev entry point for this app.
 
 ## File split
 
-`data.js` holds only static content tables (items, crops, tools, maps, NPCs,
+`data.js` holds only static content tables (items, crops, tools, NPCs,
 decor placements, treeline mixes, dialogue, quests) plus the geometry constants — no functions that mutate game
-state, no rendering, no DOM access. `index.js` holds all engine and game logic:
+state, no rendering, no DOM access. The maps themselves are content too, but
+eleven maps of forty-odd columns is more than one file should carry beside
+all of that, so they live in three siblings and `data.js` re-exports
+`BEK_MAPS` from them: `maps_valley.js` (the farm, the town, the water, the
+meadow and the two rooms), `maps_wild.js` (the wood, the setra, the vidda,
+the mine, the fjord) and `maps.js`, which joins the two halves and hangs
+every seam between them off one declaration. `index.js` holds all engine and game logic:
 state, input, drawing, audio, save/load. When adding content, it goes in
 `data.js`; when adding behavior, it goes in `index.js`. Don't let either drift
 into the other.
@@ -25,6 +31,9 @@ coordinates") lives in `bekkedal-art.md`.
 
 ## File map
 
+- `maps_valley.js` — the four places on the valley floor, and the two rooms. Rows only.
+- `maps_wild.js` — the five places past it. Rows only.
+- `maps.js` — the seam table, and the one loop that turns it into both sides' `exits`.
 - `font.js` — bitmap glyph table and metrics. See `.claude/rules/bekkedal-art.md`.
 - `text.js` — glyph atlas / text layout helpers. See `.claude/rules/bekkedal-art.md`.
 - `layout.js` — panel rectangles, padding, column offsets. See `.claude/rules/bekkedal-art.md`.
@@ -55,6 +64,7 @@ coordinates") lives in `bekkedal-art.md`.
 - `quest_check.js` — `node apps/bekkedal/quest_check.js`. See `.claude/rules/bekkedal-content.md`.
 - `season_check.js` — `node apps/bekkedal/season_check.js`. See `.claude/rules/bekkedal-content.md`.
 - `act2_check.js` — `node apps/bekkedal/act2_check.js`. See `.claude/rules/bekkedal-content.md`.
+- `world_check.js` — `node apps/bekkedal/world_check.js`. The valley as one walkable thing: seams, flood fills, and everything placed by coordinate.
 
 ## Hard invariants
 
@@ -86,7 +96,7 @@ still load without throwing.
 
 ## Checks
 
-Run all seven before claiming anything is done:
+Run all eight before claiming anything is done:
 
 - `node apps/bekkedal/tile_check.js` — terrain variation field is
   deterministic, uniform and aperiodic. Full paragraph: `.claude/rules/bekkedal-art.md`.
@@ -102,6 +112,13 @@ Run all seven before claiming anything is done:
   layer. Full paragraph: `.claude/rules/bekkedal-content.md`.
 - `node apps/bekkedal/act2_check.js` — every Act II surface plus the balance
   pass. Full paragraph: `.claude/rules/bekkedal-content.md`.
+- `node apps/bekkedal/world_check.js` — the valley joins up: every seam is
+  paired tile for tile and gated only on the way in, every map is one
+  walkable piece, every place is reached from the farm without the travel
+  menu, and nobody and nothing placed by coordinate — the eight who talk,
+  the goats, the room props, the pens, the field expansions, the finished
+  house, the menu's own landing squares — stands in a wall or on the water.
+  This is the check that a map edit is most likely to break.
 - `node scripts/smoke.mjs` — headless 30-day run, save migration, and a
   full simulated year run idle. Full paragraph: `.claude/rules/bekkedal-engine.md`.
 

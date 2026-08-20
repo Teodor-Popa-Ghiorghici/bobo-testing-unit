@@ -250,22 +250,23 @@ export const BEK_SEASON_TINT = {
 };
 
 /* one small recurring festival per season, on a fixed day-of-season so it
-   returns every year without drifting off it. `dress` overlays a handful of
-   the town map's own grass tiles with the flower glyph the map already
-   draws elsewhere on itself (see BEK_MAPS.town) — tileAt() in index.js reads
+   returns every year without drifting off it. `dress` overlays three of
+   the town map's own grass tiles — the verges of the square, kept clear of
+   the road and the plaza on purpose — with the flower glyph the map already
+   draws elsewhere on itself (see maps_valley.js) — tileAt() in index.js reads
    it exactly the way it already reads the two farm-plot overlays in
    BEK_FARM_PLOTS, so the change costs no new glyph and no new draw path,
    only a different day to show the existing one on. The dialogue beat lives
    in BEK_TALK.astrid.chat below, gated on S.festival the same way every
    other chat line there gates on S.flag/S.fr. */
 export const BEK_FESTIVALS = {
-  var:    { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+  var:    { day: 10, map: 'town', dress: [[17, 11], [29, 11], [17, 19]],
             title: { no: 'VÅRBLOT',    en: 'SPRING FESTIVAL' } },
-  sommer: { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+  sommer: { day: 10, map: 'town', dress: [[17, 11], [29, 11], [17, 19]],
             title: { no: 'SOLSNU',     en: 'MIDSUMMER FAIR' } },
-  host:   { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+  host:   { day: 10, map: 'town', dress: [[17, 11], [29, 11], [17, 19]],
             title: { no: 'HAUSTGILDE', en: 'HARVEST FAIR' } },
-  vinter: { day: 10, map: 'town', dress: [[5, 9], [10, 9], [15, 9]],
+  vinter: { day: 10, map: 'town', dress: [[17, 11], [29, 11], [17, 19]],
             title: { no: 'JULEBLOT',   en: 'MIDWINTER FEAST' } }
 };
 
@@ -302,528 +303,15 @@ export const PICK_NAME = { no: ['HAKKE', 'STÅLHAKKE'], en: ['PICK', 'STEEL PICK
    F flowers (deco)  p flower you may pick  L the lot  ^ stone  M mountain rock
    O ore vein  Q rich ore vein  e cave mouth  i floor  v hearth  c crate  B post
    ========================================================================== */
-export const BEK_MAPS = {
-  "farm": {
-    "title": {
-      "no": "GÅRDEN",
-      "en": "THE FARM"
-    },
-    "rows": [
-      "TTTTTTTTTTTTTTTTTTTTTTTT",
-      "TggggggggggggggggFgggggT",
-      "TgRRRRRgggffffffffffgggT",
-      "TgHHHHHgggffffffffffgggT",
-      "TgHHDHHgggffffffffffgggT",
-      "Tggg.gKgggffffffffffgggT",
-      "Tggo.gggggffffffffffgggT",
-      "Tggg.gggggggggggggggggg.",
-      "Tgggggggggggggggggggggg.",
-      "TggggggggggggggggggggggT",
-      "TgFgggggggggggggggFggggT",
-      "Tggggggggggg,,gggggggggT",
-      "Tggggggggggg,,gggggggggT",
-      "TgFgggggggggggggggggggGT",
-      "TTTTTTTTTTTTTTTTTTTTTTTT"
-    ],
-    "exits": [
-      {
-        "x": 23,
-        "y": 7,
-        "to": "town",
-        "tx": 1,
-        "ty": 7
-      },
-      {
-        "x": 23,
-        "y": 8,
-        "to": "town",
-        "tx": 1,
-        "ty": 8
-      }
-    ],
-    "door": {
-      "x": 4,
-      "y": 4,
-      "to": "farmhouse",
-      "tx": 11,
-      "ty": 9
-    }
-  },
-  "town": {
-    "title": {
-      "no": "BEKKEDAL",
-      "en": "BEKKEDAL"
-    },
-    "rows": [
-      "TTTTTTT..TTTTTTTTTTTTTTT",
-      "TggggFg..gFggggggggggggT",
-      "TgRRRRgggggggggggggggggT",
-      "TgHDHHgggggggggggggggggT",
-      "Tgg.ggggggggTFFFTggggFgT",
-      "Tgg.goggggggJgggJggggggT",
-      "Tgg.ggggggggTFFFTggggggT",
-      "........................",
-      "........................",
-      "TgggggggggggggggRRRRgggT",
-      "TgFgggggggggggggHHDHgggT",
-      "Tgggggggggggggggg.gggggT",
-      "TggggggggggggggggggFgggT",
-      "Tgggggg..ggggggggggggggT",
-      "TTTTTTT..TTTTTTTTTTTTTTT"
-    ],
-    "exits": [
-      {
-        "x": 7,
-        "y": 0,
-        "to": "forest",
-        "tx": 7,
-        "ty": 13
-      },
-      {
-        "x": 8,
-        "y": 0,
-        "to": "forest",
-        "tx": 8,
-        "ty": 13
-      },
-      {
-        "x": 0,
-        "y": 7,
-        "to": "farm",
-        "tx": 22,
-        "ty": 7
-      },
-      {
-        "x": 0,
-        "y": 8,
-        "to": "farm",
-        "tx": 22,
-        "ty": 8
-      },
-      {
-        "x": 23,
-        "y": 7,
-        "to": "lake",
-        "tx": 1,
-        "ty": 7
-      },
-      {
-        "x": 23,
-        "y": 8,
-        "to": "lake",
-        "tx": 1,
-        "ty": 8
-      },
-      {
-        "x": 7,
-        "y": 14,
-        "to": "enga",
-        "tx": 7,
-        "ty": 1
-      },
-      {
-        "x": 8,
-        "y": 14,
-        "to": "enga",
-        "tx": 8,
-        "ty": 1
-      }
-    ]
-  },
-  "lake": {
-    "title": {
-      "no": "VANNET",
-      "en": "THE WATER"
-    },
-    "rows": [
-      "TTTTTTTTTTTTTTTTTTTTTTTT",
-      "TggggggggWWWWWWWWWWWWWWW",
-      "TggggggggWWWWWWWWWWWWWWW",
-      "TggLLLLLgWWWWWWWWWWWWWWW",
-      "TggLLLLLgWWWWWWWWWWWWWWW",
-      "TggLLLLLgWWWWWWWWWWWWWWW",
-      "TgggSggggWWWWWWWWWWWWWWW",
-      ".ggggggggPPPWWWWWWWWWWWW",
-      ".gggggggg~~WWWWWWWWWWWWW",
-      "TggggggggWWWWWWWWWWWWWWW",
-      "TgFggggggWWWWWWWWWWWWWWW",
-      "TgggggFJgWWWWWWWWWWWWWWW",
-      "TgGggggggWWWWWWWWWWWWWWW",
-      "TggggggggWWWWWWWWWWWWWWW",
-      "TTTTTTTTTTTTTTTTTTTTTTTT"
-    ],
-    "exits": [
-      {
-        "x": 0,
-        "y": 7,
-        "to": "town",
-        "tx": 22,
-        "ty": 7
-      },
-      {
-        "x": 0,
-        "y": 8,
-        "to": "town",
-        "tx": 22,
-        "ty": 8
-      }
-    ],
-    "boat": {
-      "x": 11,
-      "y": 7,
-      "to": "fjord",
-      "tx": 10,
-      "ty": 6
-    }
-  },
-  "forest": {
-    "title": {
-      "no": "SKOGEN",
-      "en": "THE FOREST"
-    },
-    "rows": [
-      "TTTTTTT..TTTTTTTTTTTTTTT",
-      "TYggYgggggggggGgggYgYYgT",
-      "TggggggggggggggggggggggT",
-      "TgYggggYgggGgggYgggggggT",
-      "TggggggggggFggggggggggGT",
-      "TYgggggggggggggggggYgggT",
-      "TggggYggggggggggYgggggGT",
-      "TggggggggggggggggggggFgT",
-      "TgGgggggggYggggggggggggT",
-      "TggggggggggggggggggggggT",
-      "TYggYggggggggGgYgggggYgT",
-      "TggggggggggggggggggggggT",
-      "TgggggYgggggggYgggggggGT",
-      "TggggggggggggggggggggggT",
-      "TTTTTTT..TTTTTTTTTTTTTTT"
-    ],
-    "exits": [
-      {
-        "x": 7,
-        "y": 14,
-        "to": "town",
-        "tx": 7,
-        "ty": 1
-      },
-      {
-        "x": 8,
-        "y": 14,
-        "to": "town",
-        "tx": 8,
-        "ty": 1
-      },
-      {
-        "x": 7,
-        "y": 0,
-        "to": "setra",
-        "tx": 7,
-        "ty": 13
-      },
-      {
-        "x": 8,
-        "y": 0,
-        "to": "setra",
-        "tx": 8,
-        "ty": 13
-      }
-    ]
-  },
-  "enga": {
-    "title": {
-      "no": "ENGA",
-      "en": "THE MEADOW"
-    },
-    "rows": [
-      "TTTTTTT..TTTTTTTTTTTTTTT",
-      "Tggg,gggggg,gpgg,ggggggT",
-      "Tgg,ggggggpgggggggpggggT",
-      "TggRRRRggg,ggggg,ggggggT",
-      "TggHDHHgggggggpgggggpggT",
-      "TggHHHHg,gggggggggg,gggT",
-      "Tgpg.gggggpggggggggggpgT",
-      "Tgggggggggggg,gggg,ggggT",
-      "TggpggggggggpgggggggpggT",
-      "Tg,ggggggpgg,ggggggggggT",
-      "Tgggggg,ggggggpgggg,gggT",
-      "TggggggpggggggggggpggggT",
-      "Tgggggpggg,ggggggJFg,ggT",
-      "TggggggggggpggggpggggggT",
-      "TTTTTTTTTTTTTTTTTTTTTTTT"
-    ],
-    "exits": [
-      {
-        "x": 7,
-        "y": 0,
-        "to": "town",
-        "tx": 7,
-        "ty": 13
-      },
-      {
-        "x": 8,
-        "y": 0,
-        "to": "town",
-        "tx": 8,
-        "ty": 13
-      }
-    ]
-  },
-  "setra": {
-    "title": {
-      "no": "SETRA",
-      "en": "THE MOUNTAIN DAIRY"
-    },
-    "rows": [
-      "MMMMMMM..MMMMMMMMMMMMMMM",
-      "MggggggggggggggggggggggM",
-      "Mgg^gggggggggggggggggggM",
-      "MggRRRRggggggggggggg^ggM",
-      "MggHHDHggggggggggggggggM",
-      "MggHHHHggggg,,gggggggggM",
-      "Mgggg.gggggggggggggggg..",
-      "Mgggggggg,,ggggggggggg..",
-      "MggggggggggggggggggggggM",
-      "Mgggggggggggg,,ggpgggggM",
-      "MggggggggggggggggggggggM",
-      "Mgggggggggggggggggg^gggM",
-      "Mggggg,,gggggggggggggggM",
-      "MggggggggggggggggggggggM",
-      "TTTTTTT..TTTTTTTTTTTTTTT"
-    ],
-    "exits": [
-      {
-        "x": 7,
-        "y": 14,
-        "to": "forest",
-        "tx": 7,
-        "ty": 1
-      },
-      {
-        "x": 8,
-        "y": 14,
-        "to": "forest",
-        "tx": 8,
-        "ty": 1
-      },
-      {
-        "x": 7,
-        "y": 0,
-        "to": "vidda",
-        "tx": 7,
-        "ty": 13,
-        "need": "warm",
-        "why": {
-          "no": "The wind up top will cut through you. Get something woollen first.",
-          "en": "The wind up top will cut through you. Get something woollen first."
-        }
-      },
-      {
-        "x": 8,
-        "y": 0,
-        "to": "vidda",
-        "tx": 8,
-        "ty": 13,
-        "need": "warm",
-        "why": {
-          "no": "The wind up top will cut through you. Get something woollen first.",
-          "en": "The wind up top will cut through you. Get something woollen first."
-        }
-      },
-      {
-        "x": 23,
-        "y": 6,
-        "to": "gruva",
-        "tx": 1,
-        "ty": 7,
-        "need": "lamp",
-        "why": {
-          "no": "Pitch dark in there. Lars keeps the lanterns.",
-          "en": "Pitch dark in there. Lars keeps the lanterns."
-        }
-      },
-      {
-        "x": 23,
-        "y": 7,
-        "to": "gruva",
-        "tx": 1,
-        "ty": 7,
-        "need": "lamp",
-        "why": {
-          "no": "Pitch dark in there. Lars keeps the lanterns.",
-          "en": "Pitch dark in there. Lars keeps the lanterns."
-        }
-      }
-    ]
-  },
-  "vidda": {
-    "title": {
-      "no": "VIDDA",
-      "en": "THE PLATEAU"
-    },
-    "rows": [
-      "MMMMMMMMMMMMMMMMMMMMMMMM",
-      "Mggggg^ggggggggg^ggggggM",
-      "Mgggggggg,,ggggggggg^ggM",
-      "Mg^ggggggggWWWWWWWgggggM",
-      "Mggggg,,gg~WWWWWWWgggggM",
-      "Mggggggggg~WWWWWWW~ggggM",
-      "Mggggg^ggggWWWWWWWg^gggM",
-      "MggggggggggWWWWWWWgggggM",
-      "Mgg,,gggggg~gggggggggggM",
-      "Mgggggg^gJgggggggg^ggggM",
-      "Mggggggggggg,,gggggggggM",
-      "Mggggg^ggggggggggggggggM",
-      "Mgg^ggggg,,gggggg^gggggM",
-      "Mgggggg..ggggggggggggggM",
-      "MMMMMMMMMMMMMMMMMMMMMMMM"
-    ],
-    "exits": [
-      {
-        "x": 7,
-        "y": 13,
-        "to": "setra",
-        "tx": 7,
-        "ty": 1
-      },
-      {
-        "x": 8,
-        "y": 13,
-        "to": "setra",
-        "tx": 8,
-        "ty": 1
-      }
-    ]
-  },
-  "gruva": {
-    "title": {
-      "no": "GRUVA",
-      "en": "THE MINE"
-    },
-    "rows": [
-      "MMMMMMMMMMMMMMMMMMMMMMMM",
-      "MMMMMMMMMMMMMMMMMMMMMMMM",
-      "MMOggggMMMOMMMMMMMMMMMMM",
-      "MMMgMMMMMgggggMgggggOMMM",
-      "MMMgMMgMMgMMMgMMgQOgMMMM",
-      "MMMgMMgMOgMMMgMMgMMgMMMM",
-      "MMggMMgMMgMOMgOMgMMgMMMM",
-      ".gggggggggggggggggggggMM",
-      "MMMgMMOMMgMMMgQMgMMggMMM",
-      "MMMgQMMMMgMMMgMMgMMggQMM",
-      "MMMgMOMMMgOMMgMMgOMMgMMM",
-      "MMMggggMMgggggMMgggggOMM",
-      "MMMMMMMMMMMMMMMMMMMMMMMM",
-      "MMMMMMMMMMMMMMMMMMMMMMMM",
-      "MMMMMMMMMMMMMMMMMMMMMMMM"
-    ],
-    "exits": [
-      {
-        "x": 0,
-        "y": 7,
-        "to": "setra",
-        "tx": 22,
-        "ty": 6
-      }
-    ]
-  },
-  "fjord": {
-    "title": {
-      "no": "FJORDEN",
-      "en": "THE FJORD"
-    },
-    "rows": [
-      "TTTTTTTTTTTMTTTTTTTTTTTT",
-      "Tggggggggg~MWWWWWWWWWWWW",
-      "TgRRRRgggg~MWWWWWWWWWWWW",
-      "TgHHDHgggg~MWWWWWWWWWWWW",
-      "Tgg.gggggg~MWWWWWWWWWWWW",
-      "TggggggPPPPMWWWWWWWWWWWW",
-      "TgggggggggPMWWWWWWWWWWWW",
-      "TgggggggggPMWWWWWWWWWWWW",
-      "TgggggggggPMWWWWWWWWWWWW",
-      "TgFggggggg~MWWWWWWWWWWWW",
-      "Tggggggggg~MWWWWWWWWWWWW",
-      "TgGggggggg~MWWWWWWWWWWWW",
-      "Tggggggggg~MWWWWWWWWWWWW",
-      "Tggggggggg~MWWWWWWWWWWWW",
-      "TTTTTTTTTTTMTTTTTTTTTTTT"
-    ],
-    "exits": [],
-    "boat": {
-      "x": 10,
-      "y": 6,
-      "to": "lake",
-      "tx": 11,
-      "ty": 7
-    }
-  },
-  "farmhouse": {
-    "title": {
-      "no": "HYTTA",
-      "en": "THE CABIN"
-    },
-    "inside": true,
-    "rows": [
-      "                        ",
-      "                        ",
-      "                        ",
-      "      HHHHHHHHHHHH      ",
-      "      HbiiiiiivvuH      ",
-      "      HiiiiiiiiiiH      ",
-      "      HiizzzziiicH      ",
-      "      HiiznnziiiiH      ",
-      "      HiizzzziiiiH      ",
-      "      HiiiiiiiiiiH      ",
-      "      HHHHHDHHHHHH      ",
-      "                        ",
-      "                        ",
-      "                        ",
-      "                        "
-    ],
-    "exits": [
-      {
-        "x": 11,
-        "y": 10,
-        "to": "farm",
-        "tx": 4,
-        "ty": 5
-      }
-    ]
-  },
-  "lakehouse": {
-    "title": {
-      "no": "HJEMME",
-      "en": "HOME"
-    },
-    "inside": true,
-    "rows": [
-      "                        ",
-      "                        ",
-      "                        ",
-      "     HHHHHHHHHHHHHH     ",
-      "     HbiiiiiiiivvuH     ",
-      "     HiiiiiiiiiiiiH     ",
-      "     HiizzzziiiiicH     ",
-      "     HiiznnziiiiiiH     ",
-      "     HiizzzziiiiiiH     ",
-      "     HiiiiiiiiiiiiH     ",
-      "     HiiiiiiiiiiiiH     ",
-      "     HHHHHHDHHHHHHH     ",
-      "                        ",
-      "                        ",
-      "                        "
-    ],
-    "exits": [
-      {
-        "x": 11,
-        "y": 11,
-        "to": "lake",
-        "tx": 5,
-        "ty": 5
-      }
-    ]
-  }
-};
+/* the eleven places themselves live in `maps.js`, which joins `maps_valley.js`
+   to `maps_wild.js` and hangs every seam between them off one declaration —
+   forty-odd columns of rows apiece is more content than this file should
+   carry beside the items and the dialogue, and the file-size rule in the root
+   CLAUDE.md says so. Re-exported here because BEK_MAPS is what every consumer
+   already asks `data.js` for, and because the geometry helpers at the top of
+   this file read it. */
+import { BEK_MAPS } from './maps.js';
+export { BEK_MAPS };
 
 /* ==========================================================================
    27.1c THE FARM PLOTS
@@ -832,13 +320,14 @@ export const BEK_MAPS = {
    a new map id. `tileAt` in index.js reads a plot's rect as 'f' once
    `S.flag[plot.flag]` is set, exactly the way it already reads S.built's
    BEK_HOUSE overlay on the lake map — the base rows never change. Both
-   rects sit on plain grass south of the original plot (rows 2-6, cols
-   10-19) and clear the tall grass at (12-13, 11-12) and the flowers at
-   (2, 10) and (18, 10).
+   rects sit on plain grass south and south-east of the home field (rows 5-9,
+   cols 18-27), clear of the yard track, of the road along row 13 and of the
+   shelter belt down col 35, and the map lays both down as plain grass itself
+   so that nothing but the flag ever changes what is standing there.
    ========================================================================== */
 export const BEK_FARM_PLOTS = [
-  { flag: 'plot2', x0: 10, y0: 9,  x1: 17, y1: 10 },
-  { flag: 'plot3', x0: 15, y0: 11, x1: 21, y1: 13 }
+  { flag: 'plot2', x0: 18, y0: 11, x1: 25, y1: 12 },
+  { flag: 'plot3', x0: 25, y0: 15, x1: 31, y1: 17 }
 ];
 
 /* ==========================================================================
@@ -847,9 +336,8 @@ export const BEK_FARM_PLOTS = [
    A third purchasable region over the farm map's own grass, same mechanism
    as the two field expansions above — a flag `tileAt` reads to swap the base
    'g' for a ground glyph ('k', straw) once bought, never a new map. It sits
-   on plain grass at the farm's south-west corner (rows 11-13, cols 4-8),
-   clear of the well/path (cols 1-4), the two flowers at (2,10) and (2,13)
-   and both field expansions.
+   on plain grass below the yard (rows 18-20, cols 5-9), clear of the well at
+   (5,10), of the track down col 17 and of both field expansions.
 
    BEK_BARN_SLOTS are the fixed stand positions inside it an owned animal is
    placed at, in purchase order; BEK_BARN_SLOTS.length is the pen's capacity.
@@ -857,18 +345,18 @@ export const BEK_FARM_PLOTS = [
    stock (BEK_TALK.sigrid.shop) — see BEK_ANIMAL_KINDS and index.js's
    buyAnimal()/tendAnimal().
    ========================================================================== */
-export const BEK_BARN_PLOT = { flag: 'barn', x0: 4, y0: 11, x1: 8, y1: 13 };
+export const BEK_BARN_PLOT = { flag: 'barn', x0: 5, y0: 18, x1: 9, y1: 20 };
 export const BEK_BARN_SLOTS = [
-  { x: 5, y: 11 }, { x: 7, y: 11 }, { x: 5, y: 13 }, { x: 7, y: 13 }
+  { x: 6, y: 18 }, { x: 8, y: 18 }, { x: 6, y: 20 }, { x: 8, y: 20 }
 ];
 
 /* Act II: the pen's second tier, gated on S.act2Unlocked — see
    BEK_TALK.hakon's own `barn2` offer and progression.js's barnSlots(). Same
-   mechanism again, immediately east of the first pen (cols 9-14, clear of
-   BEK_FARM_PLOTS' plot3 which starts at col 15) so no map row changes. */
-export const BEK_BARN_PLOT2 = { flag: 'barn2', x0: 9, y0: 11, x1: 13, y1: 13 };
+   mechanism again, immediately east of the first pen (cols 11-15, stopping
+   short of the track down col 17) so no map row changes. */
+export const BEK_BARN_PLOT2 = { flag: 'barn2', x0: 11, y0: 18, x1: 15, y1: 20 };
 export const BEK_BARN_SLOTS2 = [
-  { x: 10, y: 11 }, { x: 12, y: 11 }, { x: 10, y: 13 }, { x: 12, y: 13 }
+  { x: 12, y: 18 }, { x: 14, y: 18 }, { x: 12, y: 20 }, { x: 14, y: 20 }
 ];
 
 /* what an owned animal is, and what it pays out once fed and content. The
@@ -994,24 +482,25 @@ export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJK ';
    than out of VGA16 now, so a person standing in a field is a person and not
    a colour swatch — and everyone keeps the silhouette and the read they had. */
 export const BEK_NPCS = [
-  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 4,  y: 4,  hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620 },
-  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 18, y: 11, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360 },
-  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 7,  y: 8,  hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700 },
-  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 5,  y: 9,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330 },
-  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 4,  y: 6,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660 },
-  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 5,  y: 6,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560 },
-  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 8,  y: 11, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290 },
-  /* Lars stands in the alcove cut beside the adit, never on a corridor. Row 7
-     of the gruva is the only way in and it is one tile tall, and the shafts
-     off it are one tile wide — a man standing on either is a wall. */
-  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 6,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420 },
-  { id: 'bjorn',  n: '',       map: 'forest', x: 11, y: 7, bear: true, from: 6 }
+  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 9,  y: 11, hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620 },
+  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 32, y: 24, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360 },
+  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 11, y: 11, hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700 },
+  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 12, y: 7,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330 },
+  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 15, y: 9,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660 },
+  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 7,  y: 8,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560 },
+  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 22, y: 18, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290 },
+  /* Lars stands in the alcove cut beside the adit, never on a corridor. The
+     levels driven off the main drift are one tile wide, and a man standing on
+     one is a wall; the alcove at (2-3, 9-10) is cut wide enough that he is
+     not, and the raise down to the adit runs past him rather than through. */
+  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 9,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420 },
+  { id: 'bjorn',  n: '',       map: 'forest', x: 12, y: 10, bear: true, from: 6 }
 ];
 
 /* decorative animals — drawn, never collided with */
 export const BEK_GOATS = [
-  { map: 'setra', x: 10, y: 8 }, { map: 'setra', x: 15, y: 6 }, { map: 'setra', x: 12, y: 10 },
-  { map: 'vidda', x: 4, y: 10 }, { map: 'vidda', x: 20, y: 8 }
+  { map: 'setra', x: 15, y: 10 }, { map: 'setra', x: 30, y: 20 }, { map: 'setra', x: 12, y: 13 },
+  { map: 'vidda', x: 7, y: 7 }, { map: 'vidda', x: 37, y: 7 }
 ];
 
 /* ==========================================================================
@@ -1056,6 +545,8 @@ export const BEK_TALK = {
       { t: [{ no: 'ASTRID: God morgen. The kettle is on.', en: 'ASTRID: Good morning. The kettle is on.' }] },
       { t: ['ASTRID: Rain on Tuesday, my knee says so.'] },
       { t: ['ASTRID: The lantern is for the mine. Lars is down there.'] },
+      { t: ['ASTRID: The road runs west to your gate and east to the water.'] },
+      { t: ['ASTRID: Everything down here is a walk. Only the setra is a journey.'] },
       { t: ['ASTRID: You came for the quiet. It is still here.'], if: S => S.flag.why === 'quiet' },
       { t: ['ASTRID: Land is cheap. Company is not.'], if: S => S.flag.why === 'land' },
       { t: ['ASTRID: Sigrid has wool up at the seter, if the vidda calls you.'], if: S => S.disc && S.disc.setra },
@@ -1286,6 +777,11 @@ export const BEK_TALK = {
       { t: ['SIGRID: Mind the goats. They will eat your bootlaces.'] },
       { t: [{ no: 'SIGRID: Multe first, then the vidda. In that order, or you freeze.', en: 'SIGRID: Cloudberries first, then the plateau. In that order, or you freeze.' }] },
       { t: ['SIGRID: A wool genser is all that stands between you and the wind.'] },
+      /* why the map is still a menu for this one place: the valley floor you
+         walk field to field (see the seams in maps.js), but the setra is
+         three hours of track and the walk is the point of it */
+      { t: ['SIGRID: Three hours up that track. Nobody drops in by accident.'] },
+      { t: ['SIGRID: You have walked it once. Now set a morning aside and go.'] },
       { t: ['SIGRID: You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva },
       { t: [{ no: 'SIGRID: Håkon fences it, I stock it. Geit or høne, your pen.', en: 'SIGRID: Håkon fences it, I stock it. Goat or chicken, your pen.' }],
         if: S => S.flag.barn },
@@ -1315,6 +811,9 @@ export const BEK_TALK = {
       { t: ['GUNNAR: Wind from the north. There is always wind from the north.'] },
       { t: [{ no: 'GUNNAR: Røye in the tarn. Tyttebær in the heather. The vidda provides.', en: 'GUNNAR: Char in the tarn. Lingonberries in the heather. The plateau provides.' }] },
       { t: ['GUNNAR: You wore the wool. Good. I have buried men who did not.'] },
+      /* the other half of the same argument Sigrid makes below the treeline */
+      { t: ['GUNNAR: Down the valley you walk field to field. Up here you set out.'] },
+      { t: ['GUNNAR: Half a day is the climb. That half is why it stays empty.'] },
       { t: [{ no: 'GUNNAR: Hørte huset ditt er ferdig. Bra. Nå har du noe å komme tilbake til.', en: 'GUNNAR: Heard your house is finished. Good. Now you have somewhere to come back to.' }],
         if: S => S.act2Unlocked }
     ]
@@ -1457,23 +956,38 @@ export const BEK_RECIPES = {
   ]
 };
 
-/* the finished house, drawn straight over the lake lot */
+/* The finished house, drawn straight over the lake lot — same rows-shaped
+   overlay as before, only as wide and as tall as the water map now is.
+   The lot, the sign at the foot of it and the door at (5,4) are exactly
+   where they have always been: the bay grew east and south around them,
+   so a save that had already bought the lot still looks out on it. */
 export const BEK_HOUSE = [
-  '                        ',
-  '                        ',
-  '   RRRRR                ',
-  '   HHHHH                ',
-  '   HHDHH                ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        ',
-  '                        '
+  '                                              ',
+  '                                              ',
+  '   RRRRR                                      ',
+  '   HHHHH                                      ',
+  '   HHDHH                                      ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              ',
+  '                                              '
 ];
 
 /* ---- footstep recipes -----------------------------------------------------
