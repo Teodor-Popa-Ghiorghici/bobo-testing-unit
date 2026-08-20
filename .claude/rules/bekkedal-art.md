@@ -44,6 +44,9 @@ This file carries the full art/rendering doctrine for the siblings above.
   whichever direction the neighbours say. Knows nothing about water.
 - `shore.js` — the shoreline: the profile, the surf, the bank. See
   **The shore** below.
+- `building.js` / `roof.js` — a house, as one elevation authored as a
+  function of a tile's vertical position inside its own building. See
+  **The facade** below.
 - `water.js` — deep water and its depth ramp.
 - `rock.js` — the mountain and the ore in it, including `oreKind`, which
   `act()` reads so the drop is the metal the tile was drawn as. See
@@ -670,6 +673,142 @@ pass was 0.9ms before the local-light rework and 5.4ms after. The current
 figures are in **Local light is a palette too → Cost** above. Measure before
 quoting, and measure warm.
 
+## The facade
+
+Every building was a flat rectangle of roof seen from directly above with a
+window glyph on it. `tileDetail` drew `'R'` as two bands of the wall's own
+colour, `'H'` as three horizontal lines at y+6, y+13 and y+18, and `'D'` as a
+12x17 slab with a two-pixel handle — each at a fixed offset inside its own
+tile, each byte-identical on every square it appeared on. Stack three rows of
+that and there is no pitch, no eave, no facade, no foundation, no door you can
+read as a door and no chimney. It was the single largest reason the town did
+not read as a town.
+
+The map data already says what a building is, and says the same thing in all
+twelve of them, from the farm to the house you build by the water:
+
+    RRRRR      one row of roof
+    HHHHH      the upper wall course
+    HHDHH      the lower one, with the door in it
+
+So a building is a **vertical stack**, and the elevation is authored **once**,
+as a function of one number, exactly the way `shoreBand` authors the beach as
+a function of signed distance from the waterline. `wallBand(v, h, M)` takes
+the device-pixel distance below the eave line; `roofBand(u, rh, M)` takes the
+distance below the ridge. Each tile draws its own forty-pixel slice. Four
+hand-drawn variants would have been four things to maintain, four chances to
+get one wrong, and would still have said nothing about a gable end.
+
+Three things follow from authoring it in *building* space rather than tile
+space, and none of them was available before:
+
+- **The courses run across the seam** between the two wall rows, which is what
+  removes the tiled reading — the same thing `interior.js`'s floorboards coming
+  off world position did indoors. The rhythm is deliberately the 12px one
+  `interior.wall` uses, because it is the same wall seen from the other side.
+- **A feature can be taller than a tile.** A window is 28px and sits across
+  that seam, drawn in two pieces by two tiles that never have to agree about
+  anything except where the eave is. The door does it upward: it is drawn by
+  the `D` tile and rises into the `H` above, because the detail pass runs top
+  to bottom and the later tile wins. That is the whole reason it reads as a
+  door rather than as a hatch.
+- **The eave shadow, the plinth and the ground line are stated once**, as
+  distances, instead of as offsets in whichever tile they happen to land in.
+
+The horizontal half comes from `autotile.js`'s `mask4` — whose own header
+named roofs as an intended consumer years before anything used it for one.
+`AT_W`/`AT_E` absent means a gable end: the log ends of a laftehus cross at the
+corner, or a painted house gets its white corner board, and the wall face steps
+back so the roof visibly overhangs it. **The overhang is expressed by
+insetting the wall, never by outsetting the roof** — a roof drawing into its
+neighbour would be repainted over by that neighbour a moment later, in one
+direction but not the other.
+
+### Two dressings, and no new red
+
+`surface.js` already sorted the maps: turf and laft on `rustic()` (the farm,
+the seter, the meadow and the house by the water), painted board on the town
+and the fjord. The paint is `WAR[1]` because falu red **is** iron oxide and the
+emission ramp's bottom step already was that paint.
+
+The one colour that moved is the town's roof. It was `WAR[1]` — the same red as
+the boards under it — so a building was one block with a line ruled across it.
+It is `STO[2]` dark tile now. That is both what these buildings are and the
+only thing that separates the two planes at every hour: the eave's shadow
+between them is *structural*, so it survives the night curve and the 1-bit
+threshold alike, where a hue difference would not.
+
+`tileGround` used to fill an `'R'` with `solidOf(map, 'H')` — it asked about the
+wall — so `surface.js`'s own answer for `'R'` was read by `palette_check.js`
+and by nothing else. A table that is checked but never drawn from is a
+fiction; the ground pass asks about the glyph it actually has now. **If the
+roof's base fill moves, both have to move together.**
+
+### What makes it findable
+
+`gruva_1bit` proved the ore by threshold; `town_1bit` does the same for a
+house. Threshold the town at its own median luminance and what is left of a
+building is its trim, its openings and its silhouette — the white corner
+boards and window frames, the door's frame, the chimney breaking the ridge
+line, and the roof's course rhythm reading finer than the wall's. A facade
+built only out of marks inside the band thresholds to one grey rectangle,
+which is exactly what the old one did. That is why the trim, the lit glass,
+the door's iron, the ridge capping and the chimney cap are all in `FEATURES`:
+they are the marks the eye is meant to land on, and every one of them is thin.
+
+### The chimney, and the one live thing
+
+A stack sits on one roof tile per building. It is found without a flood fill:
+a roof row is a horizontal run, so walk it to its ends and pick a column inside
+it off a declared channel rolled at the run's own origin — every tile of the
+run computes the same origin, so every tile agrees. It is drawn *up* into the
+tile above, which the detail pass laid down first, and it is ink-outlined the
+way `forest.js` inks a fir: a grey stack on a green turf roof is two colours of
+one luminance and would otherwise be invisible.
+
+Smoke is the only part of a building that is not in the terrain cache. `'R'`
+is in `LIVE` and every roof tile that is not a chimney early-returns on one
+array read. A household lights its fire when it is cold and dark, and the
+threshold is jittered per chimney off its own declared channel, so a town comes
+on the way a town does rather than the way a switch does.
+
+### Windows are a column's decision, not a tile's
+
+`objVar('H', x, eave).win` is rolled at the **eave row**, so both wall courses
+agree and the opening can be taller than either. `lightSources` asks
+`building.windowAt` for that same answer, so a window that is drawn is a window
+that lights and there is no second table saying where they are. The rate went
+from two-in-five per *tile* to three-in-five per *column*: two courses of the
+old roll came out as five scattered openings on a six-tile house and **none at
+all** on the fjord's, and every building in the valley now has at least one.
+
+### Cost
+
+Measured warm, before and after, on this container by the same probe — the
+before half served out of a `git worktree` of the branch point on :3001.
+
+| scene            | live/frame before | after  | rects before | after |
+|------------------|-------------------|--------|--------------|-------|
+| town 23:00       |  3.30ms           | 3.48ms |  7051        |  7611 |
+| town 12:00       |  1.10ms           | 1.22ms |  6941        |  7533 |
+| farm 23:00       |  3.31ms           | 4.15ms |  8725        |  8937 |
+| lake built 22:00 |  2.48ms           | 2.38ms | 11645        | 11801 |
+| gruva (no house) |  1.06ms           | 0.99ms |  7512        |  7512 |
+
+Rects are up 2-9% and the worst is 11,801 against the 25,000 budget. The live
+pass gained at most ~0.8ms of the 33.3ms a 30fps frame has, and the map with no
+buildings on it is bit-identical, which is the check that the change is where
+it says it is. Rebuild time measured across the dusk key-churn came out
+35.9/38.7/42.3ms before against 40.6/37.4/39.9ms after — unchanged inside a
+scatter whose own maxima range from 42 to 70ms.
+
+**Do not read the 30ms budget off those dusk figures.** Both halves sit above
+it, before the change as well as after, because that probe deliberately
+measures back-to-back rebuilds while the light key is turning over ten times in
+four seconds. It is a comparison, not an absolute; measure a settled hour if
+you want an absolute.
+
+
 ## Ambience
 
 Five chiptune loops and about twenty one-shot SFX and the valley still read
@@ -716,7 +855,20 @@ declares, reused as the one hour signal `A.hour()` reports.
 already the one table of what gives light in a room; a hearth is also the
 one thing in that table that makes fire noise, so `A.hearths()` just
 filters that same list for the `hearth` flag instead of a second table of
-fire positions. `hearthLayer` finds the nearest one, turns the distance to
+fire positions. It asks about the whole map and passes no region, so
+`lightSources` defaults `R` to one — without that default it dereferenced
+`R.y0` on `undefined` and threw once a frame (83 errors in 3.5s, measured)
+the moment the machine's SND knob went above zero, which is the only
+condition `tick`'s own `playing()` gate needs. **The screenshot harness
+cannot see this class of bug**: it makes `AudioContext` throw, so
+`ambience.js` returns before `hearthLayer` on every shot, and the container's
+default `Vol.sfx` is 0 besides. If you touch a path only the ambience walks,
+drive it with a real context and `Vol.sfx` turned up, and count page errors.
+
+The list is also memoised per map. A `v` is map data and cannot move inside
+one, and the ambience ticks every frame — scanning every square of a 46x28
+map sixty times a second to re-derive four fixed positions is a cost for no
+information. `hearthLayer` finds the nearest one, turns the distance to
 the player into a 0–1 falloff, and schedules irregular crackle pops off
 `dt` at a rate that quickens the closer you stand — pops, not a drone,
 because a fire's presence is heard as irregularity, not as a hum.

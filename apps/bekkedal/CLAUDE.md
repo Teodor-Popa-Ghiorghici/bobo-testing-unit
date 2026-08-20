@@ -42,6 +42,12 @@ coordinates") lives in `bekkedal-art.md`.
 - `light.js` — hour-of-day palette transform, the lamp state a pool resolves toward, and the falloff. See `.claude/rules/bekkedal-art.md`.
 - `lamp.js` — the local-light pass: an ordered dither between the picture at this hour and the picture in daylight. See `.claude/rules/bekkedal-art.md`.
 - `surface.js` — glyph-to-palette-entry table per map. See `.claude/rules/bekkedal-art.md`.
+- `building.js` — the elevation of a house, authored once as a profile of a
+  tile's vertical position inside its own building: the wall and its courses,
+  the plinth, the windows, the door and the gable corners. See **The facade**,
+  `.claude/rules/bekkedal-art.md`.
+- `roof.js` — the other half of that profile, ridge to eave, plus the chimney
+  and the one live thing a building has: its smoke. See **The facade**.
 - `autotile.js` — neighbour masks and rounded-union signed distance. See `.claude/rules/bekkedal-art.md`.
 - `shore.js` — shoreline profile, surf, bank. See `.claude/rules/bekkedal-art.md`.
 - `water.js` — deep water and its depth ramp. See `.claude/rules/bekkedal-art.md`.

@@ -75,8 +75,27 @@ shot('gruva_1bit', { map: 'gruva', px: 20, py: 12, min: 12 * 60 }, { bits: 1 });
 /* weather over the night, which is the composite that used to fight itself */
 shot('farm_fog_night', { map: 'farm', px: 14, py: 9, min: 23 * 60, weather: 'take' });
 shot('farm_rain_dusk', { map: 'farm', px: 14, py: 9, min: 19 * 60, weather: 'regn' });
-/* the lake house, which only exists once it is built */
+/* the lake house, which only exists once it is built. The base rows carry no
+   house at all, so without these three the only photograph of the one building
+   the player puts up themselves is at 22:00. */
 shot('lake_built_night', { map: 'lake', px: 6, py: 6, min: 22 * 60, built: 1, houseBuilt: true });
+shot('lake_built_morning', { map: 'lake', px: 6, py: 6, min: 8 * 60, built: 1, houseBuilt: true });
+shot('lake_built_dusk', { map: 'lake', px: 6, py: 6, min: 19 * 60, built: 1, houseBuilt: true });
+/* A building, close up, at every hour. `town_*` above is stood at the
+   crossroads for the street; these are stood in the square directly below the
+   house at cols 30-35, because a facade is the thing being judged and it is
+   forty pixels tall in a wide shot. */
+for (const h of Object.keys(HOURS))
+  shot('town_house_' + h, { map: 'town', px: 32, py: 25, min: HOURS[h] });
+/* The same facade thresholded to 1-bit: with the colour gone, is it still a
+   building, and can you find the door? The test the ore work established. */
+shot('town_1bit', { map: 'town', px: 32, py: 25, min: 8 * 60 }, { bits: 1 });
+/* The other two houses that are nowhere near their map's own vantage point:
+   the seter hut and the quay house are both at the top of their maps and the
+   `WHERE` spines are eight rows below them, so neither appeared in any shot in
+   the matrix. One of each dressing, stood in front of the door. */
+shot('setra_house_morning', { map: 'setra', px: 6, py: 8, min: 8 * 60 });
+shot('fjord_house_morning', { map: 'fjord', px: 6, py: 7, min: 8 * 60 });
 /* A coastline the shipped maps do not contain. The lake has a south shore
    and two tiles of it; the fjord has a channel behind a cliff. Neither shows
    a headland, a cove, a spit or an isolated tile, and those are most of what

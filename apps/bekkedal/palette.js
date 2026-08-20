@@ -168,7 +168,34 @@ export const MARKS = {
      from its neighbour is a different plank; a floor where every board is a
      different step is a deckchair. */
   FLOOR_GRAIN:{ on: TIM[2],   cols: [TIM[2], TIM[2], TIM[3], TIM[2], TIM[1], TIM[2]] },
-  TURF_ROOF:  { on: GRASS[1], cols: [GRASS[2], GRASS[0], DRY[0]] },
+  /* A torvtak, as the roof profile samples it: the sod's lit top, the pitch
+     turning away lower down, a patch gone to straw, and the body it is all a
+     variation of. Four entries where there were three, because the fourth is
+     the base the other three vary around and `roof.js` needs to name it. */
+  TURF_ROOF:  { on: GRASS[1], cols: [GRASS[2], GRASS[0], DRY[0], GRASS[1], TIM[2]] },
+  /* The town's roof, which is deliberately not the town's wall. Dark tile
+     over painted board is what these buildings are, and it is also the only
+     thing that separates the two planes at every hour — a red roof on a red
+     wall is one block with a line ruled across it. */
+  ROOF_TILE:  { on: STO[2],   cols: [STO[3], STO[2], STO[1]] },
+  /* The wall itself, both dressings. Everything here is its own surface's
+     immediate neighbour, because a wall is one material lit differently up
+     its height and not a surface with things drawn on it. */
+  WALL_LOG:   { on: TIM[1],   cols: [TIM[2], TIM[1], TIM[0]] },
+  WALL_BOARD: { on: WAR[1],   cols: [WAR[2], WAR[1], WAR[0]] },
+  /* The stone a timber wall stands on, so it does not grow out of the grass.
+     Stone against timber and stone against paint both sit inside the band —
+     it is a foundation, not an ornament. */
+  PLINTH_LOG:   { on: TIM[1], cols: [STO[1], STO[2]] },
+  PLINTH_BOARD: { on: WAR[1], cols: [STO[1], STO[2]] },
+  /* Glass seen from outside by day is dark, and on a dark log wall that is a
+     mark rather than a feature — which is why the painted house's identical
+     glass is declared in FEATURES instead. The same two colours; what changes
+     is the wall behind them. */
+  WINDOW_LOG: { on: TIM[1],   cols: [ATMO[1], WAT[2]] },
+  DOOR_BOARD: { on: TIM[2],   cols: [TIM[1], TIM[3], TIM[2]] },
+  CHIMNEY:    { on: STO[2],   cols: [STO[3], STO[2]] },
+  SMOKE:      { on: ATMO[2],  cols: [ATMO[1]] },
   SNOW_MARK:  { on: SNO[0],   cols: [STO[5], SAN[2]] },
   WATER_DEEP: { on: WAT[1],   cols: [WAT[2], WAT[0]] },
   WATER_SHAL: { on: WAT[3],   cols: [WAT[2], WAT[4]] },
@@ -181,6 +208,20 @@ export const SHADOWS = {
   ROCK_CRACK: { on: STO[2],   cols: [STO[0]] },
   FLOOR_JOINT:{ on: TIM[2],   cols: [TIM[0]] },
   WALL_FOOT:  { on: TIM[2],   cols: [TIM[1], TIM[0]] },
+  /* What an eave is, as far as the wall under it is concerned: a hard line of
+     shadow where the roof overhangs, softening a few pixels down the boards.
+     There was no eave shadow declared anywhere before, because there was no
+     eave. Both dressings need their own, because the surface differs. */
+  EAVE_LOG:   { on: TIM[1],   cols: [ATMO[0], TIM[0]] },
+  EAVE_BOARD: { on: WAR[1],   cols: [ATMO[0], WAR[0]] },
+  /* and the roof's own underside, seen edge-on where it stops */
+  EAVE_TURF:  { on: GRASS[1], cols: [TIM[0], ATMO[0]] },
+  EAVE_TILE:  { on: STO[2],   cols: [STO[0], ATMO[0]] },
+  DOOR_JOINT: { on: TIM[2],   cols: [TIM[0], ATMO[0]] },
+  /* the black a chimney is cut out of. Its surface is the stack's own body,
+     not the roof behind it — the ink outlines the chimney, exactly as
+     TREE_INK outlines the tree rather than the grass. */
+  CHIMNEY_INK:{ on: STO[2],   cols: [ATMO[0], STO[0]] },
   ORE_MATRIX: { on: STO[2],   cols: [STO[0], ATMO[0]] },
   /* the black the fir silhouette is cut out of. Its surface is the tree's
      own base, not the grass behind it — the ink outlines the tree. */
@@ -204,5 +245,29 @@ export const FEATURES = {
   ORE_IRON:   { on: STO[1],   cols: [WAR[0], ORE[0], WAR[3], SAN[2]] },
   ORE_COPPER: { on: STO[1],   cols: [CON[1], ORE[1], WAT[5], SNO[1]] },
   ORE_SILVER: { on: STO[1],   cols: [STO[2], STO[4], SNO[0], SNO[1]] },
-  HEARTH:     { on: TIM[2],   cols: [WAR[1], WAR[2], WAR[3], WAR[4]] }
+  HEARTH:     { on: TIM[2],   cols: [WAR[1], WAR[2], WAR[3], WAR[4]] },
+  /* ---- what makes a building findable ------------------------------------
+     Every entry below is thin — a frame, a board, a ridge cap, a handle — and
+     every one of them is the mark the eye actually lands on. That is the
+     whole of the 1-bit test: threshold the town at its own median and what is
+     left of a house is its trim, its openings and its silhouette. A facade
+     built only out of marks inside the band would threshold to one grey
+     rectangle, which is precisely what the old one did.
+
+     The window surround and the corner board of a laftehus are bare wood; on
+     a falu-red house they are white, which is the single most recognisable
+     thing about the building and the reason the paint is worth having. */
+  TRIM_LOG:   { on: TIM[1],   cols: [TIM[3], TIM[4]] },
+  TRIM_BOARD: { on: WAR[1],   cols: [SAN[2], SNO[1]] },
+  /* the same dark glass as WINDOW_LOG, against a wall bright enough that it
+     stops being a mark and starts being an opening */
+  WINDOW_BOARD:{ on: WAR[1],  cols: [ATMO[1], WAT[2]] },
+  /* and the same opening once there is a fire behind it */
+  WINDOW_LIT: { on: TIM[1],   cols: [WAR[3], WAR[4]] },
+  DOOR_IRON:  { on: TIM[2],   cols: [STO[4], WAR[4]] },
+  /* a roof needs a top edge, and three pixels of capping is what gives it
+     one. Timber over sod, stone over tile. */
+  RIDGE_LOG:  { on: GRASS[1], cols: [TIM[3], TIM[4]] },
+  RIDGE_TILE: { on: STO[2],   cols: [STO[4], STO[5]] },
+  CHIMNEY_CAP:{ on: STO[2],   cols: [STO[4], STO[5]] }
 };

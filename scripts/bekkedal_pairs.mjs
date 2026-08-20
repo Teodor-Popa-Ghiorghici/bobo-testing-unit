@@ -40,7 +40,15 @@ const GROUPS = {
   '5-interiors': ['farmhouse_morning', 'lakehouse_morning', 'farmhouse_dusk', 'lakehouse_dusk'],
   '6-treeline':  ['forest_morning', 'forest_dusk', 'farm_corner_top', 'farm_corner_bot'],
   '7-tools':     ['swing_oks_0', 'swing_oks_1', 'swing_oks_2', 'swing_oks_3',
-                  'swing_hakke_1', 'swing_spade_1', 'swing_kanne_2', 'swing_stang_1']
+                  'swing_hakke_1', 'swing_spade_1', 'swing_kanne_2', 'swing_stang_1'],
+  /* The facades: a building close up at every hour, both dressings (painted
+     board in town, turf and laft at the farm and the seter), the one the
+     player builds, and the 1-bit threshold that asks whether any of it is
+     shape rather than colour. */
+  '8-buildings': ['town_house_morning', 'town_house_dusk', 'town_house_night', 'town_1bit',
+                  'farm_morning', 'farm_night', 'enga_morning',
+                  'setra_house_morning', 'fjord_house_morning',
+                  'lake_built_morning', 'lake_built_dusk', 'lake_built_night']
 };
 
 /* the game's own geometry, so a crop lands on the player rather than near him */

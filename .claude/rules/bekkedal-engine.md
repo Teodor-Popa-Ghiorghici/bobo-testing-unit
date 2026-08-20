@@ -182,17 +182,25 @@ that harness this change was verified 72/72 byte-identical against HEAD.
   with no player input, and a save seeded with it already unlocked never
   drifts a single field back).
 - `node scripts/bekkedal_shots.mjs <out-dir>` — the shot matrix. Boots the
-  real machine in Chromium, seeds a save per shot, and captures seventy-two
+  real machine in Chromium, seeds a save per shot, and captures eighty
   960x540 frames: every map at morning, dusk and night, the mine with and
   without a lamp, a 1-bit threshold of the mine (an ore vein you cannot find
   in one bit is not a silhouette), both interiors, the shore laboratory, all
-  five tools at each of the three swing phases, and every menu panel. It
+  five tools at each of the three swing phases, and every menu panel.
+  Five of those eighty exist because a map's own `WHERE` spine does not
+  always look at the thing being judged: the town, seter and quay houses all
+  sit rows away from where the standard shot stands, and the house you build
+  by the water only ever appeared at 22:00. `town_house_*`, `town_1bit`,
+  `setra_house_morning`, `fjord_house_morning` and `lake_built_morning`/`_dusk`
+  frame a facade instead. If you are judging something the spine does not
+  point at, add a shot rather than moving the spine — moving it churns every
+  pair that map already appears in. It
   exits non-zero on *any* page error, which is the assertion that matters:
   a draw call that throws leaves a plausible-looking half-painted canvas,
   and it will not fail a check that only compares pixels.
 - `node scripts/bekkedal_pairs.mjs <before> <after> <out>` — composes two
   runs of that matrix into labelled before/after pairs, grouped by which of
-  the seven reported problems each is evidence for, plus a phase strip for
+  the eight reported problems each is evidence for, plus a phase strip for
   the swing. No PNG is committed: the art is code, and a checked-in
   screenshot goes stale the first time somebody touches a ramp. The matrix
   is reproducible instead.
