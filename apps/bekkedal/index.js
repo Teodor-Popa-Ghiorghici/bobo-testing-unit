@@ -20,6 +20,7 @@ import { createRock, oreKind } from './rock.js';
 import { createInterior } from './interior.js';
 import { createBuilding } from './building.js';
 import { createForest } from './forest.js';
+import { createWear } from './wear.js';
 import { createFx, TOOL_SWING, swingLen, toolAt, drawHeld } from './fx.js';
 import { createSongs } from './music.js';
 import { createAmbience } from './ambience.js';
@@ -724,7 +725,7 @@ export default {
         return Math.random() < goodChance ? pool[1] : pool[0];
       }
       function doorTravel(f) {
-        if (S.map === 'lake' && S.built && f.x === 5 && f.y === 4) { S.map = 'lakehouse'; S.px = 11; S.py = 10; S.dir = 1; say(T(BEK_MAPS.lakehouse.title)); return true; }
+        if (S.map === 'lake' && S.built && f.x === 5 && f.y === 4) { S.map = 'lakehouse'; S.px = 11; S.py = 12; S.dir = 1; say(T(BEK_MAPS.lakehouse.title)); return true; }
         const d = M().door;
         if (d && d.x === f.x && d.y === f.y) { S.map = d.to; S.px = d.tx; S.py = d.ty; markDisc(d.to); say(T(BEK_MAPS[d.to].title)); return true; }
         const e = (M().exits || []).filter(e2 => e2.x === f.x && e2.y === f.y)[0];
@@ -1524,6 +1525,11 @@ export default {
         native(() => { g.fillStyle = C(GRASS[2]); g.fillRect(px, py, BEK_T, BEK_T); });
         wash(px, py, BEK_T, BEK_T, DRY[1], pAmt(x, y, PATCH.DRY));      /* a corner gone to straw */
         wash(px, py, BEK_T, BEK_T, GRASS[3], pAmt(x, y, PATCH.LUSH));   /* a wetter, greener run  */
+        /* the desire line from a door to its field, its road, its well —
+           derived, not hand-placed; see wear.js. Same SOI[1] "trodden hard"
+           colour pathGround washes onto the path glyph itself, so a worn
+           strip of grass reads as the same material as the road it leads to */
+        wash(px, py, BEK_T, BEK_T, SOI[1], wear.amt(x, y));
       }
 
       /* the floor of a room: boards, never grass */
@@ -1714,6 +1720,14 @@ export default {
         tileAt: (x, y) => tileAt(S.map, x, y),
         map: () => S.map,
         snowy: () => snow_(),
+        cols: COLS, rows: ROWS
+      });
+
+      /* The paths worn between the places people actually walk — a door to
+         its field, a door to the road, a door to a pier — derived from the
+         map's own landmark glyphs rather than hand-placed. See wear.js. */
+      const wear = createWear({
+        tileAt: (x, y) => tileAt(S.map, x, y),
         cols: COLS, rows: ROWS
       });
 
@@ -2236,7 +2250,7 @@ export default {
              know nothing about the region, so they are keyed without it —
              walking across a big map must not relay every floorboard. */
           shore.prepare(kMap); water.prepare(kMap); rock.prepare(kMap); interior.prepare(kMap);
-          forest.prepare(kMap); building.prepare(kMap); propsPrepare();
+          forest.prepare(kMap); building.prepare(kMap); wear.prepare(kMap); propsPrepare();
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
           const tA = now();
           for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) tileGround(tileAt(S.map, x, y), x, y);
