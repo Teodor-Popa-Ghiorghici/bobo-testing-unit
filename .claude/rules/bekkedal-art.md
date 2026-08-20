@@ -29,8 +29,13 @@ This file carries the full art/rendering doctrine for the siblings above.
   may be drawn on what. No functions that draw, no state. See **Palette**
   below.
 - `light.js` — the hour of the day as a transform of the palette, the
-  anchors it is interpolated between, and the falloff a local light source
-  is painted with. See **Light and the hour** below.
+  anchors it is interpolated between, the state a local light resolves what
+  it lights *toward* (`lampState`), the closed-form inverse that lets it be
+  applied to already-rendered pixels (`relightCoef`), and the falloff a
+  source is painted with. See **Light and the hour** below.
+- `lamp.js` — the local-light pass itself: one strength field composed from
+  every source, and the per-pixel ordered dither between the picture at this
+  hour and the picture in daylight. See **Local light is a palette too**.
 - `surface.js` — what a tile is made of: which glyph reads as which palette
   entry, on which map. The ground pass fills from it and `palette_check.js`
   walks every map through it, which is the point — one table, two readers.
@@ -345,6 +350,23 @@ screen does. Sixty-four indices multiply that cache; keep an eye on it.
 a rect — and it must be called *outside* a `native()` block, never inside
 one, because it opens its own.
 
+`lamp.js` is the one blend that does not go through `ditherPat`, and it is
+inside this rule rather than an exception to it. What it blends between is two
+*pictures* — the picture at this hour and the same picture in daylight — which
+is not something a two-colour stipple tile can express, so it reads the
+`DITHER` matrix per pixel instead and writes one of the two whole colours. It
+is a more literal ordered dither than `ditherPat`, not a looser one: no
+partial coverage, no `globalAlpha`, no `rgba()`, no `ctx.filter`, and no
+compositing mode. The one thing to keep in mind if you add another caller is
+that its matrix phase comes from the coordinates it is *handed* and is not
+transformed by anything, where `ditherPat`'s pattern goes through the current
+CTM. So the two agree only when they are given the same space, and the
+lantern is the case where they are not: the pool is applied in screen pixels
+(that is what lets it reach the player and the drops) while its veil is drawn
+in world pixels under the ambient transform. That costs nothing, because they
+are separate layers in different colours and nothing has to line up — but do
+not build something that assumes they do.
+
 ### Where the palette does not reach
 
 `BEK_ITEMS[].col` and `drawIcon` are still VGA16 by choice. Item icons are
@@ -617,11 +639,17 @@ the only animation in a room, which is the point of it.
 
 ### Cost
 
-A lit interior rebuild measured 20–23ms, split roughly ground 5 / detail 5 /
-light 12. The light pass is the expensive half because a pool is several
-hundred stipple cells; batching a whole pool inside **one** `native()` rather
-than letting `wash` open one per cell took it from 25ms to 12. Anything that
-draws hundreds of small rects should do the same.
+A lit interior rebuild measured 20–23ms when the room art landed, split
+roughly ground 5 / detail 5 / light 12, and batching a whole pool inside
+**one** `native()` rather than letting `wash` open one per cell is what took
+the light half from 25ms to 12. Keep that rule — anything drawing hundreds of
+small rects should batch the same way.
+
+**Do not quote the numbers.** They do not describe this container and have not
+for some time: a farmhouse rebuild measures 3.0ms here, of which the light
+pass was 0.9ms before the local-light rework and 5.4ms after. The current
+figures are in **Local light is a palette too → Cost** above. Measure before
+quoting, and measure warm.
 
 ## The swing
 
@@ -732,32 +760,170 @@ is 5–12ms and there are ~300 a day, nearly all of them inside the ~90 real
 seconds of dawn and dusk — about 2% of a frame budget, and never a visible
 hitch. If you make the quanta coarser, say why.
 
-### Local light
+### Local light is a palette too
 
 The curve is what makes night *comfortable*; local light is what makes it
 *inviting*, and they are different things. Sources are the hearth `v`, every
-window actually drawn on an `H` wall, and a lantern the player carries in
-the gruva. Each is two ordered-dither passes — a wide outer pool of `WAR[1]`
-and a tighter core of `WAR[3]` — so the pool changes colour *temperature*
-outward and not only strength. Light gets redder as it dims; pull the outer
-pass toward yellow instead and it reads as a spotlight. The stipple is taken
-in **daylight** colours (`wash`'s last argument, `ditherPat`'s `day` flag),
-because a fire is as bright at midnight as at noon.
+window actually drawn on an `H` wall, the lamp and candle in `decor.js`'s
+`LIGHTS`, and a lantern the player carries in the gruva.
 
-Two details worth keeping:
+Local light used to be a stipple of one warm entry laid **over** the picture:
+a `WAR[1]` halo at 45% of peak, then a `WAR[3]` core at the full peak. It was
+the overlay bug from the top of this section, committed a second time at a
+smaller radius, and at the strengths it ran at the picture inside a pool was
+simply gone. The lantern was `pool(..., 2.4*BEK_T, 10)` — ten sixteenths of
+solid `#da863c` over every pixel within about 48 of the player, with four
+more of `#843422` under it — so the mine floor, an ore vein's hue and the
+mineral traces `rock.js` puts in the wall to tell you where to look were all
+invisible exactly where you were standing. The hearth was worse because it
+**stacked**: a cached pool at `round(12*dark)` and a live flicker pool at
+`round(5*dark)` landed on the same pixels, each clamped to 16 on its own, and
+composited to something effectively opaque.
 
-- The falloff is flat-topped and steep at the rim (`1 - u³`), and anything
-  below strength 2 is dropped. A smooth bell spends most of its *area* in
-  the outer ring where the strength is 1–3 out of 16, and at an eight-pixel
-  stipple cell that is not a soft edge — it is a spray of loose orange
-  squares over the grass.
-- **Static sources are painted into the terrain cache**, because the light
-  key is already part of the cache key, so a lit window costs nothing per
-  frame. Only what moves or flickers is redrawn live: the hearth's reach
-  breathing on the same cycle as its flame, and the lantern.
+The answer is the answer the hour already had. **A pool does not paint the
+ground orange; it resolves the ground toward the palette daylight would have
+drawn it in**, plus a warm tint for temperature. The blend is still an ordered
+dither — it is a *more* literal one than `ditherPat`, since `lamp.js` reads
+the `DITHER` matrix per pixel rather than baking it into a stipple tile — but
+what it dithers between is two **pictures** and not a picture and a colour.
+Every pixel written is one of two whole colours; there is no `globalAlpha`, no
+`rgba()`, no `ctx.filter` and no compositing mode anywhere in it.
+
+Three things fall out of that shape rather than having to be arranged:
+
+- **Full strength is maximum legibility, not none.** Which is why the
+  flat-topped, steep-rimmed falloff (`1 - u³`, nothing under strength 2) could
+  stay exactly as it was. A smooth bell still spends most of its *area* in the
+  outer ring at strength 1–3, which at an eight-pixel stipple cell is a spray
+  of loose squares and not a soft edge; the flat top was only ever a fault
+  because the top was opaque paint. Do not reintroduce the bell.
+- **Stacking is unexpressible.** The target is a fixed palette, not an addend,
+  and ordered-dither coverage sets are nested — the set lit at strength 9
+  contains the set lit at 5 — so two pools over one pixel light it to the same
+  colour and compose as a maximum. The hearth bug cannot be written any more.
+- **It costs nothing in daylight.** As the hour approaches noon the hour's
+  table and the lamp's converge, so a pool fades out on its own.
+
+`lampState` (`light.js`) is the target, and it is a light state like any
+other — the same `{ k, sat, a }`, blended toward daylight the way `shelter`
+blends a room toward it, so it goes through `lutOf` and inherits the ordering
+guarantee for free. `palette_check.js` asserts it over the lamp's tables as
+well as the hour's, because a lit floor that reordered past a lit wall would
+be the same bug in a smaller place. Four constants, and all four have reasons
+that were measured rather than chosen:
+
+- `LAMP_MIX` (0.9) — how far the *exposure* goes back toward daylight. Not all
+  the way: a disc of exact noon dropped into a blue valley reads as a hole cut
+  through to another hour.
+- `LAMP_SAT` (0.45) — how far the *saturation* goes back, and it is
+  deliberately much less. Take `sat` all the way with `k` and a lamp on grass
+  restores full daylight green, which against a blue-grey valley and a warm
+  rim reads as a chequer of complementary colours; the town's two street lamps
+  are where it showed. A warm lamp is not the sun. This is free to differ
+  because `sat` is the one term of the transform the luminance is provably
+  blind to.
+- `LAMP_K` (1) — **daylight is a hard ceiling.** A lamp brighter than noon was
+  tried; above 1 the entries the palette already puts near 255 clamp, stop
+  climbing, and get overtaken by entries that have not, which cost 1908
+  reordered pairs on the first check run. Local light brightens by revealing
+  the daylight picture, never by exceeding it.
+- `LAMP_TINT` ([46, 19, -13]) — the warm cast, scaled by how dark it is
+  outside so it goes to nothing by morning. It has the same kind of ceiling
+  for the same reason: 48 is clean, 52 costs one reordered pair (index 12
+  against 25), so this sits under it with room for an anchor somebody adds
+  later.
+
+The one thing still painted over the picture is a **thin warm veil** —
+`VEIL` = 2 of 16, `WAR[2]`, in daylight colours (`ditherPat`'s `day` flag),
+because a fire is as bright at midnight as at noon. The old two-pass structure
+took its colour temperature from painting the rim a deeper entry than the
+core, and with the core no longer painted at all the temperature needs
+somewhere to come from. Two rules on it:
+
+- It is **hollow** (`VEIL_HOLE`, 0.7 of the lit radius). In the middle of a
+  pool the warmth is already in the palette the pixels resolved to, and a
+  stipple there is paint over the one place the picture most needs to be
+  readable — the mine floor under the lamp is precisely what the report was
+  about. Out at the fringe most pixels are still the hour's and the warmth has
+  nowhere else to come from.
+- It **fades out with the hour** (`VEIL_DARK`). Paint does not know the pool
+  under it has converged on the hour's palette and stopped showing; without
+  the fade a window keeps a ring of orange stipple around it at 08:00. The
+  fade is to nothing rather than to a sparse speckle, because `glow` drops
+  anything under strength 2.
+
+Never raise `VEIL` to make a light brighter. Raise the source's peak, which
+brightens by revealing rather than by covering.
+
+A peak now means "how much of the daylight picture to resolve to", so the
+numbers all went up (hearth 16, window 13 outside / 11 in, lamp 13, candle 10)
+and the scaling with darkness got gentler — `0.62 + 0.38*dark` rather than
+`* dark`, because the convergence of the two palettes already does most of
+that job.
+
+**`CAVE_LIGHT.k` moved from 0.72 to 0.58** as part of this, and it is the one
+number outside local light that did. A pool resolves toward daylight and stops
+there, so the difference a lantern can make *is* the gap between the ambient
+exposure and 1; at 0.72 that gap was small enough that the lamp read as a
+stipple rather than as a light. The old overlay's opacity was also hiding how
+bright the unlit rock already was. `gruva_1bit` still finds every vein.
+
+**Static sources are painted into the terrain cache**, because the light key
+is already part of the cache key, so a lit window costs nothing per frame.
+Two things cannot be:
+
+- The hearth's flicker, which breathes as the **veil** now rather than as a
+  second pool — that second pool was the stacking bug, and a veil over a pool
+  cannot reproduce it.
+- The lantern, which walks. It is the same pass run on the *screen* once
+  everything in the playfield is on it, so the lamp lights the floor, the ore
+  glints, the drops and the player's own shirt — none of which a pool baked
+  into the terrain could reach. It is clipped to the viewport by hand, because
+  `getImageData` knows nothing about the clip path and a lantern must not
+  reach the HUD.
 
 Light does not spill into the void: the ` ` margin outside a room's walls is
-repainted black after the light pass.
+repainted black after the light pass. And the **order within the pass is
+load-bearing**: ground, detail, forest, moon, then the pool, then the veil. The
+pool resolves what is already on the canvas, so it must run after everything
+static; the veil must run after the pool, or the pool would resolve the warmth
+straight back out of the pixels it had just been painted onto.
+
+#### Cost
+
+Median of five warm forced rebuilds, Chromium on the dev container, before and
+after. The light pass is the whole of `terrain()` outside the three passes
+above it, so it also carries the void repaint and the `prepare()` calls.
+
+| scene            | light before | light after | rebuild before | rebuild after |
+|------------------|--------------|-------------|----------------|---------------|
+| farmhouse 23:00  |   0.9ms      |   5.4ms     |   3.0ms        |   7.6ms       |
+| lakehouse 23:00  |   1.0ms      |   6.1ms     |   3.3ms        |   8.3ms       |
+| farm 23:00       |   0.6ms      |   7.8ms     |   6.6ms        |  14.0ms       |
+| lake built 22:00 |   0.6ms      |   7.5ms     |   7.6ms        |  15.2ms       |
+| gruva 02:00      |   0.3ms      |   0.8ms     |   5.5ms        |   5.8ms       |
+| farm 12:00       |   0.2ms      |   0.3ms     |   5.7ms        |   6.0ms       |
+
+Worst rebuild 15.2ms against a 30ms budget, and rebuilds still cluster in the
+~90 real seconds of dawn and dusk. Daylight is unchanged, because there are no
+sources to run. The live pass gained ~1ms a frame in the gruva and nothing
+anywhere else: 2.3ms of the 33.3ms a 30fps frame has.
+
+**The pixel loop is not where that time goes, so do not optimise it.** A
+280x120 box and a 640x400 one cost about the same (6.6ms and 5.1ms), and the
+veil is 0.1ms of it. What is being paid for is the `getImageData` forcing the
+canvas to flush the several thousand `fillRect`s the rebuild has just queued.
+Shrinking the box buys nothing; not touching the canvas at all is the only
+thing that would, which is why there is exactly one of these per rebuild and
+every source is composed into one strength field first. `willReadFrequently`
+on the terrain context was tried and made no measurable difference either way.
+`__bekDebug.perf()` reports `poolMs` and `veilMs` beside `lightMs`, because
+"the light pass got slower" is not a finding.
+
+Note also that the old figures in **Inside a house → Cost** — a 20–23ms
+interior rebuild split ground 5 / detail 5 / light 12 — do not describe this
+container and did not before this change either. A farmhouse rebuild measured
+3.0ms here, of which the light pass was 0.9ms. Measure before quoting.
 
 `moonKey` is the other half — one cool key light from above and a little to
 the left, as a two-pixel rim along the top of anything solid and a

@@ -51,10 +51,16 @@
  * `sat` still does real work: it desaturates without touching the ordering,
  * which is the Purkinje shift — colour draining out of a scene before its
  * light does.
+ *
+ * Local light — a hearth, a window, the lantern — is the same argument at a
+ * smaller radius and lives in `lamp.js`. It used to be a stipple over the
+ * picture, which is exactly the bug this file was written to delete; it is
+ * now a dither between this table and a brighter, warmer one, and the closed
+ * form that makes that affordable falls out of the affine shape above.
  */
 import { PAL, PAL_N, cssOf } from './palette.js';
 
-const L_R = 0.2126, L_G = 0.7152, L_B = 0.0722;
+export const L_R = 0.2126, L_G = 0.7152, L_B = 0.0722;
 export const lumOf = p => (L_R * p[0] + L_G * p[1] + L_B * p[2]) / 255;
 
 /* ---- the anchors ---------------------------------------------------------
@@ -98,6 +104,15 @@ export const LIGHT_KEYS = LIGHT_ANCHORS.length;
    halves of that trade are on the record rather than in a commit message. */
 const K_STEP = 1 / 128, S_STEP = 1 / 64, A_STEP = 1;
 const q = (v, step) => Math.round(v / step) * step;
+/* Every state that reaches `lutOf` is built through here, this file's and
+   `lamp.js`'s alike. Two states with the same numbers have byte-identical
+   LUTs only if they were rounded the same way, and that equivalence is what
+   the terrain cache keys on — so there is exactly one place that rounds. */
+export const quantState = (k, sat, a, exposure) => ({
+  k: q(k, K_STEP), sat: q(sat, S_STEP),
+  a: [q(a[0], A_STEP), q(a[1], A_STEP), q(a[2], A_STEP)],
+  exposure: exposure
+});
 
 export function lightAt(min) {
   const m = ((min % 1440) + 1440) % 1440;
@@ -106,15 +121,12 @@ export function lightAt(min) {
   const A = LIGHT_ANCHORS[i], B = LIGHT_ANCHORS[Math.min(i + 1, LIGHT_ANCHORS.length - 1)];
   const span = Math.max(1, B.at - A.at), u = Math.min(1, Math.max(0, (m - A.at) / span));
   const mix = (p, r) => p + (r - p) * u;
-  return {
-    k: q(mix(A.k, B.k), K_STEP),
-    sat: q(mix(A.sat, B.sat), S_STEP),
-    a: [q(mix(A.a[0], B.a[0]), A_STEP), q(mix(A.a[1], B.a[1]), A_STEP), q(mix(A.a[2], B.a[2]), A_STEP)],
-    /* not part of the transform — what the rest of the app asks when it wants
-       to know how dark it is out there (whether a window is lit, how far a
-       lantern throws, which check is the darkest hour) */
-    exposure: mix(A.k, B.k)
-  };
+  /* `exposure` is not part of the transform — it is what the rest of the app
+     asks when it wants to know how dark it is out there (whether a window is
+     lit, how far a lantern throws, which check is the darkest hour). */
+  return quantState(mix(A.k, B.k), mix(A.sat, B.sat),
+                    [mix(A.a[0], B.a[0]), mix(A.a[1], B.a[1]), mix(A.a[2], B.a[2])],
+                    mix(A.k, B.k));
 }
 
 /* A room is not exempt from the evening, but it is sheltered from it: four
@@ -125,11 +137,8 @@ export function lightAt(min) {
 export function shelter(st, amount) {
   if (!amount) return st;
   const u = Math.min(1, Math.max(0, amount)), f = (v, one) => v + (one - v) * u;
-  return {
-    k: q(f(st.k, 1), K_STEP), sat: q(f(st.sat, 1), S_STEP),
-    a: [q(f(st.a[0], 0), A_STEP), q(f(st.a[1], 0), A_STEP), q(f(st.a[2], 0), A_STEP)],
-    exposure: f(st.exposure, 1)
-  };
+  return quantState(f(st.k, 1), f(st.sat, 1),
+                    [f(st.a[0], 0), f(st.a[1], 0), f(st.a[2], 0)], f(st.exposure, 1));
 }
 
 export const keyOf = st => st.k.toFixed(3) + ':' + st.sat.toFixed(3) + ':' + st.a.join(',');
@@ -140,12 +149,20 @@ export const keyOf = st => st.k.toFixed(3) + ':' + st.sat.toFixed(3) + ':' + st.
 export const lightKey = (min, indoors) => keyOf(lightAt(min)) + (indoors ? '|in' : '');
 
 /* A hole in a mountain does not have an hour. The gruva ignores the clock
-   entirely and sits at a fixed, mild dark: enough that a lamp is worth
-   carrying and an ore glint is the brightest thing down there, not so much
-   that you cannot see the corridor you are standing in. It also means the
-   one map whose terrain cache would otherwise rebuild through every dawn
-   and dusk never rebuilds at all. */
-export const CAVE_LIGHT = { k: q(0.72, K_STEP), sat: q(0.78, S_STEP), a: [0, 2, 10], exposure: 0.40 };
+   entirely and sits at a fixed dark: enough that a lamp is worth carrying and
+   an ore glint is the brightest thing down there, not so much that you cannot
+   see the corridor you are standing in. It also means the one map whose
+   terrain cache would otherwise rebuild through every dawn and dusk never
+   rebuilds at all.
+
+   `k` was 0.72 and is 0.58, which is the one number outside local light that
+   the local-light rework moved. At 0.72 there was nothing for a lamp to do:
+   a pool resolves what it lights toward daylight and stops there, so the
+   difference a lantern can make is exactly the gap between this exposure and
+   1, and at 0.72 that gap was small enough that the pool read as a stipple
+   rather than as a light. The mine was also the one place the old overlay's
+   opacity was hiding how bright the unlit rock already was. */
+export const CAVE_LIGHT = quantState(0.58, 0.70, [0, 2, 10], 0.34);
 
 const clamp255 = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
 
@@ -182,58 +199,4 @@ export function cssFor(st) {
     cache.set(k, hit);
   }
   return hit;
-}
-
-/* ---- local light ----------------------------------------------------------
-   A lighting curve gets you a night that is comfortable. Local light gets you
-   one that is inviting, and that is a different thing. Each source pulls the
-   ground near it back toward warm and bright, as an ordered dither of a warm
-   palette entry — of course it is a dither; it is the only blend this game
-   has. Warm rather than merely brighter is the whole point: a lit window in a
-   blue valley has to read as amber or it reads as a hole.
-
-   `glow` walks the source's box in CELL-sized squares and hands each one a
-   strength. CELL is half a tile: per-tile would band visibly at this radius,
-   and per-pixel would cost more than the rest of the frame put together. The
-   remaining banding — one ordered-dither step per ring — is broken up by a
-   per-cell offset taken from the position, the same trick `patchAmt` uses to
-   keep a smooth field from drawing its own contour lines.
-
-   The profile is deliberately flat-topped and steep at the rim rather than a
-   smooth bell. A bell spends most of its *area* in the outer ring, and the
-   outer ring is where the strength is 1, 2 or 3 out of 16 — which at an
-   eight-pixel stipple cell is not a soft edge, it is a spray of loose orange
-   squares over the grass. Cutting everything below 2 and holding the strength
-   up until the last fifth of the radius is what turns that spray back into a
-   pool of light with an edge. */
-export const GLOW_CELL = 20;
-
-const jitter = (x, y) => {
-  let n = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + 1442695041) | 0;
-  n = Math.imul(n ^ (n >>> 13), 1274126177) | 0;
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-};
-
-/* px,py: the source's centre in device pixels. r: reach, also device pixels.
-   peak: dither strength out of 16 at the centre. `put(x, y, w, h, strength)`
-   is whatever the caller wants to stipple with. */
-export function glow(put, px, py, r, peak) {
-  if (peak <= 0 || r <= 0) return 0;
-  const c = GLOW_CELL;
-  const x0 = Math.floor((px - r) / c) * c, x1 = Math.ceil((px + r) / c) * c;
-  const y0 = Math.floor((py - r) / c) * c, y1 = Math.ceil((py + r) / c) * c;
-  let n = 0;
-  for (let y = y0; y < y1; y += c) {
-    for (let x = x0; x < x1; x += c) {
-      const dx = x + c / 2 - px, dy = (y + c / 2 - py) * 1.15;   /* a shade wider than tall */
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d >= r) continue;
-      const u = d / r;
-      const s = Math.floor(peak * (1 - u * u * u) + jitter(x, y));
-      if (s < 2) continue;
-      put(x, y, c, c, s > 16 ? 16 : s);
-      n++;
-    }
-  }
-  return n;
 }

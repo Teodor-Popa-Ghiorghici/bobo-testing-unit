@@ -28,7 +28,9 @@
  */
 import { PAL, PAL_N, VGA16, RAMPS, MARKS, SHADOWS, FEATURES, lum, sameRampNeighbour,
          RAMP_STEP_MAX, RAMP_STEP_MAX_WAR, MARK_BAND, SHADOW_MAX } from './palette.js';
-import { lightAt, lutAt, lutOf, LIGHT_ANCHORS, lightKey, CAVE_LIGHT, DAY_LUT, lumOf } from './light.js';
+import { lightAt, lutAt, lutOf, LIGHT_ANCHORS, lightKey, CAVE_LIGHT, DAY_LUT, lumOf,
+         shelter } from './light.js';
+import { lampState, relightCoef } from './lamp.js';
 import { BEK_MAPS, BEK_COLS, BEK_ROWS, BEK_SOLID } from './data.js';
 import { groundOf, solidOf, inside as insideMap, isCave } from './surface.js';
 
@@ -143,12 +145,27 @@ console.log('\n-- light --');
      per entry, and at a midnight exposure of a third that is enough to swap
      two entries the palette put a hair apart. So the claim is stated where it
      means something: any two entries the eye could tell apart in daylight
-     stay in the same order at every hour, indoors, outdoors and underground. */
+     stay in the same order at every hour, indoors, outdoors and underground.
+
+     Local light is inside this claim and not beside it. A pool resolves what
+     it lights toward `lampState` — another state of the same shape, blended
+     toward daylight the way `shelter` blends a room and then given an
+     additive warm tint — so it is a table like
+     any other and it has to keep the ordering too, or a lit floor could come
+     out reading as a lit wall. That is checked here rather than in lamp.js
+     because it is a property of the transform, not of the pass. */
   const TIE = 0.02;
   let swaps = 0, worst = '';
   const states = [];
-  for (let min = 0; min < 24 * 60; min += 10) { states.push(lutAt(min, false), lutAt(min, true)); }
+  const lamps = [];
+  for (let min = 0; min < 24 * 60; min += 10) {
+    const out = lightAt(min), ins = shelter(out, 0.5), dark = 1 - out.k;
+    states.push(lutAt(min, false), lutAt(min, true));
+    lamps.push(lutOf(lampState(out, dark)), lutOf(lampState(ins, dark)));
+  }
   states.push(lutOf(CAVE_LIGHT));
+  lamps.push(lutOf(lampState(CAVE_LIGHT, 1 - CAVE_LIGHT.k)));
+  states.push(...lamps);
   for (let i = 0; i < PAL_N; i++) for (let j = i + 1; j < PAL_N; j++) {
     const d = lum(i) - lum(j);
     if (Math.abs(d) <= TIE) continue;
@@ -159,7 +176,34 @@ console.log('\n-- light --');
   }
   ok(swaps === 0, 'no hour reorders the palette by luminance',
      swaps ? swaps + ' swaps, first ' + worst
-           : states.length + ' states x every pair more than ' + TIE + ' apart in daylight');
+           : states.length + ' states (' + lamps.length + ' of them local light) x every pair more than '
+             + TIE + ' apart in daylight');
+
+  /* And that a pool applied to an already-rendered pixel lands on the same
+     colour as rendering that entry through the pool's own table would have.
+     `relightCoef` inverts the hour in closed form so a pool never has to draw
+     the map a second time; the inversion is exact in the reals and the error
+     here is only what the forward pass threw away — the rounding `lutOf`
+     already did, plus the clamp where an hour's tint pushed a channel of an
+     already-black entry below zero and it stuck at 0 with nothing left to
+     invert. Both are bounded and neither is visible; the claim is that bound
+     rather than equality. If this drifts, the closed form is wrong. */
+  let derr = 0, derrAt = '';
+  for (let min = 0; min < 24 * 60; min += 10) for (const indoors of [false, true]) {
+    const from = indoors ? shelter(lightAt(min), 0.5) : lightAt(min);
+    const to = lampState(from, 1 - lightAt(min).k);
+    const A = lutOf(from), B = lutOf(to), co = relightCoef(from, to);
+    for (let i = 0; i < PAL_N; i++) {
+      const p = A[i], l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+      for (let ch = 0; ch < 3; ch++) {
+        const got = Math.max(0, Math.min(255, Math.round(co.P * l + co.Q * p[ch] + co.D[ch])));
+        const d = Math.abs(got - B[i][ch]);
+        if (d > derr) { derr = d; derrAt = 'index ' + i + ' at ' + (min / 60 | 0) + ':00'; }
+      }
+    }
+  }
+  ok(derr <= 8, 'a pool lands on the daylight palette, not near it',
+     'largest channel error ' + derr + (derrAt ? ' (' + derrAt + ')' : '') + ' of 255');
 
   /* and it is a curve, not two if-statements. The state is quantised so the
      terrain cache is not rebuilt every frame, so there *are* steps — the
