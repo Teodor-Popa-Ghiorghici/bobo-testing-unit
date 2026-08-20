@@ -48,9 +48,14 @@ const MAPS = ['farm', 'town', 'lake', 'forest', 'enga', 'setra', 'vidda', 'gruva
 const INSIDE = ['farmhouse', 'lakehouse'];
 
 /* Where to stand on each map so the shot shows the thing worth looking at. */
+/* Every outdoor map is three to four times what it was and the camera now
+   scrolls on both axes, so a shot is of wherever the player is stood rather
+   than of the whole map. These are the spines: the yard and the home field,
+   the square where the road crosses, the pier, the bend in the forest path,
+   the meadow track, the seter, the tarn, the main drift, the quay. */
 const WHERE = {
-  farm: [12, 8], town: [12, 8], lake: [7, 8], forest: [12, 8], enga: [12, 8],
-  setra: [12, 8], vidda: [12, 8], gruva: [12, 8], fjord: [8, 8],
+  farm: [14, 9], town: [23, 15], lake: [12, 9], forest: [14, 18], enga: [14, 13],
+  setra: [14, 12], vidda: [28, 12], gruva: [20, 12], fjord: [9, 12],
   /* stood out of the way of the table, so the props on it are in the shot */
   farmhouse: [8, 9], lakehouse: [8, 10]
 };
@@ -63,13 +68,13 @@ for (const mp of MAPS.concat(INSIDE)) {
   for (const h of Object.keys(HOURS)) shot(mp + '_' + h, { map: mp, px: at[0], py: at[1], min: HOURS[h] });
 }
 /* the mine at its darkest, with and without a lamp to carry */
-shot('gruva_dark_lamp', { map: 'gruva', px: 12, py: 8, min: 2 * 60, bag: Object.assign({}, BASE.bag, { lykt: 1 }) });
-shot('gruva_dark_nolamp', { map: 'gruva', px: 12, py: 8, min: 2 * 60, bag: { potetfro: 5 } });
+shot('gruva_dark_lamp', { map: 'gruva', px: 20, py: 12, min: 2 * 60, bag: Object.assign({}, BASE.bag, { lykt: 1 }) });
+shot('gruva_dark_nolamp', { map: 'gruva', px: 20, py: 12, min: 2 * 60, bag: { potetfro: 5 } });
 /* the mine thresholded to 1-bit: can you still find a vein by shape alone? */
-shot('gruva_1bit', { map: 'gruva', px: 12, py: 8, min: 12 * 60 }, { bits: 1 });
+shot('gruva_1bit', { map: 'gruva', px: 20, py: 12, min: 12 * 60 }, { bits: 1 });
 /* weather over the night, which is the composite that used to fight itself */
-shot('farm_fog_night', { map: 'farm', px: 12, py: 8, min: 23 * 60, weather: 'take' });
-shot('farm_rain_dusk', { map: 'farm', px: 12, py: 8, min: 19 * 60, weather: 'regn' });
+shot('farm_fog_night', { map: 'farm', px: 14, py: 9, min: 23 * 60, weather: 'take' });
+shot('farm_rain_dusk', { map: 'farm', px: 14, py: 9, min: 19 * 60, weather: 'regn' });
 /* the lake house, which only exists once it is built */
 shot('lake_built_night', { map: 'lake', px: 6, py: 6, min: 22 * 60, built: 1, houseBuilt: true });
 /* A coastline the shipped maps do not contain. The lake has a south shore
@@ -101,17 +106,17 @@ shot('shorelab_noon', { map: 'lake', px: 10, py: 8, min: 12 * 60, flag: { boat: 
 shot('shorelab_dusk', { map: 'lake', px: 10, py: 8, min: 19 * 60, flag: { boat: 1 } }, { rows: SHORE_LAB });
 
 /* the four treeline corners, camera clamped to each end of its travel */
-shot('farm_corner_top', { map: 'farm', px: 1, py: 0, min: 12 * 60 });
-shot('farm_corner_bot', { map: 'farm', px: 22, py: 14, min: 12 * 60 });
+shot('farm_corner_top', { map: 'farm', px: 1, py: 1, min: 12 * 60 });
+shot('farm_corner_bot', { map: 'farm', px: 42, py: 24, min: 12 * 60 });
 /* Every tool at rest and at each of its three phases, stood in front of
    something it can actually work — an axe swung at empty grass throws no
    chips, and a shot of that proves nothing. */
 const SWING = [
-  ['spade', 0, 'farm', 13, 4, 0],      /* facing a plot                     */
-  ['kanne', 1, 'farm', 13, 4, 0],      /* the same plot, tilled and sown    */
-  ['oks', 2, 'forest', 10, 7, 0],      /* above the birch at (10, 8)        */
-  ['hakke', 4, 'gruva', 14, 7, 0],     /* above the rich vein at (14, 8)    */
-  ['stang', 3, 'lake', 9, 7, 0]        /* on the pier, facing the shallows  */
+  ['spade', 0, 'farm', 20, 4, 0],      /* facing the home field at (20, 5)  */
+  ['kanne', 1, 'farm', 20, 4, 0],      /* the same plot, tilled and sown    */
+  ['oks', 2, 'forest', 10, 5, 0],      /* above the birch at (10, 6)        */
+  ['hakke', 4, 'gruva', 19, 19, 0],    /* above the rich vein at (19, 20)   */
+  ['stang', 3, 'lake', 16, 8, 0]       /* on the pier, facing the water     */
 ];
 for (const [id, ix, mp, x, y, dir] of SWING) {
   for (const ph of [0, 1, 2, 3]) {
@@ -124,7 +129,7 @@ for (const [id, ix, mp, x, y, dir] of SWING) {
    menu is the one part of the picture a screenshot of the world never covers,
    and a panel that throws only throws when somebody opens it. */
 for (const m of ['bag', 'quest', 'travel', 'shop', 'talk', 'offer', 'fish', 'sleep', 'end']) {
-  shot('menu_' + m, { map: 'town', px: 4, py: 5, min: 12 * 60, disc: { farm: 1, town: 1, lake: 1 },
+  shot('menu_' + m, { map: 'town', px: 23, py: 13, min: 12 * 60, disc: { farm: 1, town: 1, lake: 1, setra: 1, vidda: 1 },
                       q: { fisk: 'active' }, bag: { potet: 3, jern: 2, tommer: 9, blabar: 5 } },
        { menu: m });
 }

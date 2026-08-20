@@ -19,6 +19,11 @@
       later, and kr/day/bag are exactly what an idle run should leave them
       (day advances, nothing else does), which is the operational meaning of
       "never resets"
+   7. a save whose coordinates were written against maps that have since
+      changed shape — a player off the edge of the world, a soil key over a
+      wall, a felled key on grass, a mined key in bare rock, a picked key on
+      nothing — comes back with every stale key dropped, every valid one
+      kept, and the player back on the farm
 
    Run: node scripts/smoke.mjs
 */
@@ -114,7 +119,7 @@ function setupGlobalEnv() {
 setupGlobalEnv();
 
 const dataMod = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/data.js')));
-const { BEK_SAVE, BEK_SEASON_DAYS } = dataMod;
+const { BEK_SAVE, BEK_SEASON_DAYS, BEK_MAPS } = dataMod;
 const appMod = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/index.js')));
 const app = appMod.default;
 
@@ -491,10 +496,72 @@ function caseIdleYearAct2() {
   report('idle across a full year (Act II save persists, never resets)', problems.length === 0, problems.join('; '));
 }
 
+/* ---- case 7: coordinates from a map that has changed shape -------------- */
+/* The valley was rebuilt as somewhere you walk (`apps/bekkedal/maps.js`), so
+   every map grew and every coordinate a save holds is a coordinate into a
+   grid that moved underneath it. heal()'s healCoords() drops per-tile state
+   that no longer names a tile of the right kind and puts an out-of-bounds
+   player back at the farm spawn — this seeds exactly those four kinds of
+   stale key and asserts each one is gone, since a soil key left pointing
+   into a wall is a plot the player can never reach and never clear.
+
+   The one *valid* key of each kind is seeded alongside, because a migration
+   that drops everything would pass a test that only checks for dropping. */
+function caseStaleCoordinates() {
+  clearSave();
+  const rows = BEK_MAPS.farm.rows;
+  const findGlyph = (mp, ch) => {
+    const r = BEK_MAPS[mp].rows;
+    for (let y = 0; y < r.length; y++) { const x = r[y].indexOf(ch); if (x >= 0) return [x, y]; }
+    return null;
+  };
+  const soilOK = findGlyph('farm', 'f');
+  const treeOK = findGlyph('forest', 'Y');
+  const veinOK = findGlyph('gruva', 'O');
+  const pickOK = findGlyph('enga', 'p');
+  const wall = (() => { for (let y = 0; y < rows.length; y++) { const x = rows[y].indexOf('T'); if (x >= 0) return [x, y]; } })();
+  const save = {
+    ver: 10, lang: 'no', map: 'farm', px: 900, py: 900, dir: 0, step: 0, walk: 0,
+    day: 4, min: 480, kr: 100, en: 90, enMax: 120, water: 10, waterMax: 20,
+    tools: { spade: 1, kanne: 1, oks: 1 }, tool: 0, bag: {},
+    soil: { [soilOK[0] + ',' + soilOK[1]]: { till: 1, wet: 0, seed: '', age: 0, ready: 0 },
+            [wall[0] + ',' + wall[1]]: { till: 1, wet: 1, seed: 'potet', age: 2, ready: 0 } },
+    felled: { ['forest:' + treeOK[0] + ',' + treeOK[1]]: 99, 'forest:0,0': 99 },
+    mined:  { ['gruva:' + veinOK[0] + ',' + veinOK[1]]: 99, 'gruva:1,1': 99 },
+    picked: { ['enga:' + pickOK[0] + ',' + pickOK[1]]: 99, 'enga:0,0': 99 },
+    drops: [{ map: 'forest', x: 0, y: 0, item: 'sopp' }],
+    fr: {}, met: {}, seen: {}, flag: {}, q: {}, chatIx: {}, disc: { farm: 1 },
+    weather: 'klar', built: 0, ending: 0
+  };
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+  let handle;
+  try { handle = mountApp(); } catch (e) {
+    report('coordinates into a map that changed shape are healed', false, 'mount() threw: ' + (e && e.stack || e));
+    return;
+  }
+  handle.bSave.click();
+  const after = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+  const problems = [];
+  const inBounds = after.px >= 0 && after.py >= 0 &&
+    after.px < BEK_MAPS[after.map].rows[0].length && after.py < BEK_MAPS[after.map].rows.length;
+  if (!inBounds) problems.push('the player is still off the map at ' + after.px + ',' + after.py);
+  if (after.soil[wall[0] + ',' + wall[1]]) problems.push('a soil key still points into a wall');
+  if (!after.soil[soilOK[0] + ',' + soilOK[1]]) problems.push('a valid soil key was dropped');
+  if (after.felled['forest:0,0']) problems.push('a felled key still points at something that is not a tree');
+  if (!after.felled['forest:' + treeOK[0] + ',' + treeOK[1]]) problems.push('a valid felled key was dropped');
+  if (after.mined['gruva:1,1']) problems.push('a mined key still points at something that is not a vein');
+  if (!after.mined['gruva:' + veinOK[0] + ',' + veinOK[1]]) problems.push('a valid mined key was dropped');
+  if (after.picked['enga:0,0']) problems.push('a picked key still points at something that is not a flower');
+  if (!after.picked['enga:' + pickOK[0] + ',' + pickOK[1]]) problems.push('a valid picked key was dropped');
+  if (after.day !== save.day) problems.push('the day did not survive: ' + after.day);
+  report('coordinates into a map that changed shape are healed', problems.length === 0, problems.join('; '));
+}
+
 caseSimulate30Days();
 caseRoundTrip();
 caseMigration();
 caseHouseCompletionMilestone();
+caseStaleCoordinates();
 caseIdleYearFresh();
 caseIdleYearAct2();
 

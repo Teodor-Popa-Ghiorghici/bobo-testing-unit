@@ -184,8 +184,8 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 10, lang: BEK_LANG, fullscreen: 0,
-        map: 'farm', px: 3, py: 8, dir: 0, step: 0, walk: 0,
+        ver: 11, lang: BEK_LANG, fullscreen: 0,
+        map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
         tools: { spade: 1, kanne: 1, oks: 1, stang: 0, hakke: 0 },
@@ -258,8 +258,67 @@ export default {
            same as fresh()'s own day-1 seed above, so there is nothing
            stored that could ever disagree with the day count it comes from */
         s.season = seasonIndexOf(s.day); s.festival = festivalOf(s.day) ? BEK_SEASONS[s.season].id : null;
+        healCoords(s, f);
         return s;
       };
+      /* ---- ver 11: every coordinate in a save is a coordinate into a map --
+         The valley was rebuilt as somewhere you walk: the nine outdoor maps
+         grew three to four times and gained seams at their edges, so S.px/py
+         and every key in S.soil / S.felled / S.mined / S.picked names a
+         square on a grid that has changed shape underneath it. A key left
+         pointing at the wrong glyph is not a cosmetic problem — a soil key
+         over a wall is a plot you can never reach and never clear.
+
+         So this drops, rather than guesses. A square only keeps its state if
+         it still names a tile of the kind that state belongs to: soil over
+         ploughed ground (or over one of the two purchasable plots, which are
+         plain grass until their flag is set), a felled stump over a tree, a
+         mined vein over a vein, a picked flower over a flower. Nothing is
+         relocated, because the map it was relocated *from* no longer exists
+         and there is no honest answer to where it went.
+
+         Reads the map rows directly rather than going through tileAt(): tileAt
+         answers about the *live* S, and the save being healed is not it yet. */
+      function healCoords(s, f) {
+        const base = (mp, x, y) => {
+          const m = BEK_MAPS[mp];
+          return m && m.rows[y] ? m.rows[y].charAt(x) : '';
+        };
+        const walkable = (mp, x, y) => {
+          const c = base(mp, x, y);
+          return !!c && c !== 'D' && BEK_SOLID.indexOf(c) < 0;
+        };
+        /* a player standing off the edge of a map — or inside what is now a
+           wall, or on a map id that no longer exists — wakes up at the farm */
+        if (!BEK_MAPS[s.map] || !Number.isFinite(s.px) || !Number.isFinite(s.py) ||
+            !walkable(s.map, s.px, s.py)) {
+          s.map = f.map; s.px = f.px; s.py = f.py; s.dir = f.dir;
+        }
+        /* the soil is the farm's, and its keys carry no map — a square is
+           still soil if the rows say 'f' or if one of the field expansions
+           covers it, whether or not that expansion has been bought yet */
+        const inPlot = (x, y) => BEK_FARM_PLOTS.some(p => x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1);
+        Object.keys(s.soil).forEach(k => {
+          const [x, y] = k.split(',').map(Number);
+          if (base('farm', x, y) !== 'f' && !inPlot(x, y)) delete s.soil[k];
+        });
+        /* the three map-keyed tables, each against the glyphs it can sit on */
+        const KINDS = { felled: 'YG', mined: 'OQ', picked: 'p' };
+        Object.keys(KINDS).forEach(tbl => {
+          Object.keys(s[tbl]).forEach(k => {
+            const i = k.indexOf(':');
+            const mp = k.slice(0, i), [x, y] = k.slice(i + 1).split(',').map(Number);
+            if (KINDS[tbl].indexOf(base(mp, x, y)) < 0) delete s[tbl][k];
+          });
+        });
+        /* a morning's forage lying in rock. spawnDrops() lays a fresh set
+           every day anyway, so dropping these costs a stale save nothing. */
+        s.drops = s.drops.filter(d => d && walkable(d.map, d.x, d.y));
+        /* an owned animal stands in a pen slot, and the pen moved with the
+           farm — re-seat each one at the slot its purchase order gives it */
+        const slots = barnSlots(s);
+        s.animals.forEach((a, i) => { if (slots[i]) { a.x = slots[i].x; a.y = slots[i].y; } });
+      }
 
       let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
       /* the quest board's scroll offset — transient UI state, reset each time
@@ -496,7 +555,18 @@ export default {
       });
 
       /* ---- the day ------------------------------------------------------ */
-      const BEK_HOME = { farm:[4,8], town:[4,7], lake:[3,8], forest:[4,7], enga:[4,8], setra:[4,8], vidda:[4,11], gruva:[2,7], fjord:[4,7] };
+      /* Where the travel menu sets you down — and, because openTravel() reads
+         this table to build its list, which two places it will still take you
+         to at all. The valley floor is walked now: the farm, the town, the
+         water, the wood and the meadow all join along whole runs of their own
+         edges (the seams in maps.js), and a menu row for any of them would be
+         a way of not playing the game. The setra and the vidda are what the
+         menu was always honest about — they are up the mountain, the track is
+         hours of it, and the −10 energy and +40 minutes is that walk. You
+         still have to climb it once on your own feet before the row appears,
+         since the list is filtered by S.disc. Sigrid and Gunnar say as much
+         (BEK_TALK). */
+      const BEK_HOME = { setra: [10, 6], vidda: [20, 14] };
       function markDisc(m){ if (BEK_MAPS[m] && !BEK_MAPS[m].inside) S.disc[m] = 1; }
       function dropAt(mp, item, tries, area) {
         for (let k = 0; k < (tries || 40); k++) {
@@ -506,16 +576,23 @@ export default {
           if (!solid(mp, x, y) && t !== '.' && t !== 'P') { S.drops.push({ map: mp, x: x, y: y, item: item }); return; }
         }
       }
+      /* The counts are a density, not a budget: the maps they are scattered
+         over are three to four times the ground they used to be, so the old
+         numbers would have left a morning's foraging as four mushrooms
+         somewhere in eleven hundred squares. Roughly doubled, which keeps a
+         walk through the wood about as rewarding per screen as it was and
+         still leaves foraging the smallest of the four incomes. */
       function spawnDrops() {
         S.drops = [];
-        [['sopp',4],['blabar',3],['kantarell',1]].forEach(p => { for (let i=0;i<p[1];i++) dropAt('forest', p[0]); });
-        for (let i=0;i<3;i++) dropAt('setra','multe');
-        dropAt('setra','melk'); dropAt('setra','melk');
-        for (let i=0;i<3;i++) dropAt('vidda','tyttebar');
-        dropAt('vidda','blabar');
-        for (let i=0;i<2;i++) dropAt('fjord','tang');
-        for (let i=0;i<2;i++) dropAt('lake','blabar',40,[1,9,8,4]);
-        dropAt('enga','urt');
+        [['sopp',8],['blabar',6],['kantarell',2]].forEach(p => { for (let i=0;i<p[1];i++) dropAt('forest', p[0]); });
+        for (let i=0;i<6;i++) dropAt('setra','multe');
+        for (let i=0;i<3;i++) dropAt('setra','melk');
+        for (let i=0;i<6;i++) dropAt('vidda','tyttebar');
+        for (let i=0;i<2;i++) dropAt('vidda','blabar');
+        for (let i=0;i<4;i++) dropAt('fjord','tang');
+        /* the water's berries keep to the strip of shore west of the path */
+        for (let i=0;i<4;i++) dropAt('lake','blabar',40,[1,9,8,14]);
+        for (let i=0;i<3;i++) dropAt('enga','urt');
         /* forage lvl2: the valley has more to find, every morning */
         if (S.lvl.forage >= 2) {
           dropAt('forest','sopp'); dropAt('setra','multe'); dropAt('vidda','tyttebar'); dropAt('enga','urt');
@@ -577,7 +654,10 @@ export default {
            itself is still one call, still fully random */
         S.weather = rollWeather(S.day);
         spawnDrops();
-        S.map = 'farm'; S.px = 4; S.py = 8; S.dir = 1;
+        /* out of the cabin door and onto the yard track, whichever bed or
+           field you fell asleep in — the same square the farmhouse sets you
+           down on when you walk out of it */
+        S.map = 'farm'; S.px = 8; S.py = 8; S.dir = 0;
         sfx.sleep();
         say(TX('DAG ' + S.day + '. ', 'DAY ' + S.day + '. ') +
             (passedOut ? TX('DU SOVNET DER DU STO.', 'YOU SLEPT WHERE YOU FELL.')
@@ -2512,7 +2592,9 @@ export default {
           if (name === 'craft') craft = { side: 0, sel: 0 };
           if (name === 'talk') dlg = { lines: [BEK_TALK.astrid.chat[0].t[0]], i: 0, npc: BEK_NPCS[0] };
           if (name === 'offer') offer = { label: { no: 'BÅT', en: 'BOAT' }, kr: 400 };
-          if (name === 'travel') travel = { list: Object.keys(S.disc), sel: 0 };
+          /* the same list openTravel() would build — BEK_HOME is what decides
+             which places the menu still offers, not S.disc on its own */
+          if (name === 'travel') travel = { list: Object.keys(S.disc).filter(m => BEK_HOME[m]), sel: 0 };
           if (name === 'end') S.ending = 4.2;
           if (name === 'fish') fish = { phase: 'reel', t: 4, pos: 0.42, dir: 1, spd: 0.7,
                                         z0: 0.3, z1: 0.5, hits: 1, need: 3, miss: 0, maxMiss: 3, rare: 0 };
