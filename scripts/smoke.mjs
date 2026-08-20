@@ -51,6 +51,14 @@ function makeCtx2D() {
     fill: noop, arc: noop, save: noop, restore: noop, translate: noop,
     rotate: noop, scale: noop, setTransform: noop,
     createPattern: () => ({}),
+    /* The local-light pass reads the canvas back and writes it again (see
+       `lamp.js`), so the stub has to return a real buffer of the size asked
+       for rather than a no-op: the pass indexes into `.data` directly and a
+       shorter array would loop off the end. Nothing here checks the pixels —
+       what this harness asserts is that the frame path does not throw. */
+    getImageData: (x, y, w, h) => ({ width: w, height: h,
+                                     data: new Uint8ClampedArray(Math.max(0, w * h * 4)) }),
+    putImageData: noop,
     createLinearGradient: () => ({ addColorStop: noop }),
     createRadialGradient: () => ({ addColorStop: noop }),
     measureText: () => ({ width: 0 })

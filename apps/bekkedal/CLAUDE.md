@@ -30,7 +30,8 @@ coordinates") lives in `bekkedal-art.md`.
 - `layout.js` — panel rectangles, padding, column offsets. See `.claude/rules/bekkedal-art.md`.
 - `noise.js` — terrain variation field. See `.claude/rules/bekkedal-art.md`.
 - `palette.js` — the sixty-four colours and the `MARKS`/`SHADOWS`/`FEATURES` contrast tables. See `.claude/rules/bekkedal-art.md`.
-- `light.js` — hour-of-day palette transform and local light. See `.claude/rules/bekkedal-art.md`.
+- `light.js` — hour-of-day palette transform, the lamp state a pool resolves toward, and the falloff. See `.claude/rules/bekkedal-art.md`.
+- `lamp.js` — the local-light pass: an ordered dither between the picture at this hour and the picture in daylight. See `.claude/rules/bekkedal-art.md`.
 - `surface.js` — glyph-to-palette-entry table per map. See `.claude/rules/bekkedal-art.md`.
 - `autotile.js` — neighbour masks and rounded-union signed distance. See `.claude/rules/bekkedal-art.md`.
 - `shore.js` — shoreline profile, surf, bank. See `.claude/rules/bekkedal-art.md`.
@@ -64,7 +65,11 @@ coordinates") lives in `bekkedal-art.md`.
   blend you cannot express as a stipple is a blend you may not use." (full
   doctrine: **No alpha, still**, `.claude/rules/bekkedal-art.md`)
 - Every blend is an ordered dither via `dither()`/`ditherPat()`; every fill
-  is an axis-aligned `fillRect` on integer coordinates.
+  is an axis-aligned `fillRect` on integer coordinates. `lamp.js` is the one
+  place that reads the `DITHER` matrix directly instead of through a stipple
+  pattern — it dithers between two *pictures* rather than between a picture
+  and a colour, so it cannot go through `ditherPat`. It is still whole pixels
+  of one of two colours, with no alpha anywhere.
 - `data.js` is content, `index.js` is behaviour (see File split above).
 - Files stay under 300 lines (repo-wide rule, see root `CLAUDE.md`).
 

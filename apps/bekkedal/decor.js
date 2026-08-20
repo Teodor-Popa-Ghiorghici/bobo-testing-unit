@@ -36,8 +36,11 @@ import { BEK_T } from './data.js';
 
 /* kinds that are redrawn every frame rather than baked into the cache */
 export const LIVE = { cat: 1 };
-/* kinds that throw light, and how far — read by index.js's light pass */
-export const LIGHTS = { candle: { r: 1.2, peak: 5 }, lamp: { r: 1.8, peak: 7 } };
+/* Kinds that throw light, and how far — read by index.js's light pass.
+   `peak` is out of 16 and means how much of the *daylight* picture the pool
+   resolves to at its centre, not how much warm paint goes down; it was
+   rescaled when local light stopped being an overlay. See lamp.js. */
+export const LIGHTS = { candle: { r: 1.2, peak: 10 }, lamp: { r: 1.8, peak: 13 } };
 
 /* Each takes (A, px, py, v) where `v` is a small integer of variation off the
    tile hash, so two of the same prop in one room are not the same prop. */

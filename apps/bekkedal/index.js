@@ -29,7 +29,8 @@ import { houseCost, houseTierCost, houseTierAvailable, barnSlots } from './progr
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
-import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT, glow, GLOW_CELL } from './light.js';
+import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT } from './light.js';
+import { glow, GLOW_CELL, lampState, createLamp } from './lamp.js';
 import { rustic, inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { createText } from './text.js';
@@ -1826,41 +1827,85 @@ export default {
 
       /* ---- local light ---------------------------------------------------
          The lighting curve is what makes night comfortable; this is what
-         makes it inviting, and they are different things. A source pulls the
-         ground near it back toward warm and bright — warm, not merely
-         brighter, or a lit window in a blue valley reads as a hole in the
-         picture rather than as somebody being in. Two passes per source, a
-         wide faint halo and a tight core, so the pool changes colour
-         temperature toward the middle instead of only getting stronger.
+         makes it inviting, and they are different things.
 
-         The stipple is taken in *daylight* colours (`wash`'s last argument):
-         a fire is as bright at midnight as at noon, which is the whole
-         reason for lighting one.
+         The pool itself lives in `lamp.js` and is an ordered dither between
+         the picture at this hour and the picture in daylight — read that file
+         before changing anything here. A source no longer paints the ground
+         warm; it resolves the ground toward the colours daylight would have
+         given it. At full strength that is the daylight picture, so full
+         strength is maximum legibility rather than none, and two sources over
+         one pixel compose as a maximum instead of stacking toward opaque.
 
          Static sources are painted into the terrain cache, because the light
          key is already part of the cache key — so a lit window costs nothing
-         per frame. Only what moves or flickers is redrawn live. */
-      /* Two passes, and the outer one is a *deeper* colour rather than a
-         weaker one. Light gets redder as it dims — a fire's reach is amber in
-         the middle and rust at the edge — so the pool changes temperature
-         outward and not only strength. Pull the outer pass toward yellow
-         instead and it reads as a spotlight. */
+         per frame. Only what moves or flickers is redrawn live.
+
+         What is left in this file is the warm veil that goes *over* a pool.
+         The old two-pass structure took its colour temperature from painting
+         the rim in a deeper entry than the core; with the core no longer
+         painted at all, the temperature has to come from somewhere, and a
+         fire's light does have to read as amber or it reads as a hole in a
+         blue valley. The stipple is taken in *daylight* colours (`ditherPat`'s
+         `day` flag): a fire is as bright at midnight as at noon, which is the
+         whole reason for lighting one.
+
+         Thin is the specification, and `VEIL` is the number that says so: at
+         two sixteenths this is a cast over the picture and not a lid on it,
+         and it is the one part of the light pass that is still paint. Two of
+         16 is also exactly the strength `glow` drops, which is what gives the
+         ring its outer edge — `jitter` carries a cell over the line or not,
+         so the veil *dissolves* over the last third of its reach instead of
+         stopping on a contour. Do not raise it looking for a brighter light.
+         A stronger stipple with no pool under it is the spray of loose orange
+         squares over the grass that the falloff in `lamp.js` is shaped to
+         avoid, and it would put paint back over the picture at the one place
+         this whole rework exists to clear. Raise the source's peak instead,
+         which brightens by revealing rather than by covering. */
       const GLOW_HALO = 1.35;
-      /* One native() for the whole pool, not one per cell. `wash` opens its
+      /* The veil fades out with the hour on its own account. It is paint, and
+         paint does not know that the pool under it has converged on the hour's
+         own palette and stopped showing — so without this a lit window keeps a
+         ring of orange stipple around it at eight in the morning. `glow` drops
+         anything under strength 2, so the fade is to nothing rather than to a
+         sparse speckle, which is the failure mode to avoid here. */
+      const VEIL = 2, VEIL_HOLE = 0.7, VEIL_DARK = 0.35;
+      const veilPeak = dark => VEIL * Math.min(1, dark / VEIL_DARK);
+      /* One native() for the whole veil, not one per cell. `wash` opens its
          own, and a pool is several hundred cells — that was several hundred
          save/scale/restore triples per source and most of the rebuild. */
-      function pool(px, py, r, peak) {
+      function veil(sources, dark) {
+        const peak = veilPeak(dark);
         if (peak < 2) return 0;
         let n = 0;
         native(() => {
-          const put = col => (gx, gy, w, h, sN) => {
-            g.fillStyle = ditherPat(col, sN, true); g.fillRect(gx, gy, w, h);
-          };
-          n += glow(put(WAR[1]), px, py, r * GLOW_HALO, Math.round(peak * 0.45));
-          n += glow(put(WAR[3]), px, py, r, peak);
+          for (let i = 0; i < sources.length; i++) {
+            const sc = sources[i], hole = sc.r * VEIL_HOLE, h2 = hole * hole;
+            glow((gx, gy, w, h, sN) => {
+              /* Hollow, and this is the point of the whole shape. In the
+                 middle of a pool the warmth is already in the palette the
+                 pixels were resolved to, and a stipple there is paint over
+                 the one place the picture most needs to be legible — the
+                 mine floor under the lamp is exactly what the report was
+                 about. Out at the fringe the coverage is low, so most pixels
+                 there are still the hour's and the warmth has nowhere else
+                 to come from. Same y-squash as `glow`'s, or the ring would
+                 not sit inside the pool it belongs to. */
+              const dx = gx + w / 2 - sc.px, dy = (gy + h / 2 - sc.py) * 1.15;
+              if (dx * dx + dy * dy < h2) return;
+              g.fillStyle = ditherPat(WAR[2], sN, true); g.fillRect(gx, gy, w, h); n++;
+            }, sc.px, sc.py, sc.r * GLOW_HALO, peak);
+          }
         });
         return n;
       }
+      /* One field per canvas the pass runs on: the map-sized terrain cache,
+         and the screen, which is the only place a light that walks can be
+         applied after the things it ought to be lighting are on it. */
+      const lampT = createLamp(BEK_MAP_W, BEK_MAP_H, DITHER, BEK_DITHER_PX);
+      const lampV = createLamp(BEK_W, BEK_H, DITHER, BEK_DITHER_PX);
+      const VIEW_RECT = { x: BEK_VIEW_X, y: BEK_VIEW_Y, w: BEK_VIEW_W, h: BEK_VIEW_H };
+      const LANTERN_R = 2.4 * BEK_T, LANTERN_PEAK = 15;
 
       /* ---- the moon ------------------------------------------------------
          One cool key light, from above and a little to the left, put on as a
@@ -1909,17 +1954,26 @@ export default {
          rasterised rather than searched for every frame. A window only counts
          if it has somewhere to spill: a wall with another wall in front of it
          is lighting the inside of a wall. */
+      /* A peak is no longer "how much orange to put down" but "how much of the
+         daylight picture to resolve to", so the numbers all went up and the
+         scaling got gentler: even at dusk a lit window is properly lit, it is
+         just that at dusk the two palettes are close together and there is
+         very little for the pool to reveal. That is the falloff doing the
+         work the old `* dark` had to do by hand. */
+      const litPeak = (P, dark) => Math.round(P * (0.62 + 0.38 * dark));
       function lightSources(dark) {
         const out = [];
         if (dark <= 0.02) return out;
         const ins = ins_();
+        const at = (x, y, dy, r, peak, hearth) =>
+          out.push({ px: (x + 0.5) * BEK_T, py: (y + dy) * BEK_T, r: r, peak: peak, hearth: hearth });
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) {
           const c = tileAt(S.map, x, y);
-          if (c === 'v') { out.push({ x: x, y: y, dy: 0.1, r: 2.7 * BEK_T, peak: Math.round(12 * dark), hearth: 1 }); continue; }
+          if (c === 'v') { at(x, y, 0.1, 2.7 * BEK_T, litPeak(16, dark), 1); continue; }
           const dp = propMap.get(x + ',' + y);
           if (dp && PROP_LIGHTS[dp.kind]) {
             const L2 = PROP_LIGHTS[dp.kind];
-            out.push({ x: x, y: y, dy: 0.5, r: L2.r * BEK_T, peak: Math.round(L2.peak * dark) });
+            at(x, y, 0.5, L2.r * BEK_T, litPeak(L2.peak, dark));
           }
           if (c !== 'H') continue;
           if (objVar('H', S.map, x, y).win >= 2) continue;            /* no window in this course */
@@ -1929,7 +1983,7 @@ export default {
              dead margin outside a room gets nothing, because there is
              nothing out there to light. */
           if (tileAt(S.map, x, y + 1) === ' ') continue;
-          out.push({ x: x, y: y, dy: 0.9, r: (ins ? 1.5 : 1.9) * BEK_T, peak: Math.round((ins ? 7 : 8) * dark) });
+          at(x, y, 0.9, (ins ? 1.5 : 1.9) * BEK_T, litPeak(ins ? 11 : 13, dark));
         }
         return out;
       }
@@ -1937,7 +1991,7 @@ export default {
       /* rebuild cost, so the numbers in the docs are measured and not guessed */
       /* Split three ways, because "the rebuild got slower" is not a finding
          and "the detail pass got slower" is. */
-      const perf = { rects: 0, ms: 0, ground: 0, detail: 0, forest: 0, light: 0, rebuilds: 0, key: '' };
+      const perf = { rects: 0, lit: 0, pool: 0, veil: 0, ms: 0, ground: 0, detail: 0, forest: 0, light: 0, rebuilds: 0, key: '' };
       const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       function terrain() {
         const L = lighting();
@@ -1968,11 +2022,20 @@ export default {
           if (!ins_()) native(() => forest.draw(snow_()));
           perf.forest = now() - tD;
           moonKey(L.dark);
-          lightSources(L.dark).forEach(sc => {
-            const px = (sc.x + 0.5) * BEK_T, py = (sc.y + sc.dy) * BEK_T;
-            rects += pool(px, py, sc.r, sc.peak);
-            if (sc.hearth) terrHearths.push(px, py);
-          });
+          /* The pool resolves what is already on the canvas, so it has to run
+             after everything static is on it — and the warm veil has to run
+             after the pool, or the pool would resolve the warmth straight back
+             out of the pixels it had just been painted onto. */
+          const srcs = lightSources(L.dark);
+          if (srcs.length) {
+            const tP = now();
+            perf.lit = lampT.apply(terrG, srcs, L.st, lampState(L.st, L.dark));
+            const tQ = now();
+            rects += veil(srcs, L.dark);
+            perf.pool = tQ - tP; perf.veil = now() - tQ;
+            for (let i = 0; i < srcs.length; i++)
+              if (srcs[i].hearth) terrHearths.push(srcs[i].px, srcs[i].py);
+          } else { perf.lit = 0; perf.pool = 0; perf.veil = 0; }
           /* Light does not spill into the void. The margin outside a room's
              walls is deliberate dead black and a warm pool creeping out over
              it reads as the room leaking, so it is painted back afterwards
@@ -2104,18 +2167,20 @@ export default {
         for (let y = 0; y < BEK_ROWS; y++) for (let x = 0; x < BEK_COLS; x++) if (tileAt(S.map, x, y) === 'f') drawSoil(x, y);
 
         /* The moving half of the light. The pools themselves are in the cache;
-           these are the two things that cannot be: a fire whose reach breathes
-           on the same cycle as its flame, and a lamp that walks. Both are
-           small — a couple of dozen stipple cells — because the expensive part
-           was paid at the last rebuild. */
+           what cannot be is a fire whose reach breathes on the same cycle as
+           its flame. It breathes as the warm veil now rather than as a second
+           pool, and that is the whole of the old stacking bug: a cached pool
+           and a live one used to land on the same pixels, clamp to 16
+           independently and composite to something effectively opaque. A veil
+           over a pool cannot do that, and neither can two pools. */
         propMap.forEach(d => { if (PROP_LIVE[d.kind]) drawProp(d, d.x, d.y, t); });
 
-        if (L.dark > 0.02) {
+        if (L.dark > 0.02 && terrHearths.length) {
           const fl = 1 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 11.7);
+          const hs = [];
           for (let i = 0; i < terrHearths.length; i += 2)
-            pool(terrHearths[i], terrHearths[i + 1], 1.25 * BEK_T * fl, Math.round(5 * L.dark));
-          if (isCave(S.map) && has('lykt'))
-            pool(S.px * BEK_T + BEK_T / 2, S.py * BEK_T + BEK_T / 2, 2.4 * BEK_T, 10);
+            hs.push({ px: terrHearths[i], py: terrHearths[i + 1], r: 1.7 * BEK_T * fl });
+          veil(hs, L.dark);
         }
 
         S.drops.filter(d => d.map === S.map).forEach(d => drawIcon(d.item, d.x * BEK_T_SRC + 3, d.y * BEK_T_SRC + 3));
@@ -2154,6 +2219,29 @@ export default {
         native(() => fx.draw());
 
         if (S.map === 'lake' && S.flag.lot && !S.built) { g.fillStyle = C(SAN[2]); g.fillRect(3 * BEK_T_SRC, 3 * BEK_T_SRC, 5 * BEK_T_SRC, 1); g.fillRect(3 * BEK_T_SRC, 6 * BEK_T_SRC - 1, 5 * BEK_T_SRC, 1); }
+
+        /* The one pool that cannot be cached, because it walks. It is the same
+           pass as the cached ones, run on the screen once everything in the
+           playfield is on it — so the lamp lights the floor, the ore glints,
+           the drops and the player's own shirt, none of which a pool baked
+           into the terrain could ever reach. It goes on the screen in screen
+           pixels, which is what `camX`/`camY` are doing here; the veil after
+           it is still world-space art under the ambient transform. The
+           viewport is passed in by hand because `getImageData` knows nothing
+           about the clip path, and a lantern must not reach the HUD.
+
+           The peak is flat rather than scaled by darkness: the gruva ignores
+           the clock (`CAVE_LIGHT`), so there is only ever one darkness for it
+           to be scaled against, and a lamp you are carrying is the brightest
+           thing down there by design. */
+        if (isCave(S.map) && has('lykt')) {
+          const src = [{ px: S.px * BEK_T + BEK_T / 2, py: S.py * BEK_T + BEK_T / 2,
+                         r: LANTERN_R, peak: LANTERN_PEAK }];
+          lampV.apply(g, src.map(sc => ({ px: sc.px + BEK_VIEW_X - camX, py: sc.py + BEK_VIEW_Y - camY,
+                                          r: sc.r, peak: sc.peak })),
+                      L.st, lampState(L.st, L.dark), VIEW_RECT);
+          veil(src, L.dark);
+        }
         g.restore();
 
         /* Weather sits over the playfield only, and it is the last thing that
@@ -2254,7 +2342,8 @@ export default {
       let drawMs = 0;
       const dbg = {
         perf: () => ({
-          rebuilds: perf.rebuilds, lightRects: perf.rects,
+          rebuilds: perf.rebuilds, lightRects: perf.rects, litPx: perf.lit,
+          poolMs: Math.round(perf.pool * 100) / 100, veilMs: Math.round(perf.veil * 100) / 100,
           rebuildMs: Math.round(perf.ms * 100) / 100,
           groundMs: Math.round(perf.ground * 100) / 100,
           detailMs: Math.round(perf.detail * 100) / 100,
