@@ -200,7 +200,11 @@ export const MARKS = {
   WATER_DEEP: { on: WAT[1],   cols: [WAT[2], WAT[0]] },
   WATER_SHAL: { on: WAT[3],   cols: [WAT[2], WAT[4]] },
   SAND_GRIT:  { on: SAN[1],   cols: [SAN[0], SAN[2]] },
-  SOIL_CLOD:  { on: SOI[2],   cols: [SOI[1], SOI[3]] }
+  SOIL_CLOD:  { on: SOI[2],   cols: [SOI[1], SOI[3]] },
+  /* the vidda's exposed bedrock breaking through the thin alpine turf — a
+     grey mark on grass rather than a second material, which is why it stays
+     inside the band on its own and needs no feature exemption */
+  BEDROCK:    { on: GRASS[2], cols: [STO[2]] }
 };
 
 export const SHADOWS = {
@@ -225,7 +229,10 @@ export const SHADOWS = {
   ORE_MATRIX: { on: STO[2],   cols: [STO[0], ATMO[0]] },
   /* the black the fir silhouette is cut out of. Its surface is the tree's
      own base, not the grass behind it — the ink outlines the tree. */
-  TREE_INK:   { on: CON[1],   cols: [CON[0], ATMO[0]] }
+  TREE_INK:   { on: CON[1],   cols: [CON[0], ATMO[0]] },
+  /* moss in the shade of a boulder or under the forest canopy — darker than
+     the green it sits against rather than a differently-lit step of it */
+  MOSS_SHADE: { on: GRASS[2], cols: [CON[1]] }
 };
 
 export const FEATURES = {
@@ -246,6 +253,9 @@ export const FEATURES = {
   ORE_COPPER: { on: STO[1],   cols: [CON[1], ORE[1], WAT[5], SNO[1]] },
   ORE_SILVER: { on: STO[1],   cols: [STO[2], STO[4], SNO[0], SNO[1]] },
   HEARTH:     { on: TIM[2],   cols: [WAR[1], WAR[2], WAR[3], WAR[4]] },
+  /* an old drift lying in the lee of a boulder, on the vidda and the setra —
+     the one mark on grass this game has that is lighter than its surface */
+  SNOWDRIFT:  { on: GRASS[2], cols: [SNO[0], SNO[1]] },
   /* ---- what makes a building findable ------------------------------------
      Every entry below is thin — a frame, a board, a ridge cap, a handle — and
      every one of them is the mark the eye actually lands on. That is the
