@@ -459,7 +459,8 @@ export default {
           if (night()) return 'night';
           if (S.map === 'town') return 'townday';
           return 'day';
-        }
+        },
+        season: () => BEK_SEASONS[S.season].id
       });
 
       /* ---- the bed under everything --------------------------------------
