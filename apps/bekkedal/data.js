@@ -425,32 +425,96 @@ export const BEK_TREES = {
    what Marit asked for.
    ========================================================================== */
 export const BEK_DECOR = {
+  /* ---- outdoors ----------------------------------------------------------
+     Same table, same rule (kind here, placement there) — a market stall and
+     a woodpile are exactly as much content as a kettle, they just stand on
+     grass instead of a floorboard. Coordinates checked against BEK_MAPS'
+     own rows the same way the indoor lists below are: world_check.js's
+     decorBad pass. */
+  farm: [
+    { x: 11, y: 5,  kind: 'woodpile' },
+    { x: 4,  y: 5,  kind: 'waterbutt' },
+    { x: 9,  y: 8,  kind: 'bootscraper' },
+    { x: 13, y: 6,  kind: 'crate' },
+    { x: 14, y: 8,  kind: 'wheelbarrow' },
+    { x: 17, y: 5,  kind: 'stonewall' },
+    { x: 17, y: 6,  kind: 'stonewall' },
+    { x: 17, y: 7,  kind: 'stonewall' },
+    { x: 20, y: 10, kind: 'weeds' },
+    { x: 25, y: 10, kind: 'weeds' },
+    { x: 33, y: 9,  kind: 'brokenfence' },
+    { x: 7,  y: 9,  kind: 'washline' },
+    { x: 25, y: 12, kind: 'weeds' },
+    { x: 6,  y: 10, kind: 'wellbucket' },
+    { x: 12, y: 9,  kind: 'weeds' },
+    { x: 7,  y: 11, kind: 'flowers' }
+  ],
+  town: [
+    { x: 17, y: 12, kind: 'stall' },
+    { x: 31, y: 13, kind: 'stall' },
+    { x: 31, y: 18, kind: 'stall' },
+    { x: 22, y: 15, kind: 'lamppost' },
+    { x: 26, y: 15, kind: 'lamppost' },
+    { x: 20, y: 13, kind: 'wellbucket' },
+    { x: 5,  y: 7,  kind: 'hitchpost' },
+    { x: 30, y: 10, kind: 'hitchpost' },
+    { x: 7,  y: 11, kind: 'crate' },
+    { x: 11, y: 11, kind: 'crate' },
+    { x: 8,  y: 12, kind: 'crate' },
+    { x: 37, y: 12, kind: 'crate' },
+    { x: 12, y: 6,  kind: 'crate' },
+    { x: 2,  y: 20, kind: 'stall' },
+    { x: 16, y: 20, kind: 'hitchpost' },
+    { x: 24, y: 10, kind: 'washline' }
+  ],
+  lake: [
+    { x: 13, y: 8,  kind: 'rowboat' },
+    { x: 12, y: 9,  kind: 'netframe' },
+    { x: 13, y: 10, kind: 'cleantable' },
+    { x: 7,  y: 13, kind: 'boat_up' },
+    { x: 21, y: 1,  kind: 'reeds' },
+    { x: 18, y: 4,  kind: 'reeds' },
+    { x: 15, y: 7,  kind: 'reeds' },
+    { x: 16, y: 11, kind: 'reeds' },
+    { x: 22, y: 14, kind: 'reeds' },
+    { x: 22, y: 17, kind: 'reeds' },
+    { x: 19, y: 20, kind: 'reeds' },
+    { x: 21, y: 23, kind: 'reeds' },
+    { x: 5,  y: 8,  kind: 'mossclump' },
+    { x: 3,  y: 17, kind: 'mossclump' },
+    { x: 2,  y: 21, kind: 'mossclump' },
+    { x: 9,  y: 20, kind: 'washline' },
+    { x: 16, y: 16, kind: 'netframe' }
+  ],
   farmhouse: [
-    { x: 14, y: 4,  kind: 'kettle' },
-    { x: 16, y: 4,  kind: 'jars' },
-    { x: 10, y: 7,  kind: 'crockery' },
-    { x: 11, y: 7,  kind: 'candle' },
-    { x: 13, y: 5,  kind: 'firewood' },
-    { x: 13, y: 6,  kind: 'cat' },
-    { x: 10, y: 9,  kind: 'boots' },
-    { x: 7,  y: 9,  kind: 'broom' },
-    { x: 6,  y: 6,  kind: 'coat' },
-    { x: 8,  y: 3,  kind: 'picture' },
-    { x: 12, y: 3,  kind: 'herbs' }
+    { x: 18, y: 4,  kind: 'kettle' },
+    { x: 20, y: 4,  kind: 'jars' },
+    { x: 16, y: 4,  kind: 'crockery' },
+    { x: 17, y: 3,  kind: 'candle' },
+    { x: 15, y: 3,  kind: 'herbs' },
+    { x: 17, y: 5,  kind: 'firewood' },
+    { x: 16, y: 5,  kind: 'cat' },
+    { x: 10, y: 11, kind: 'boots' },
+    { x: 13, y: 11, kind: 'broom' },
+    { x: 2,  y: 7,  kind: 'picture' },
+    { x: 2,  y: 4,  kind: 'coat' },
+    { x: 4,  y: 9,  kind: 'basket' },
+    { x: 8,  y: 6,  kind: 'loaf' },
+    { x: 19, y: 10, kind: 'flowers' }
   ],
   lakehouse: [
-    { x: 15, y: 4,  kind: 'kettle' },
-    { x: 17, y: 4,  kind: 'lamp' },
-    { x: 9,  y: 7,  kind: 'loaf' },
-    { x: 10, y: 7,  kind: 'crockery' },
-    { x: 14, y: 5,  kind: 'firewood' },
-    { x: 13, y: 5,  kind: 'cat' },
-    { x: 12, y: 10, kind: 'boots' },
-    { x: 13, y: 9,  kind: 'basket' },
-    { x: 5,  y: 7,  kind: 'net' },
-    { x: 18, y: 6,  kind: 'rod' },
-    { x: 7,  y: 3,  kind: 'picture' },
-    { x: 12, y: 3,  kind: 'flowers' }
+    { x: 18, y: 4,  kind: 'kettle' },
+    { x: 20, y: 4,  kind: 'lamp' },
+    { x: 16, y: 4,  kind: 'crockery' },
+    { x: 17, y: 3,  kind: 'loaf' },
+    { x: 17, y: 5,  kind: 'firewood' },
+    { x: 16, y: 5,  kind: 'cat' },
+    { x: 10, y: 11, kind: 'boots' },
+    { x: 13, y: 11, kind: 'basket' },
+    { x: 2,  y: 7,  kind: 'picture' },
+    { x: 5,  y: 3,  kind: 'net' },
+    { x: 19, y: 10, kind: 'rod' },
+    { x: 8,  y: 6,  kind: 'flowers' }
   ],
   /* Act II: the house's own upgrade tier (S.houseTier, index.js's
      hakonTilbygg()) — layered over `lakehouse` above rather than replacing it,
@@ -460,9 +524,9 @@ export const BEK_DECOR = {
      Coordinates checked against BEK_MAPS.lakehouse's own rows and the
      `lakehouse` list above for collisions. */
   lakehouse_t2: [
-    { x: 16, y: 3,  kind: 'herbs' },
-    { x: 17, y: 7,  kind: 'jars' },
-    { x: 7,  y: 9,  kind: 'coat' }
+    { x: 15, y: 3,  kind: 'herbs' },
+    { x: 2,  y: 4,  kind: 'jars' },
+    { x: 4,  y: 9,  kind: 'coat' }
   ]
 };
 

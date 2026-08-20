@@ -64,7 +64,7 @@ export const VALLEY = {
       'TTTTTTTTTTTTTTTgg.ggTTTTTTTTTTTTTTTTTTTTTTTT'
     ],
     exits: [],
-    door: { x: 8, y: 6, to: 'farmhouse', tx: 11, ty: 9 }
+    door: { x: 8, y: 6, to: 'farmhouse', tx: 11, ty: 12 }
   },
   town: {
     title: { no: 'BEKKEDAL', en: 'BEKKEDAL' },
@@ -167,48 +167,56 @@ export const VALLEY = {
   },
   /* The two rooms are small on purpose and stay that way. They still float in
      a black margin — that is P7's problem, not this pass's. */
+  /* Both rooms grew from a 12x8 / 14x9 island in a 24x15 map to a 22x13
+     room in the same 24x15 map — the map was already one full screen
+     (BEK_MIN_COLS x BEK_MIN_ROWS), it was only ever the room inside it that
+     was small, so filling the void meant widening the walls, not drawing
+     an exterior (see the interiors section of decor's brief). Both share
+     one floor plan — bed top-left, hearth/cupboard top-right, a crate by
+     the cupboard, table and rug centred — because the two houses were
+     always differentiated by BEK_DECOR's content, not by their glyphs. */
   farmhouse: {
     title: { no: 'HYTTA', en: 'THE CABIN' },
     inside: true,
     rows: [
       '                        ',
-      '                        ',
-      '                        ',
-      '      HHHHHHHHHHHH      ',
-      '      HbiiiiiivvuH      ',
-      '      HiiiiiiiiiiH      ',
-      '      HiizzzziiicH      ',
-      '      HiiznnziiiiH      ',
-      '      HiizzzziiiiH      ',
-      '      HiiiiiiiiiiH      ',
-      '      HHHHHDHHHHHH      ',
-      '                        ',
-      '                        ',
-      '                        ',
+      ' HHHHHHHHHHHHHHHHHHHHHH ',
+      ' HbiiiiiiiiiiiiiiiivvuH ',
+      ' HiiiiiiiiiiiiiiiiiciiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiizznnzziiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HHHHHHHHHHDHHHHHHHHHHH ',
       '                        '
     ],
-    exits: [{ x: 11, y: 10, to: 'farm', tx: 8, ty: 7 }]
+    exits: [{ x: 11, y: 13, to: 'farm', tx: 8, ty: 7 }]
   },
   lakehouse: {
     title: { no: 'HJEMME', en: 'HOME' },
     inside: true,
     rows: [
       '                        ',
-      '                        ',
-      '                        ',
-      '     HHHHHHHHHHHHHH     ',
-      '     HbiiiiiiiivvuH     ',
-      '     HiiiiiiiiiiiiH     ',
-      '     HiizzzziiiiicH     ',
-      '     HiiznnziiiiiiH     ',
-      '     HiizzzziiiiiiH     ',
-      '     HiiiiiiiiiiiiH     ',
-      '     HiiiiiiiiiiiiH     ',
-      '     HHHHHHDHHHHHHH     ',
-      '                        ',
-      '                        ',
+      ' HHHHHHHHHHHHHHHHHHHHHH ',
+      ' HbiiiiiiiiiiiiiiiivvuH ',
+      ' HiiiiiiiiiiiiiiiiiciiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiizznnzziiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HHHHHHHHHHDHHHHHHHHHHH ',
       '                        '
     ],
-    exits: [{ x: 11, y: 11, to: 'lake', tx: 5, ty: 5 }]
+    exits: [{ x: 11, y: 13, to: 'lake', tx: 5, ty: 5 }]
   }
 };

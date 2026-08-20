@@ -33,18 +33,24 @@
  */
 import { TIM, STO, SAN, SNO, WAR, WAT, GRASS, CON, DRY, ATMO } from './palette.js';
 import { BEK_T } from './data.js';
+/* the outdoor kinds live in decor_outdoor.js, purely for the 300-line rule —
+   merged into one PROP table below so callers never see the split */
+import { PROP_OUTDOOR } from './decor_outdoor.js';
 
 /* kinds that are redrawn every frame rather than baked into the cache */
 export const LIVE = { cat: 1 };
 /* Kinds that throw light, and how far — read by index.js's light pass.
    `peak` is out of 16 and means how much of the *daylight* picture the pool
    resolves to at its centre, not how much warm paint goes down; it was
-   rescaled when local light stopped being an overlay. See lamp.js. */
-export const LIGHTS = { candle: { r: 1.2, peak: 10 }, lamp: { r: 1.8, peak: 13 } };
+   rescaled when local light stopped being an overlay. See lamp.js.
+   `lamppost` is the outdoor kind — the two street lamps the local-light
+   doctrine already talks about, finally placed (see BEK_DECOR.town). */
+export const LIGHTS = { candle: { r: 1.2, peak: 10 }, lamp: { r: 1.8, peak: 13 },
+                         lamppost: { r: 1.8, peak: 12 } };
 
 /* Each takes (A, px, py, v) where `v` is a small integer of variation off the
    tile hash, so two of the same prop in one room are not the same prop. */
-export const PROP = {
+const PROP_ROOM = {
 
   /* ---- on the table -------------------------------------------------- */
   crockery(A, px, py, v) {
@@ -211,6 +217,10 @@ export const PROP = {
     A.fill(WAR[2], px + 22, py + 12, 6, 5);
   }
 };
+
+/* the outdoor kinds (decor_outdoor.js) merged in, so every other caller
+   still just sees one PROP table keyed by kind name */
+export const PROP = Object.assign({}, PROP_ROOM, PROP_OUTDOOR);
 
 /* ---- the furniture -------------------------------------------------------
    Moved out of `tileDetail`'s glyph ladder and redrawn at native density on
