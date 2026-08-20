@@ -69,7 +69,14 @@ export function solidOf(mapId, c) {
        across it reads at every hour, and indoors it is what gives the room an
        edge where the wall meets the floor. */
     case 'H': return inside(mapId) ? TIM[0] : rustic(mapId) ? TIM[1] : WAR[1];
-    case 'R': return rustic(mapId) ? GRASS[1] : WAR[1];
+    /* A roof is not the wall under it. The town's used to be WAR[1] — the
+       same falu red as the boards below — and read as one block with a line
+       ruled across it; it is dark tile now, which is both what these
+       buildings are and what keeps the two planes apart after dark. The
+       ground pass reads this directly now rather than asking about 'H', so
+       this answer and the first fillRect a roof lays down are the same
+       answer. */
+    case 'R': return rustic(mapId) ? GRASS[1] : STO[2];
     case 'D': return TIM[2];
     case 'S': return SAN[1];                  /* the board of a sign                    */
     case '=': return TIM[2];

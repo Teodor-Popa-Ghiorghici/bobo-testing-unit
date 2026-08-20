@@ -18,6 +18,7 @@ import { createShore } from './shore.js';
 import { createWater } from './water.js';
 import { createRock, oreKind } from './rock.js';
 import { createInterior } from './interior.js';
+import { createBuilding } from './building.js';
 import { createForest } from './forest.js';
 import { createFx, TOOL_SWING, swingLen, toolAt, drawHeld } from './fx.js';
 import { createSongs } from './music.js';
@@ -32,7 +33,7 @@ import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
          MARKS, SHADOWS, FEATURES } from './palette.js';
 import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT } from './light.js';
 import { glow, GLOW_CELL, lampState, createLamp } from './lamp.js';
-import { rustic, inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
+import { inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { createText } from './text.js';
 import { BORDER, CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -116,7 +117,7 @@ export default {
       const TUFT = MARKS.TUFT.cols, TUFT_DRY = MARKS.TUFT_DRY.cols, BLADE = MARKS.BLADE.cols,
             PATH_GRIT = MARKS.PATH_GRIT.cols, CAVE_GRIT = MARKS.CAVE_GRIT.cols,
             ROCK_FACE = MARKS.ROCK_FACE.cols, FLOOR_GRAIN = MARKS.FLOOR_GRAIN.cols,
-            TURF_ROOF = MARKS.TURF_ROOF.cols, WATER_DEEP = MARKS.WATER_DEEP.cols;
+            WATER_DEEP = MARKS.WATER_DEEP.cols;
       const PATH_CRACK = SHADOWS.PATH_CRACK.cols[0], ROCK_CRACK = SHADOWS.ROCK_CRACK.cols[0],
             FLOOR_JOINT = SHADOWS.FLOOR_JOINT.cols[0], TREE_INK = SHADOWS.TREE_INK.cols;
       /* the player, who has no entry in BEK_NPCS because there is only one */
@@ -550,9 +551,23 @@ export default {
         map: () => S.map,
         weather: () => S.weather,
         hour: () => dawn() ? 'dawn' : dusk() ? 'dusk' : night() ? 'night' : 'day',
-        hearths: () => lightSources(1).filter(s => s.hearth).map(s => ({ px: s.px, py: s.py })),
+        hearths: hearthsOf,
         player: () => ({ px: (S.px + 0.5) * BEK_T, py: (S.py + 0.5) * BEK_T })
       });
+
+      /* The hearths, for the ambience's positional crackle. It reads
+         `lightSources` rather than a second table of fire positions — but it
+         asks about the whole map and the ambience ticks every frame, so
+         scanning every square sixty times a second to find tiles that cannot
+         move inside a map would be a real cost for no information. A `v` is
+         map data, so the answer is taken once per map. */
+      let hearthMemo = { map: '', list: [] };
+      function hearthsOf() {
+        if (hearthMemo.map !== S.map)
+          hearthMemo = { map: S.map,
+                         list: lightSources(1).filter(s => s.hearth).map(s => ({ px: s.px, py: s.py })) };
+        return hearthMemo.list;
+      }
 
       /* ---- the day ------------------------------------------------------ */
       /* Where the travel menu sets you down — and, because openTravel() reads
@@ -1644,6 +1659,25 @@ export default {
         salt: () => mapSalt(S.map),
         cols: COLS, rows: ROWS
       });
+      /* Every building in the valley, as one elevation sampled per tile. The
+         same accessor shape as the others, plus the two things a facade needs
+         that a floor does not: which map it is on, so it knows whether it is
+         dressed in log and turf or in painted board under tile, and how dark
+         it is out, for a lit window and for whether a hearth is going. */
+      const building = createBuilding({
+        fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); },
+        wash: (px, py, w, h, col, str) => {
+          if (str <= 0) return;
+          g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+        },
+        tileAt: (x, y) => tileAt(S.map, x, y),
+        obj: (c, x, y) => objVar(c, S.map, x, y),
+        spot: spot,
+        map: () => S.map,
+        dark: () => lighting().dark,
+        cols: COLS, rows: ROWS
+      });
+
       /* what decor.js draws with — the same shape the other art modules take */
       const propArt = { fill: (col, px, py, w, h) => { g.fillStyle = C(col); g.fillRect(px, py, w, h); } };
       /* Chips, dust, spray and the item arcing into the bag. Transient, so
@@ -1759,7 +1793,11 @@ export default {
            check reasons about at the darkest hour is the colour that is
            actually on screen */
         if (c === 'P' || c === 'f' || c === 'L' || c === 'k') { g.fillStyle = C(groundOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
-        if (c === 'H' || c === 'R' || c === 'D') { g.fillStyle = C(solidOf(S.map, c === 'R' ? 'H' : c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
+        /* A roof used to take the *wall's* colour here, so surface.js's own
+           answer for 'R' was read by palette_check and by nothing else — a
+           table that is checked but not drawn from is a fiction. It asks
+           about the glyph it has now. */
+        if (c === 'H' || c === 'R' || c === 'D') { g.fillStyle = C(solidOf(S.map, c)); g.fillRect(px, py, BEK_T_SRC, BEK_T_SRC); return; }
         if (ins_()) native(() => interior.floor(x, y)); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
       }
 
@@ -1824,40 +1862,19 @@ export default {
         }
         if (c === '=') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 8, BEK_T_SRC, 3); g.fillRect(px + 8, py + 4, 3, 14); g.fillStyle = C(TIM[4]); g.fillRect(px, py + 8, BEK_T_SRC, 1); }
         if (c === 'x') { g.fillStyle = C(TIM[2]); g.fillRect(px, py + 3, BEK_T_SRC, 14); g.fillStyle = C(TIM[1]); for (let i = 0; i < BEK_T_SRC; i += 4) g.fillRect(px + i, py + 3, 1, 14); }
-        if (c === 'H') {
-          /* not every course of logs has a window cut in it */
-          const win = o.win < 2;
-          if (ins) {
-            native(() => interior.wall(x, y, o, win));
-          } else if (rustic(S.map)) {
-            g.fillStyle = C(TIM[3]); g.fillRect(px, py + 6, BEK_T_SRC, 1); g.fillRect(px, py + 13, BEK_T_SRC, 1); g.fillRect(px, py + 18, BEK_T_SRC, 2);   /* laft: stacked logs */
-            g.fillStyle = C(TIM[0]); g.fillRect(px, py, 1, BEK_T_SRC); g.fillRect(px + BEK_T_SRC - 1, py, 1, BEK_T_SRC);
-            if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 4, 9, 8);
-              g.fillStyle = C(SNO[0]); g.fillRect(px + 5, py + 4, 9, 1); g.fillRect(px + 9, py + 4, 1, 8); }
-            else { g.fillStyle = C(TIM[0]); g.fillRect(px + spot(o.kx, BEK_T_SRC, 2), py + spot(o.ky, BEK_T_SRC, 2), 2, 2); }   /* a knot in a log */
-          } else {
-            g.fillStyle = C(WAR[2]); g.fillRect(px, py + 4, BEK_T_SRC, 1); g.fillRect(px, py + 12, BEK_T_SRC, 1);             /* painted board */
-            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 18, BEK_T_SRC, 2);
-            if (win) { g.fillStyle = C(WAT[3]); g.fillRect(px + 5, py + 5, 9, 8);
-              g.fillStyle = C(SNO[1]); g.fillRect(px + 4, py + 4, 11, 1); g.fillRect(px + 9, py + 5, 1, 8); }
-          }
+        /* ---- a building ------------------------------------------------
+           Three glyphs, one elevation. The whole of the roof, the wall, the
+           door, the windows and the chimney is authored in building.js as a
+           profile of a tile's vertical position inside its own building, the
+           way shore.js authors the beach as a profile of distance from the
+           waterline — so a course runs across the seam between two wall rows
+           and a window is taller than either of them. Indoors is a different
+           drawing of the same wall and stays in interior.js. */
+        if (c === 'H' || c === 'R' || c === 'D') {
+          if (!ins) native(() => building.tile(c, x, y));
+          else if (c === 'D') native(() => interior.door(x, y));
+          else if (c === 'H') native(() => interior.wall(x, y, o, o.win < 2));
         }
-        if (c === 'R') {
-          if (rustic(S.map)) {
-            g.fillStyle = C(GRASS[1]); g.fillRect(px, py, BEK_T_SRC, 13);                     /* torvtak: turf */
-            g.fillStyle = C(TURF_ROOF[0]);
-            g.fillRect(px + spot(o.ax, BEK_T_SRC, 2), py + spot(o.ay, 12, 1), 2, 1);
-            g.fillRect(px + spot(o.bx, BEK_T_SRC, 2), py + spot(o.by, 12, 1), 2, 1);
-            g.fillStyle = C(TURF_ROOF[1]);
-            g.fillRect(px + spot(o.cx, BEK_T_SRC, 2), py + spot(o.cy, 12, 1), 2, 1);
-            g.fillStyle = C(TURF_ROOF[2]); g.fillRect(px + spot(o.fx, BEK_T_SRC, 1), py + spot(o.fy, 12, 1), 1, 1);
-            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 13, BEK_T_SRC, 2);
-          } else {
-            g.fillStyle = C(WAR[1]); g.fillRect(px, py + 4, BEK_T_SRC, 3); g.fillRect(px, py + 12, BEK_T_SRC, 3);
-            g.fillStyle = C(TIM[1]); g.fillRect(px, py + 18, BEK_T_SRC, 2);
-          }
-        }
-        if (c === 'D') { g.fillStyle = C(TIM[2]); g.fillRect(px + 4, py + 3, 12, 17); g.fillStyle = C(TIM[1]); g.fillRect(px + 4, py + 3, 12, 1); g.fillRect(px + 9, py + 3, 1, 17); g.fillStyle = C(WAR[4]); g.fillRect(px + 12, py + 11, 2, 2); }
         if (c === 'o') { g.fillStyle = C(STO[4]); g.fillRect(px + 3, py + 8, 14, 10); g.fillStyle = C(STO[2]); g.fillRect(px + 3, py + 16, 14, 2); g.fillStyle = C(WAT[2]); g.fillRect(px + 5, py + 10, 10, 5); g.fillStyle = C(WAT[4]); g.fillRect(px + 6, py + 11, 3, 1); g.fillStyle = C(TIM[2]); g.fillRect(px + 3, py + 2, 14, 3); g.fillRect(px + 4, py + 2, 2, 8); g.fillRect(px + 14, py + 2, 2, 8); }
         if (c === 'S') { g.fillStyle = C(TIM[2]); g.fillRect(px + 9, py + 8, 3, 11); g.fillStyle = C(SAN[1]); g.fillRect(px + 2, py + 2, 17, 8); g.fillStyle = C(TIM[0]); g.fillRect(px + 4, py + 4, 13, 1); g.fillRect(px + 4, py + 7, 9, 1); }
         if (c === 'K') { g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py + 9, 16, 9); g.fillStyle = C(TIM[3]); g.fillRect(px + 2, py + 5, 16, 5); g.fillStyle = C(TIM[0]); g.fillRect(px + 2, py + 9, 16, 1); g.fillStyle = C(WAR[1]); g.fillRect(px + 9, py + 8, 2, 5); }
@@ -1883,6 +1900,7 @@ export default {
         if (c === 'W') { waterTile(x, y, t); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
         if (c === '~') { native(() => shore.live(x, y, t, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(x * BEK_T_SRC, y * BEK_T_SRC, x, y); return; }
         if (c === 'O' || c === 'Q') { native(() => rock.live(c, x, y, t)); return; }
+        if (c === 'R') { native(() => building.smoke(x, y, t)); return; }
         if (c === 'v') hearthTile(x, y, t);                                  /* the hearth, alight */
         /* A prop standing on a tile that is itself redrawn every frame has to
            be redrawn with it, or the tile paints over it — which is how the
@@ -1890,9 +1908,11 @@ export default {
         const lp = propMap.get(x + ',' + y);
         if (lp) drawProp(lp, x, y, t);
       }
-      /* the glyphs whose art reads the clock: water, the hearth, and the
-         catch of light travelling across a crystal face */
-      const LIVE = 'W~vOQ';
+      /* the glyphs whose art reads the clock: water, the hearth, the catch of
+         light travelling across a crystal face — and a roof, because the one
+         thing about a building that is not static is the smoke coming off it.
+         Every other roof tile early-returns on one array read. */
+      const LIVE = 'W~vOQR';
 
       /* ---- the terrain cache ----------------------------------------------
          The two passes above used to be one function run for every tile on
@@ -2102,10 +2122,15 @@ export default {
          reaches (LIGHT_REACH tiles) so a hearth just outside it still lights
          the floor just inside. */
       const LIGHT_REACH = 3;
+      /* `R` is the rebuild's own region. `A.hearths()` (ambience) asks this
+         same question about the whole map and passes none, so it defaults to
+         one — without it that call dereferences `R.y0` on undefined and
+         throws every frame the moment an audio context exists. */
       function lightSources(dark, R) {
         const out = [];
         if (dark <= 0.02) return out;
         const ins = ins_();
+        if (!R) R = { x0: 0, y0: 0, x1: COLS(), y1: ROWS() };
         const at = (x, y, dy, r, peak, hearth) =>
           out.push({ px: (x + 0.5) * BEK_T, py: (y + dy) * BEK_T, r: r, peak: peak, hearth: hearth });
         const cols = COLS(), rows = ROWS();
@@ -2119,15 +2144,22 @@ export default {
             const L2 = PROP_LIGHTS[dp.kind];
             at(x, y, 0.5, L2.r * BEK_T, litPeak(L2.peak, dark));
           }
+          /* A window that is drawn is a window that lights, so outdoors this
+             asks building.js for the openings it actually put on the facade
+             rather than guessing at the glyph — one per column, at the height
+             the frame really sits, instead of up to one per wall course at a
+             fixed offset. Indoors the wall is interior.js's drawing and keeps
+             its own per-tile window; only the dead margin outside a room gets
+             nothing, because there is nothing out there to light. */
+          if (!ins) {
+            const w = building.windowAt(x, y);
+            if (w && w.y === y) at(x, y, w.dy, 1.9 * BEK_T, litPeak(13, dark));
+            continue;
+          }
           if (c !== 'H') continue;
           if (objVar('H', S.map, x, y).win >= 2) continue;            /* no window in this course */
-          /* A window that is drawn is a window that lights. If the wall
-             carries on below it the pool falls on the wall face, which is
-             what a lit window actually does to the boards under it. Only the
-             dead margin outside a room gets nothing, because there is
-             nothing out there to light. */
           if (tileAt(S.map, x, y + 1) === ' ') continue;
-          at(x, y, 0.9, (ins ? 1.5 : 1.9) * BEK_T, litPeak(ins ? 11 : 13, dark));
+          at(x, y, 0.9, 1.5 * BEK_T, litPeak(11, dark));
         }
         return out;
       }
@@ -2204,7 +2236,7 @@ export default {
              know nothing about the region, so they are keyed without it —
              walking across a big map must not relay every floorboard. */
           shore.prepare(kMap); water.prepare(kMap); rock.prepare(kMap); interior.prepare(kMap);
-          forest.prepare(kMap); propsPrepare();
+          forest.prepare(kMap); building.prepare(kMap); propsPrepare();
           g.save(); g.scale(BEK_ART_SCALE, BEK_ART_SCALE);
           const tA = now();
           for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) tileGround(tileAt(S.map, x, y), x, y);

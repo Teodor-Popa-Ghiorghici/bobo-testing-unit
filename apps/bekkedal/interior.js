@@ -248,5 +248,24 @@ export function createInterior(A) {
     A.fill(TIM[3], px + 10, py + 17, 20, 2);
   }
 
-  return { prepare: prepare, floor: floor, volume: volume, rug: rug, wall: wall };
+  /* ---- the door, from inside -----------------------------------------------
+     The outside of a door is `building.js`'s business, and it is a different
+     drawing entirely: out there a door is a frame, boards, iron and a step
+     down onto the path. From in here it is the back of the same leaf in the
+     same wall this file already draws, so it stays here rather than living as
+     the one inline glyph left in index.js's ladder. */
+  function door(x, y) {
+    const px = x * BEK_T, py = y * BEK_T, T = BEK_T;
+    /* the same 2px ink border every wall tile carries, so a doorway is an
+       opening in this wall and not a hole cut through to nothing */
+    A.fill(ATMO[0], px, py, T, T);
+    A.fill(TIM[0], px + 2, py + 2, T - 4, T - 4);              /* the reveal    */
+    A.fill(TIM[1], px + 4, py + 3, T - 8, T - 6);              /* the leaf      */
+    for (let bx = 7; bx < T - 7; bx += 7) A.fill(TIM[0], px + bx, py + 4, 1, T - 8);
+    A.fill(TIM[2], px + 4, py + 3, T - 8, 2);                  /* the top rail  */
+    A.fill(TIM[2], px + 4, py + T - 6, T - 8, 2);              /* and the lower */
+    A.fill(WAR[4], px + T - 13, py + 18, 3, 3);                /* the latch     */
+  }
+
+  return { prepare: prepare, floor: floor, volume: volume, rug: rug, wall: wall, door: door };
 }

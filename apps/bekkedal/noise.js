@@ -221,9 +221,9 @@ const R_TREE = [
   F('lit', 6, 4), F('br', 7, 6)                  /* catching light; brush   */
 ];
 
-/* One block per glyph, so a fir and a birch on the same square would not be
-   making the same decision twice. */
-const OBJ_BASE = 128, OBJ_SPAN = 16;
+/* One block per glyph, so a fir and a birch on one square do not make the
+   same decision twice. */
+const OBJ_BASE = 128, OBJ_SPAN = 16;   /* 16 channels a glyph, 10 the most used */
 const objBase = c => OBJ_BASE + c.charCodeAt(0) * OBJ_SPAN;
 const R_OBJ = {
   ',': [F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT),
@@ -237,8 +237,10 @@ const R_OBJ = {
   'Y': [F('turn', 0, 5), F('lx', 1, JIT), F('ly', 2, JIT), F('mx', 3, JIT), F('my', 4, JIT)],
   '^': [F('mx', 0, JIT), F('my', 1, JIT), F('cap', 2, 5), F('sx', 3, JIT), F('sy', 4, JIT)],
   'H': [F('win', 0, 5), F('kx', 1, JIT), F('ky', 2, JIT)],
+  /* `chim`: which roof column carries the stack; `lit`: when its fire goes on */
   'R': [F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT),
-        F('cx', 4, JIT), F('cy', 5, JIT), F('fx', 6, JIT), F('fy', 7, JIT)]
+        F('cx', 4, JIT), F('cy', 5, JIT), F('fx', 6, JIT), F('fy', 7, JIT),
+        F('chim', 8, 7), F('lit', 9, 5)]
 };
 
 const GROUND_BASE = 0, ROCK_BASE = 16, PATH_BASE = 40, WATER_BASE = 56,
