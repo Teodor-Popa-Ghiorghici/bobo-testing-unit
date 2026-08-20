@@ -44,6 +44,7 @@ coordinates") lives in `bekkedal-art.md`.
 - `actors.js` — people, animals, item icons. See `.claude/rules/bekkedal-art.md`.
 - `menus.js` — every panel drawn over the picture. See `.claude/rules/bekkedal-art.md`.
 - `music.js` — five tunes and the crossfading scheduler. See `.claude/rules/bekkedal-art.md`.
+- `ambience.js` — a bed per map, weather and the hour layered over it, positional hearth crackle, and material footsteps. See `.claude/rules/bekkedal-art.md`.
 - `decor.js` — room prop kinds; placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.
 - `quests.js` — the repeatable quest board. See `.claude/rules/bekkedal-content.md`.
 - `seasons.js` — the seasonal layer (season/day-of-season/festival/weather). See `.claude/rules/bekkedal-content.md`.

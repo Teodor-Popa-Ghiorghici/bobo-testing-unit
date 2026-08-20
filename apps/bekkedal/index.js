@@ -1,6 +1,6 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
-import { CRT, Vol, musGain } from '../../kernel/hardware.js';
+import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_COLS, BEK_ROWS, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
@@ -21,6 +21,7 @@ import { createInterior } from './interior.js';
 import { createForest } from './forest.js';
 import { createFx, TOOL_SWING, swingLen, toolAt, drawHeld } from './fx.js';
 import { createSongs } from './music.js';
+import { createAmbience } from './ambience.js';
 import { createActors } from './actors.js';
 import { createMenus } from './menus.js';
 import { createCrops } from './crops.js';
@@ -388,7 +389,7 @@ export default {
 
       /* ---- the speaker -------------------------------------------------- */
       const sfx = {
-        step()  { Snd.noise(18, { freq: 500, q: 1.2, vol: 0.012 }); },
+        step(tile) { Amb.step(S.map, tile); },
         till()  { Snd.noise(90, { freq: 380, q: 0.8, vol: 0.05 }); Snd.tone(150, 70, { type: 'triangle', to: 90, vol: 0.03 }); },
         water() { Snd.noise(220, { freq: 2600, q: 0.6, vol: 0.035 }); },
         chop()  { Snd.noise(70, { freq: 900, q: 1.6, vol: 0.07 }); Snd.tone(220, 120, { type: 'triangle', to: 70, vol: 0.05 }); },
@@ -461,6 +462,30 @@ export default {
         }
       });
 
+      /* ---- the bed under everything --------------------------------------
+         Wind, water, birdsong, room tone, mine air and valley quiet, plus
+         weather and the hour layered over them, hearth crackle and material
+         footsteps — all of it lives in ambience.js, reached through the same
+         "closure of accessors" shape as createSongs above. It answers to the
+         SND knob, not MUS: this is sound design standing beside the
+         footsteps and the hearth's own one-shot crackle, not the soundtrack. */
+      const Amb = createAmbience({
+        snd: () => Snd,
+        gain: sfxGain,
+        playing: () => alive && CRT.on && Vol.sfx > 0,
+        context: () => {
+          if (isCave(S.map)) return 'mine';
+          if (S.map === 'setra' || S.map === 'vidda') return 'high';
+          if (night()) return 'night';
+          if (S.map === 'town') return 'townday';
+          return 'day';
+        },
+        map: () => S.map,
+        weather: () => S.weather,
+        hour: () => dawn() ? 'dawn' : dusk() ? 'dusk' : night() ? 'night' : 'day',
+        hearths: () => lightSources(1).filter(s => s.hearth).map(s => ({ px: s.px, py: s.py })),
+        player: () => ({ px: (S.px + 0.5) * BEK_T, py: (S.py + 0.5) * BEK_T })
+      });
 
       /* ---- the day ------------------------------------------------------ */
       const BEK_HOME = { farm:[4,8], town:[4,7], lake:[3,8], forest:[4,7], enga:[4,8], setra:[4,8], vidda:[4,11], gruva:[2,7], fjord:[4,7] };
@@ -1060,7 +1085,7 @@ export default {
         if (S.en < 10) { say(TX('FOR SLITEN TIL Å GÅ.', 'TOO TIRED TO WALK.')); deny(); return; }
         S.en -= 10; S.min += 40;
         S.map = m; S.px = BEK_HOME[m][0]; S.py = BEK_HOME[m][1]; S.dir = 0;
-        markDisc(m); mode = ''; travel = null; sfx.step(); say(T(BEK_MAPS[m].title));
+        markDisc(m); mode = ''; travel = null; sfx.step(tileAt(S.map, S.px, S.py)); say(T(BEK_MAPS[m].title));
       }
 
       /* ---- input -------------------------------------------------------- */
@@ -1237,7 +1262,7 @@ export default {
         if (npcsHere().some(n => n.x === nx && n.y === ny)) return;
         if (S.map === 'farm' && S.animals.some(a => a.x === nx && a.y === ny)) return;
         S.px = nx; S.py = ny;
-        if (S.step % 2 === 0) sfx.step();
+        if (S.step % 2 === 0) sfx.step(tileAt(S.map, S.px, S.py));
         for (let i = S.drops.length - 1; i >= 0; i--) {
           const d = S.drops[i];
           if (d.map !== S.map || d.x !== S.px || d.y !== S.py) continue;
@@ -2405,7 +2430,7 @@ export default {
 
       let acc = 0;
       function frame(ts) {
-        if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); return; }
+        if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); Amb.stop(); return; }
         raf = requestAnimationFrame(frame);
         const dt = Math.min(0.1, (ts - last) / 1000 || 0); last = ts;
         if (!mode) { move(dt); tickFish(dt); }
@@ -2416,6 +2441,7 @@ export default {
         autoT += dt; if (autoT > 6) { autoT = 0; autoSave(); }
         speechTick();
         Song.rotStep(dt); Song.sync();
+        Amb.tick(dt);
         acc += dt;
         if (acc >= 1 / 30) {
           acc = 0;
@@ -2432,6 +2458,7 @@ export default {
         if (raf) cancelAnimationFrame(raf);
         autoSave();
         Song.stop();
+        Amb.stop();
         try { if (hymnWas) Music.sync(); } catch (e) {}
       }, 800);
 

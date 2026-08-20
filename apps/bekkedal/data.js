@@ -1450,3 +1450,24 @@ export const BEK_HOUSE = [
   '                        ',
   '                        '
 ];
+
+/* ---- footstep recipes -----------------------------------------------------
+   What the ground is made of, as a noise-filter recipe: `ambience.js` picks
+   the key (grass/path/boards/pier/stone/snow/water) from the tile glyph and
+   the map it's on, this table only says what that key sounds like. `ms`/
+   `freq`/`q`/`vol` feed straight into `Snd.noise()`; the optional `tone` is a
+   second, quieter `Snd.tone()` layered on top — a hollow knock for wood, a
+   soft plip for water — for the two materials a filtered noise burst alone
+   doesn't sell. */
+export const BEK_STEP_SOUNDS = {
+  grass:  { ms: 16, freq: 700,  q: 1.0, vol: 0.011 },
+  path:   { ms: 20, freq: 420,  q: 1.3, vol: 0.015 },
+  boards: { ms: 12, freq: 1500, q: 2.4, vol: 0.012,
+            tone: { f: 130, ms: 45, type: 'triangle', to: 85, vol: 0.02 } },
+  pier:   { ms: 14, freq: 1250, q: 2.0, vol: 0.013,
+            tone: { f: 160, ms: 55, type: 'triangle', to: 100, vol: 0.018 } },
+  stone:  { ms: 24, freq: 360,  q: 0.9, vol: 0.017 },
+  snow:   { ms: 30, freq: 2600, q: 0.5, vol: 0.013 },
+  water:  { ms: 34, freq: 1900, q: 0.5, vol: 0.02,
+            tone: { f: 500, ms: 60, type: 'sine', to: 260, vol: 0.014 } }
+};
