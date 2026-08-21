@@ -168,7 +168,9 @@ export const TOWN_TALK = {
       { t: [{ no: 'Tretti navn i boken igjen. Ditt er det nyeste.', en: 'Thirty names in the book again. Yours is the newest.' }],
         if: S => S.act2Unlocked && S.flag.astridBok }
     ],
-    shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro', 'kaffe', 'vaffel', 'lefse', 'lykt', 'sprinkler']
+    shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro',
+           'laukfro', 'purrefro', 'kalrotfro', 'gresskarfro', 'spinatfro', 'gronnkalfro',
+           'kaffe', 'vaffel', 'lefse', 'lykt', 'sprinkler', 'jar', 'keg']
   },
 
   hakon: {
