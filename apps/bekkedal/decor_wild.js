@@ -158,5 +158,31 @@ export const PROP_WILD = {
     A.fill(ATMO[0], px + 10, py, 3, BEK_T); A.fill(TIM[2], px + 11, py, 1, BEK_T);
     A.fill(ATMO[0], px + 25, py, 3, BEK_T); A.fill(TIM[2], px + 26, py, 1, BEK_T);
     for (let i = 0; i < 7; i++) A.fill(TIM[1], px + 10, py + 3 + i * 5 + (v % 2), 17, 2);
+  },
+  /* The hoist, on the descent's station floors and on nothing else — a frame,
+     a drum with a crank on it, and the rope going down out of sight. It has
+     to read as a different KIND of way out from the ladder beside it, because
+     that is the whole shape of a run: the ladders move you a floor and this
+     one takes you to the surface. So it is the one prop down here with iron
+     in it (STO[4] against everything else's timber), it is the full height of
+     the tile where the ladder's stiles are thin, and the rope is a single
+     pale line straight down the middle — the shape a winch has and a ladder
+     does not. Ink-outlined like the rest: a grey frame on grey rock is two
+     colours of one luminance, which decor.js's own second rule is about. */
+  heis(A, px, py, v) {
+    A.fill(ATMO[0], px + 4, py + 2, 32, 34);                    /* the frame's shadow */
+    A.fill(TIM[1], px + 6, py + 4, 5, 30);                      /* two legs           */
+    A.fill(TIM[1], px + 29, py + 4, 5, 30);
+    A.fill(TIM[2], px + 7, py + 4, 2, 30);                      /* lit edge on each   */
+    A.fill(TIM[2], px + 30, py + 4, 2, 30);
+    A.fill(TIM[1], px + 6, py + 4, 28, 6);                      /* the head frame     */
+    A.fill(TIM[3], px + 6, py + 4, 28, 2);
+    A.fill(STO[1], px + 13, py + 11, 14, 9);                    /* the drum           */
+    A.fill(STO[4], px + 14, py + 12, 12, 5);
+    A.fill(STO[3], px + 14, py + 17, 12, 2);
+    A.fill(STO[4], px + 27, py + 14 + (v % 2), 6, 2);           /* and its crank      */
+    A.fill(STO[4], px + 31, py + 14 + (v % 2), 2, 6);
+    A.fill(SAN[2], px + 19, py + 20, 2, 16);                    /* the rope, going down */
+    A.fill(ATMO[0], px + 21, py + 20, 1, 16);
   }
 };

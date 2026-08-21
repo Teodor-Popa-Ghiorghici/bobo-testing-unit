@@ -4,7 +4,7 @@ import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_SCENES, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
-         BEK_BARN_PLOT2, BEK_ANIMAL_KINDS, BEK_GIFT_CAP,
+         BEK_BARN_PLOT2, BEK_ANIMAL_KINDS, BEK_GIFT_CAP, BEK_MINE_MOUTH,
          BEK_RECIPES,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
@@ -31,11 +31,13 @@ import { createActors } from './actors.js';
 import { createMenus } from './menus.js';
 import { createCrops } from './crops.js';
 import { refreshBoard, isRefreshDay, activeRepeatable, questTitle } from './quests.js';
+import { mineFloor, mineGem, mineDig, mineBand, mineTitle, mineId, floorOf, isMineId,
+         mineClearCache, MINE_BANDS, MINE_STATION, MINE_MAX } from './mine.js';
 import { houseCost, houseTierCost, houseTierAvailable, barnSlots } from './progression.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE } from './palette.js';
 import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
-import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT } from './light.js';
+import { lightAt, shelter, keyOf, cssFor, DAY_CSS, mineLight } from './light.js';
 import { glow, GLOW_CELL, lampState, createLamp } from './lamp.js';
 import { inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
 import { FONT_SM, FONT_LG } from './font.js';
@@ -196,7 +198,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 13, lang: BEK_LANG, fullscreen: 0,
+        ver: 14, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -256,7 +258,27 @@ export default {
         act2Unlocked: false,
         /* Act II's one house upgrade tier — see hakonTilbygg() and
            BEK_DECOR.lakehouse_t2 (data.js) */
-        houseTier: 0
+        houseTier: 0,
+        /* ---- ver 14: the descent (mine.js) --------------------------------
+           `run` is the descent you are currently in, or null on the surface:
+           the seed its floors are generated from, which floor you are on, and
+           which squares of it you have already broken. It is the *only* thing
+           a floor is saved as — the rows are recomputed from (seed, floor) on
+           load, which is what `mine_check.js`'s determinism section exists to
+           make safe. A run does not survive a night (newDay() drops it).
+
+           `dug` is keyed exactly the way S.mined is (`rkey`), and is a
+           separate table from it on purpose. S.mined expires against S.day
+           because a vein in the authored gruva regrows; a floor of the
+           descent is consumed for the run and the next run generates a
+           different floor, so there is nothing for a day counter to mean down
+           there. Keeping them apart also means every existing S.mined key
+           still names an authored map, which is what healCoords() checks.
+
+           `deepest` is the one part of a descent that outlives it: the lift at
+           the mouth offers every station (mine.js's MINE_STATION) up to it, so
+           this is the shortcut, and the only thing in the mine you keep. */
+        run: null, deepest: 0
         };
         /* the repeatable quest board (quests.js) — two or three live
            instances on top of BEK_QUESTS above, seeded here so day 1 already
@@ -264,6 +286,48 @@ export default {
         f.rq = refreshBoard(f, f.day);
         return f;
       };
+      /* ---- the descent, as maps the engine can walk ----------------------
+         A floor of the mine (mine.js) is a BEK_MAPS-shaped object like any
+         other, and everything downstream — the ground pass, `solid()`, the
+         camera clamp, the terrain cache, `surface.js`, `rock.js`, the light,
+         the ambience bed — keeps working precisely because from its side
+         nothing new has happened. What is new is only *when* the map exists:
+         it is registered here, at runtime, and torn down when the run ends.
+
+         That is also what keeps the checks honest. `world_check.js`,
+         `tile_check.js`, `palette_check.js` and `layout_check.js` all walk
+         `BEK_MAPS` as data.js exports it, so a generated floor is never in
+         front of them and can never break one of them; `mine_check.js` is the
+         check that walks the generated ones instead.
+
+         Three floors are registered at a time, never one: a floor's ladders
+         are ordinary `exits`, and `move()` reads `BEK_MAPS[ex.to].title` the
+         instant you step onto one, so the floor above and the floor below
+         have to exist before the step and not after it. */
+      function mineRegister(seed, floor) {
+        if (floor < 1 || floor > MINE_MAX) return null;
+        const id = mineId(seed, floor);
+        if (!BEK_MAPS[id]) {
+          const def = mineFloor(seed, floor);
+          BEK_MAPS[id] = def; BEK_DECOR[id] = def.decor;
+        }
+        return BEK_MAPS[id];
+      }
+      function mineNear(seed, floor) {
+        mineRegister(seed, floor - 1); mineRegister(seed, floor + 1);
+        return mineRegister(seed, floor);
+      }
+      /* Every floor of every run this session, gone. Cheap, and it has to
+         happen: two runs are two different seeds and so two different sets of
+         ids, and without this a long evening's play would leave the map table
+         carrying every floor of every descent. */
+      function mineForget() {
+        Object.keys(BEK_MAPS).forEach(k => { if (isMineId(k)) { delete BEK_MAPS[k]; delete BEK_DECOR[k]; } });
+        mineClearCache();
+      }
+      const mineDrop = () => { S.run = null; mineForget(); };
+      const mineHere = () => (S.run && isMineId(S.map)) ? S.run.floor : 0;
+
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
@@ -290,7 +354,17 @@ export default {
            today with an honest blank — "you did nothing yesterday" is the
            truthful reading of a day this build never watched. */
         Object.keys(f.xp).forEach(k => { if (s.yst[k] == null) s.yst[k] = 0; if (s.xpDay[k] == null) s.xpDay[k] = s.xp[k] || 0; });
-        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq', 'deepest'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        /* ver 14: a save from before the descent existed has never been down
+           one, so it starts at the mouth with no shortcut — the honest
+           reading, the same one the yesterday counters take above. A run that
+           is not a run (an older save's `run`, or a truncated one) is dropped
+           rather than repaired: healCoords() below then puts the player back
+           on the surface, which is always somewhere they can stand. */
+        if (!s.run || typeof s.run !== 'object' || !Number.isFinite(s.run.seed) ||
+            !Number.isFinite(s.run.floor) || s.run.floor < 1) s.run = null;
+        else if (typeof s.run.dug !== 'object' || s.run.dug === null) s.run.dug = {};
+        s.deepest = Math.max(0, Math.min(MINE_MAX, Math.floor(s.deepest) || 0));
         if (!Array.isArray(s.drops)) s.drops = [];
         if (!Array.isArray(s.animals)) s.animals = [];
         /* a save from before the quest board existed gets one seeded on load
@@ -333,10 +407,48 @@ export default {
           const c = base(mp, x, y);
           return !!c && c !== 'D' && BEK_SOLID.indexOf(c) < 0;
         };
+        /* ---- ver 14: a save taken halfway down the descent -------------
+           A floor's rows are not in the save and never were — the run's seed
+           and floor number are, and mine.js carves the same floor from them
+           every time (which is the whole subject of `mine_check.js`'s
+           determinism section). So a mid-run save resumes rather than being
+           thrown away: the floor is carved again and registered before
+           anything below asks whether the player is standing somewhere real.
+
+           It resumes or it resets cleanly to the surface, and there is no
+           third outcome. A run that does not agree with the map the player is
+           on, a floor number out of range, a square that is no longer one you
+           can stand on — all of them put you at the mouth of the mine in the
+           gruva with the run dropped, which is a place that has been walkable
+           since long before any of this and always will be.
+
+           The dug table has to be consulted as well as the rows: a vein you
+           broke is floor you can stand on, and it is 'O' in the rows the
+           generator produced. Standing on one when you saved is ordinary. */
+        let placed = false;
+        if (isMineId(s.map)) {
+          const r = s.run;
+          const def = r && Number.isFinite(r.seed) && floorOf(s.map) === r.floor
+            ? mineNear(r.seed, r.floor) : null;
+          if (def && mineId(r.seed, r.floor) === s.map) {
+            const dug = k => !!(r.dug && r.dug[k]);
+            if (!walkable(s.map, s.px, s.py) && !dug(s.map + ':' + s.px + ',' + s.py)) {
+              s.px = def.home[0]; s.py = def.home[1]; s.dir = 0;
+            }
+            placed = true;
+          } else {
+            s.run = null; mineForget();
+            s.map = BEK_MINE_MOUTH.map; s.px = BEK_MINE_MOUTH.x; s.py = BEK_MINE_MOUTH.y - 1; s.dir = 0;
+            placed = true;
+          }
+        } else if (s.run) {
+          /* a run whose player is standing in the valley is a run that ended */
+          s.run = null; mineForget();
+        }
         /* a player standing off the edge of a map — or inside what is now a
            wall, or on a map id that no longer exists — wakes up at the farm */
-        if (!BEK_MAPS[s.map] || !Number.isFinite(s.px) || !Number.isFinite(s.py) ||
-            !walkable(s.map, s.px, s.py)) {
+        if (!placed && (!BEK_MAPS[s.map] || !Number.isFinite(s.px) || !Number.isFinite(s.py) ||
+            !walkable(s.map, s.px, s.py))) {
           s.map = f.map; s.px = f.px; s.py = f.py; s.dir = f.dir;
         }
         /* the soil is the farm's, and its keys carry no map — a square is
@@ -353,6 +465,12 @@ export default {
           Object.keys(s[tbl]).forEach(k => {
             const i = k.indexOf(':');
             const mp = k.slice(0, i), [x, y] = k.slice(i + 1).split(',').map(Number);
+            /* a key naming a map that does not exist. `base` answers '' there,
+               and String.indexOf('') is 0 — which is >= 0, so the test below
+               would KEEP it. These three tables only ever name authored maps
+               (the descent keeps its own dug squares in S.run, which dies with
+               the run), so anything else in here is already wrong. */
+            if (!BEK_MAPS[mp]) { delete s[tbl][k]; return; }
             if (KINDS[tbl].indexOf(base(mp, x, y)) < 0) delete s[tbl][k];
           });
         });
@@ -420,6 +538,13 @@ export default {
         if (S.built && mp === 'lake' && BEK_HOUSE[y] && BEK_HOUSE[y][x] !== ' ') return BEK_HOUSE[y][x];
         if (S.felled[rkey(mp, x, y)] > S.day) return 'g';
         if (S.mined[rkey(mp, x, y)] > S.day) return 'g';
+        /* the descent's own broken veins. Same key shape as S.mined and a
+           different table, because these do not expire against S.day: a floor
+           is consumed for the run and the next run carves a different floor,
+           so there is nothing a day counter could mean down there. Guarded on
+           S.run first so the surface pays nothing for it — tileAt is asked
+           about every square of the map on every cache rebuild. */
+        if (S.run && S.run.dug[rkey(mp, x, y)]) return 'g';
         if (S.picked[rkey(mp, x, y)] > S.day) return ',';
         /* the two purchasable field expansions — an unlocked-region flag
            read over the farm map's own rows, never a second map */
@@ -535,7 +660,10 @@ export default {
         if (S.flag.rabatt) p = Math.round(p * 0.9);
         return p;
       };
-      const gateOK = need => need === 'warm' ? has('ullgenser') : need === 'lamp' ? has('lykt') : need === 'boat' ? !!S.flag.boat : true;
+      /* the crystal lamp is a lantern too — it is made *of* the mine, so it
+         must never be the thing that keeps you out of it */
+      const hasLamp = () => has('lykt') || has('krystallykt');
+      const gateOK = need => need === 'warm' ? has('ullgenser') : need === 'lamp' ? hasLamp() : need === 'boat' ? !!S.flag.boat : true;
       const curSeed = () => {
         const owned = BEK_SEED_ORDER.filter(id => (S.bag[id] || 0) > 0);
         if (!owned.length) return null;
@@ -670,7 +798,75 @@ export default {
          since the list is filtered by S.disc. Sigrid and Gunnar say as much
          (BEK_TALK). */
       const BEK_HOME = { setra: [10, 6], vidda: [20, 14] };
-      function markDisc(m){ if (BEK_MAPS[m] && !BEK_MAPS[m].inside) S.disc[m] = 1; }
+      /* S.disc is "places you have been", read by the travel menu and by about
+         a dozen chat lines. A floor of the descent is not a place in that
+         sense — its id carries a run seed, so every one of them would be a new
+         key that never matches anything again, and the save would grow a row
+         for every floor of every descent ever made. What the mine keeps
+         instead is S.deepest, which is one number. */
+      function markDisc(m){ if (BEK_MAPS[m] && !BEK_MAPS[m].inside && !isMineId(m)) S.disc[m] = 1; }
+
+      /* ---- a descent, start to finish ------------------------------------
+         Every way into and out of a floor is an ordinary `exits` entry, which
+         is the point — `move()` has travelled that way since the seams landed
+         and needed no new mechanism for a ladder. The cost of that is that
+         `move()` does not tell anybody where it went, so the run's own state
+         is reconciled against whichever map the player is standing on, once a
+         frame, here. One place, and every route through it — a ladder, a
+         hoist, the travel menu, a load, waking up on the farm — comes out
+         right without any of them knowing the mine exists. */
+      function mineSync() {
+        if (S.run && isMineId(S.map)) {
+          const f = floorOf(S.map);
+          if (f === S.run.floor) return;
+          S.run.floor = f;
+          if (f > S.deepest) S.deepest = f;      /* the shortcut, earned */
+          mineNear(S.run.seed, f);
+          return;
+        }
+        /* out of the mine: by the hoist, by floor 1's ladder, by the menu, or
+           because a load put the player somewhere else entirely */
+        if (S.run || isMineId(S.map)) mineEnd();
+      }
+      function mineEnd() {
+        if (isMineId(S.map)) {
+          S.map = BEK_MINE_MOUTH.map; S.px = BEK_MINE_MOUTH.x; S.py = BEK_MINE_MOUTH.y - 1; S.dir = 0;
+        }
+        mineDrop(); terrDirty();
+      }
+      /* Which floors the hoist at the mouth will drop you at: the top of the
+         mine, and every station you have reached. This is the whole of the
+         shortcut — reach floor 10 once and you never walk floors 1 to 9 again
+         — and it is why S.deepest is the one thing a run leaves behind. */
+      function mineStations() {
+        const out = [1];
+        for (let f = MINE_STATION; f <= Math.min(S.deepest, MINE_MAX); f += MINE_STATION) out.push(f);
+        return out;
+      }
+      /* A new run: a new seed, so the floors are not the floors you saw last
+         time. Math.random() is the one un-seeded thing in the whole mine, and
+         it is un-seeded exactly once — everything below this line is a pure
+         function of the number it returns. */
+      function mineStart(floor) {
+        mineForget();
+        const seed = (Math.random() * 0xffffffff) >>> 0;
+        S.run = { seed: seed, floor: floor, dug: {} };
+        const def = mineNear(seed, floor);
+        S.map = mineId(seed, floor); S.px = def.home[0]; S.py = def.home[1]; S.dir = 0;
+        if (floor > S.deepest) S.deepest = floor;
+        terrDirty(); sfx.step(tileAt(S.map, S.px, S.py)); say(T(def.title));
+      }
+      /* Walking into the alcove at the mouth (BEK_MINE_MOUTH). Straight down
+         until you have found a station; the hoist's list after that. No gate
+         of any kind: the mine wants a hakke to be worth anything, but a wall
+         is not how this game says so — Lars is. */
+      function enterMine() {
+        const st = mineStations();
+        if (st.length < 2) { mineStart(1); return; }
+        travel = { list: st, sel: 0, lift: 1, names: st.map(mineTitle),
+                   title: UI.hoist, hint: UI.hoistHint };
+        mode = 'travel'; sfx.sel();
+      }
       function dropAt(mp, item, tries, area) {
         for (let k = 0; k < (tries || 40); k++) {
           const x = (area ? area[0] : 1) + Math.floor(Math.random() * (area ? area[2] : mapCols(mp) - 2));
@@ -764,6 +960,12 @@ export default {
            itself is still one call, still fully random */
         S.weather = rollWeather(S.day);
         spawnDrops();
+        /* A run does not survive a night. You wake on the farm whichever
+           floor the clock caught you on — that is the 02:00 rule the whole
+           valley already lives under, and the mine gets no exemption from it.
+           What you keep is the bag you carried up and S.deepest; what you
+           lose is the floor, which the next descent regenerates anyway. */
+        if (S.run) mineDrop();
         /* out of the cabin door and onto the yard track, whichever bed or
            field you fell asleep in — the same square the farmhouse sets you
            down on when you walk out of it */
@@ -897,12 +1099,27 @@ export default {
           if (t !== 'O' && t !== 'Q') { say(TX('INGEN ÅRE HER.', 'NO VEIN HERE.')); return; }
           if (!S.tools.hakke) { say(TX('DU HAR INGEN HAKKE.', 'YOU HAVE NO PICK.')); deny(); return; }
           if (t === 'Q' && S.pickLv < 2) { say(TX('RIK ÅRE. Trenger STÅLHAKKE.', 'RICH VEIN. Needs a STEEL PICK.')); deny(); return; }
-          /* mine lvl1: the pick bites for less energy */
-          const pickCost = Math.max(1, tool.e - (S.lvl.mine >= 1 ? 1 : 0));
+          /* mine lvl1: the pick bites for less energy — and the rock gets
+             harder the deeper it is (mine.js's bands, +0/+0/+1/+2 on top of
+             the hakke's own 7). That is the whole of "depth is a cost": with
+             a 120 bar a swing on floor 20 is nine, which is thirteen swings
+             and the walk back to a hoist, and deciding when to turn round is
+             the only decision a descent asks you to make. */
+          const deep = mineHere();
+          const pickCost = Math.max(1, tool.e + mineDig(deep) - (S.lvl.mine >= 1 ? 1 : 0));
           if (!spend(pickCost)) return;
-          /* mine lvl2: a mined vein regrows a day sooner */
-          const regrow = Math.max(1, 3 - (S.lvl.mine >= 2 ? 1 : 0));
-          S.mined[rkey(S.map, f.x, f.y)] = S.day + regrow; terrLater(); sfx.mine();
+          if (deep) {
+            /* A floor of the descent does not regrow: it is consumed for the
+               run, and the next run carves a different floor. So this goes in
+               the run rather than in S.mined, where the day counter that
+               makes a gruva vein come back has nothing to say. */
+            S.run.dug[rkey(S.map, f.x, f.y)] = 1;
+          } else {
+            /* mine lvl2: a mined vein regrows a day sooner */
+            const regrow = Math.max(1, 3 - (S.lvl.mine >= 2 ? 1 : 0));
+            S.mined[rkey(S.map, f.x, f.y)] = S.day + regrow;
+          }
+          terrLater(); sfx.mine();
           startSwing('hakke');
           if (!gainCapped('stein', 1)) return;
           addXp('mine', 1);
@@ -916,7 +1133,16 @@ export default {
           /* mine lvl3: one swing in four turns up an extra piece of ore */
           const oreQty = S.lvl.mine >= 3 && Math.random() < 0.25 ? 2 : 1;
           gainCapped(ore, oreQty);
-          say('+' + oreQty + ' ' + iname(ore) + '  +1 ' + iname('stein')); return;
+          /* And the one thing the surface has no source of at all. Deep, rich
+             veins only, and decided by the square rather than by the swing —
+             the same rule `oreKind` above it follows, and for the same reason:
+             a square you come back to is the same square. */
+          let got = '+' + oreQty + ' ' + iname(ore) + '  +1 ' + iname('stein');
+          if (deep && t === 'Q' && mineGem(S.run.seed, deep, f.x, f.y) && gainCapped('krystall', 1)) {
+            got = '+1 ' + iname('krystall') + '!  ' + got;
+            swing.drop = BEK_ITEMS.krystall.col; sfx.coin();
+          }
+          say(got); return;
         }
         /* the soil tools */
         if (t !== 'f') { say(TX('IKKE HER.', 'NOT HERE.')); return; }
@@ -1352,6 +1578,18 @@ export default {
         travel = { list: list, sel: 0 }; mode = 'travel';
       }
       function doTravel() {
+        /* the hoist at the mouth. No energy: what the shortcut buys is that
+           you do not walk floors 1 to 9 again, and the energy you save is
+           energy you spend on the rock at the bottom, which is the point of
+           it. Twenty minutes is what the ride costs, and the clock is the
+           other half of the pressure the mine runs on. */
+        if (travel.lift) {
+          const f = travel.list[travel.sel];
+          mode = ''; travel = null;
+          if (!f) return;
+          S.min += 20; mineStart(f);
+          return;
+        }
         const m = travel.list[travel.sel];
         if (!m) { mode = ''; travel = null; return; }
         if (S.en < 10) { say(TX('FOR SLITEN TIL Å GÅ.', 'TOO TIRED TO WALK.')); deny(); return; }
@@ -1548,6 +1786,11 @@ export default {
         if (!dx && !dy) { S.walk = 0; S.step = 0; return; }
         S.walk += dt; if (S.walk < 0.14) return; S.walk = 0; S.step = (S.step + 1) % 4;
         const nx = S.px + dx, ny = S.py + dy;
+        /* The mouth of the descent. It is not an `exits` entry like every
+           other way through the world, and it is the only one that is not,
+           because where it goes does not exist yet — the run has no seed
+           until you step in. Everything past this square is exits again. */
+        if (S.map === BEK_MINE_MOUTH.map && nx === BEK_MINE_MOUTH.x && ny === BEK_MINE_MOUTH.y) { enterMine(); return; }
         const ex = (M().exits || []).filter(x => x.x === nx && x.y === ny)[0];
         if (ex) { if (ex.need && !gateOK(ex.need)) { say(T(ex.why)); deny(); return; } S.map = ex.to; S.px = ex.tx; S.py = ex.ty; markDisc(ex.to); say(T(BEK_MAPS[S.map].title)); return; }
         if (nx < 0 || ny < 0 || nx >= COLS() || ny >= ROWS()) return;
@@ -2223,10 +2466,18 @@ export default {
          and the frame can both ask and get the same answer. */
       function lighting() {
         const cave = isCave(S.map), ins = ins_();
-        const st0 = cave ? CAVE_LIGHT : lightAt(S.min);
+        /* A hole in a mountain has no hour, but it does have a depth. The
+           adit sits at band 0 (which is CAVE_LIGHT unchanged, so nothing
+           about the gruva moved); a floor of the descent sits at its own
+           band, and the deepest is a good deal darker. Four bands rather than
+           a curve per floor, because this key is part of the terrain cache
+           key: a per-floor darkness would rebuild the whole map on every
+           ladder, where four rebuild it four times in a twenty-floor run. */
+        const band = cave && isMineId(S.map) ? MINE_BANDS.indexOf(mineBand(floorOf(S.map))) : 0;
+        const st0 = cave ? mineLight(band) : lightAt(S.min);
         const st = ins ? shelter(st0, 0.5) : st0;
         return { st: st, tag: keyOf(st), dark: Math.max(0, Math.min(1, 1 - st0.k)),
-                 key: (cave ? 'cave' : keyOf(st0)) + (ins ? '|in' : '') };
+                 key: (cave ? 'cave' + band : keyOf(st0)) + (ins ? '|in' : '') };
       }
 
       /* ---- local light ---------------------------------------------------
@@ -2319,7 +2570,19 @@ export default {
       };
       const lampV = createLamp(BEK_W, BEK_H, DITHER, BEK_DITHER_PX);
       const VIEW_RECT = { x: BEK_VIEW_X, y: BEK_VIEW_Y, w: BEK_VIEW_W, h: BEK_VIEW_H };
-      const LANTERN_R = 2.4 * BEK_T, LANTERN_PEAK = 15;
+      /* Two lanterns, and the second one is the far end of the loop the mine
+         opens: the crystal is only found deep (mine.js's MINE_GEM_FLOOR), and
+         what it makes is the thing you are short of when you are deep, which
+         is reach. The peak barely moves — 15 of 16 was already nearly all the
+         daylight picture there is to resolve to, and `lamp.js` is emphatic
+         that you never brighten a light by painting harder — so what the
+         crystal buys is radius: half again as far, which on a floor of the
+         deepest band is the difference between seeing the drift you are in
+         and seeing the wall you are facing. */
+      const LANTERN = [null,
+        { r: 2.4 * BEK_T, peak: 15 },
+        { r: 3.6 * BEK_T, peak: 16 }];
+      const lampTier = () => has('krystallykt') ? 2 : has('lykt') ? 1 : 0;
 
       /* ---- the moon ------------------------------------------------------
          One cool key light, from above and a little to the left, put on as a
@@ -2743,13 +3006,16 @@ export default {
            viewport is passed in by hand because `getImageData` knows nothing
            about the clip path, and a lantern must not reach the HUD.
 
-           The peak is flat rather than scaled by darkness: the gruva ignores
-           the clock (`CAVE_LIGHT`), so there is only ever one darkness for it
-           to be scaled against, and a lamp you are carrying is the brightest
-           thing down there by design. */
-        if (isCave(S.map) && has('lykt')) {
+           The peak is flat rather than scaled by darkness: a cave ignores the
+           clock (`mineLight`), so there is only ever one darkness for it to be
+           scaled against, and a lamp you are carrying is the brightest thing
+           down there by design. Which lamp is `lampTier()` above — the
+           descent's four light bands get darker with depth, and the crystal
+           lamp is what a player goes and fetches to answer that. */
+        const tier = isCave(S.map) ? lampTier() : 0;
+        if (tier) {
           const src = [{ px: S.px * BEK_T + BEK_T / 2, py: S.py * BEK_T + BEK_T / 2,
-                         r: LANTERN_R, peak: LANTERN_PEAK }];
+                         r: LANTERN[tier].r, peak: LANTERN[tier].peak }];
           lampV.apply(g, src.map(sc => ({ px: sc.px + BEK_VIEW_X - camX, py: sc.py + BEK_VIEW_Y - camY,
                                           r: sc.r, peak: sc.peak })),
                       L.st, lampState(L.st, L.dark), VIEW_RECT);
@@ -2946,6 +3212,59 @@ export default {
                    px: S.px, py: S.py, min: Math.floor(S.min),
                    cast: sceneCast(scene).map(c => c.id + '@' + c.x + ',' + c.y) };
         },
+        /* The descent, from the harness. Called with no argument it reports
+           where the run is; called with 'mouth', 'down', 'up' or 'out' it
+           stands the player on the one walkable square in front of that
+           shaft, facing it — so the harness takes the last step onto it
+           through the real `move()` and the real `exits`, rather than
+           teleporting through the thing that is actually being tested. The
+           walk across the floor is what is skipped; the descent is not. */
+        mine: which => {
+          if (which) {
+            const f = floorOf(S.map);
+            const on = which === 'mouth'
+              ? (S.map === BEK_MINE_MOUTH.map ? BEK_MINE_MOUTH : null)
+              : (BEK_MAPS[S.map] && BEK_MAPS[S.map].exits || []).filter(
+                  which === 'down' ? e => floorOf(e.to) === f + 1
+                : which === 'out' ? e => e.to === 'gruva'
+                : e => e.to === 'gruva' || floorOf(e.to) === f - 1)[0];
+            if (!on) return null;
+            const D = [[0, 1], [0, -1], [-1, 0], [1, 0]];
+            for (let d = 0; d < 4; d++) {
+              const nx = on.x - D[d][0], ny = on.y - D[d][1];
+              if (solid(S.map, nx, ny)) continue;
+              S.px = nx; S.py = ny; S.dir = d;
+              return { at: [nx, ny], shaft: [on.x, on.y], dir: d };
+            }
+            return null;
+          }
+          return { map: S.map, floor: mineHere(), deepest: S.deepest,
+                   seed: S.run ? S.run.seed : 0, dug: S.run ? Object.keys(S.run.dug).length : 0,
+                   px: S.px, py: S.py, tile: tileAt(S.map, S.px, S.py),
+                   band: isMineId(S.map) ? mineBand(floorOf(S.map)).id : '',
+                   shafts: (BEK_MAPS[S.map] && BEK_MAPS[S.map].exits || []).length,
+                   registered: Object.keys(BEK_MAPS).filter(isMineId).length,
+                   bag: Object.assign({}, S.bag), en: S.en, mode: mode };
+        },
+        /* Stand in front of a vein of `kind` on this floor and face it, so the
+           harness can swing at it with the real act(). Same reasoning as
+           `mine` above: the pick is what is being tested, not the pathing. */
+        vein: kind => {
+          const m = BEK_MAPS[S.map];
+          if (!m) return null;
+          const D = [[0, 1], [0, -1], [-1, 0], [1, 0]];
+          for (let y = 0; y < mapRows(S.map); y++) for (let x = 0; x < mapCols(S.map); x++) {
+            if (tileAt(S.map, x, y) !== kind) continue;
+            for (let d = 0; d < 4; d++) {
+              const nx = x - D[d][0], ny = y - D[d][1];
+              if (solid(S.map, nx, ny)) continue;
+              S.px = nx; S.py = ny; S.dir = d;
+              for (let i = 0; i < BEK_TOOLS.length; i++) if (BEK_TOOLS[i].id === 'hakke') S.tool = i;
+              return { at: [nx, ny], vein: [x, y] };
+            }
+          }
+          return null;
+        },
         /* Hold a swing at one of its three phases for a frame so the harness
            can photograph it. Nothing in the game calls this; it drives the
            same `swing` the keyboard does, so what it photographs is what a
@@ -2975,6 +3294,7 @@ export default {
         raf = requestAnimationFrame(frame);
         const dt = Math.min(0.1, (ts - last) / 1000 || 0); last = ts;
         if (!mode) { move(dt); tickFish(dt); sceneWatch(); }
+        mineSync();
         tickSwing(dt); fx.step(dt);
         if (mode === 'end') S.ending += dt;
         tickClock(dt);

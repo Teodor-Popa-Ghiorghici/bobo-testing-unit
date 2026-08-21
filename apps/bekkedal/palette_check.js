@@ -29,11 +29,12 @@
 import { PAL, PAL_N, VGA16, RAMPS, lum, sameRampNeighbour, RAMP_STEP_MAX,
          RAMP_STEP_MAX_WAR, MARK_BAND, SHADOW_MAX } from './palette.js';
 import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
-import { lightAt, lutAt, lutOf, LIGHT_ANCHORS, lightKey, CAVE_LIGHT, DAY_LUT, lumOf,
-         shelter } from './light.js';
+import { lightAt, lutAt, lutOf, LIGHT_ANCHORS, lightKey, CAVE_LIGHT, MINE_LIGHT,
+         mineLight, DAY_LUT, lumOf, shelter } from './light.js';
 import { lampState, relightCoef } from './lamp.js';
 import { BEK_MAPS, mapCols, mapRows, BEK_SOLID } from './data.js';
 import { groundOf, solidOf, inside as insideMap, isCave } from './surface.js';
+import { mineFloor, mineBand, MINE_BANDS } from './mine.js';
 
 let fails = 0, checks = 0;
 const ok = (cond, label, detail) => {
@@ -298,6 +299,50 @@ console.log('\n-- floors at the darkest hour --');
   ok(thinA.length === 0, 'the player reads against every walkable tile',
      thinA.length ? uniq(thinA).slice(0, 5).join('; ') + (uniq(thinA).length > 5 ? ' …' : '')
                   : 'worst ' + f3(worstA) + ' vs floor ' + ACTOR_FLOOR);
+
+  /* ---- and the same question underneath the valley ----------------------
+     The eleven maps above are authored, so their worst pair is a fact you
+     could in principle find by looking. A floor of the descent is generated,
+     and it is drawn at whichever of MINE_LIGHT's four bands its depth falls
+     in — the deepest of which is a good deal darker than the adit the loop
+     above already covered under CAVE_LIGHT. So the floors are walked too,
+     one sample per band, at their own light: it is no use knowing the mine
+     is legible at the mouth if floor 22 is a black sheet with an orange disc
+     on it. Only the glyphs a floor can actually contain appear here, which is
+     the same set surface.js already answers for. */
+  const mineThin = [];
+  let mineWorst = 9, mineWorstA = 9, floors = 0, tiles = 0;
+  for (const band of MINE_BANDS) {
+    for (const seed of [7, 4242, 918273]) {
+      const d = mineFloor(seed, band.from + 2);
+      const L = lutOf(mineLight(MINE_BANDS.indexOf(band)));
+      const lu = i => lumOf(L[i]);
+      floors++;
+      for (let y = 0; y < d.rows.length; y++) for (let x = 0; x < d.rows[y].length; x++) {
+        const c = d.rows[y].charAt(x);
+        tiles++;
+        if (BEK_SOLID.indexOf(c) >= 0) {
+          for (const dd of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const n = d.rows[y + dd[1]] ? d.rows[y + dd[1]].charAt(x + dd[0]) : '';
+            if (!n || BEK_SOLID.indexOf(n) >= 0) continue;
+            const v = contrast(lu(solidOf('gruva', c)), lu(groundOf('gruva', n)));
+            if (v < mineWorst) mineWorst = v;
+            if (v < GROUND_FLOOR) mineThin.push(band.id + " '" + c + "'/'" + n + "' " + f3(v));
+          }
+        } else {
+          const gl = lu(groundOf('gruva', c));
+          let v = 0;
+          for (const q of PLAYER) v = Math.max(v, contrast(lu(q), gl));
+          if (v < mineWorstA) mineWorstA = v;
+          if (v < ACTOR_FLOOR) mineThin.push(band.id + " player on '" + c + "' " + f3(v));
+        }
+      }
+    }
+  }
+  ok(mineThin.length === 0, 'the darkest floor still separates rock from floor',
+     mineThin.length ? uniq(mineThin).slice(0, 5).join('; ') + (uniq(mineThin).length > 5 ? ' …' : '')
+       : 'worst ' + f3(mineWorst) + '/' + f3(mineWorstA) + ' over ' + floors + ' generated floors, ' +
+         tiles + ' tiles, down to k=' + MINE_LIGHT[MINE_LIGHT.length - 1].k.toFixed(2));
 }
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' palette checks FAILED.' : 'All ' + checks + ' palette checks pass.') + '\n');

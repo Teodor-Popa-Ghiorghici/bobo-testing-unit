@@ -42,7 +42,24 @@ coordinates") lives in `bekkedal-art.md`.
 - `font.js` — bitmap glyph table and metrics. See `.claude/rules/bekkedal-art.md`.
 - `text.js` — glyph atlas / text layout helpers. See `.claude/rules/bekkedal-art.md`.
 - `layout.js` — panel rectangles, padding, column offsets. See `.claude/rules/bekkedal-art.md`.
-- `noise.js` — terrain variation field. See `.claude/rules/bekkedal-art.md`.
+- `noise.js` — terrain variation field, and the one seeded stream in it
+  (`mineSalt`, for a generated mine floor). See `.claude/rules/bekkedal-art.md`.
+- `noise_recipes.js` — the recipe tables `noise.js`'s `channels()` walks: every
+  declared stream and where it sits in the channel space. Split off `noise.js`
+  for the 300-line rule the way `palette_marks.js` is off `palette.js`; the
+  dependency runs one way, so ask `noise.js` for a value and never touch these
+  directly. See `.claude/rules/bekkedal-art.md`.
+- `mine.js` — the descent: the four depth bands, a floor's layout, its ore mix
+  and its shafts, generated per run. See **The descent**,
+  `.claude/rules/bekkedal-content.md`.
+- `mine_carve.js` — what `mine.js` cuts rock with: chambers, drifts, the flood
+  fill, the repair pass, and the dead-end stub every shaft sits at. A sibling
+  of `mine.js` for the 300-line rule, the way `decor_wild.js` is one of
+  `decor.js`.
+- `mine_ore.js` — the other sibling: which faces of the rock carry ore (and
+  which metal), and which squares carry what the old crew left. Imports
+  nothing back from `mine.js`, which is why it is *handed* a floor's map id
+  rather than asking for one.
 - `palette.js` — the sixty-four colours, the luminance ordering they are stated in, and `rampStep`. See `.claude/rules/bekkedal-art.md`.
 - `palette_marks.js` — the `MARKS`/`SHADOWS`/`FEATURES` contrast tables: what may be drawn on what. Split off `palette.js` for the 300-line rule; the dependency runs one way, so import a colour from `palette.js` and a table from here. See `.claude/rules/bekkedal-art.md`.
 - `light.js` — hour-of-day palette transform, the lamp state a pool resolves toward, and the falloff. See `.claude/rules/bekkedal-art.md`.
@@ -101,6 +118,10 @@ coordinates") lives in `bekkedal-art.md`.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See `.claude/rules/bekkedal-art.md`.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See `.claude/rules/bekkedal-art.md`.
 - `quest_check.js` — `node apps/bekkedal/quest_check.js`. See `.claude/rules/bekkedal-content.md`.
+- `mine_check.js` — `node apps/bekkedal/mine_check.js`. Four hundred generated
+  floors, walked. See `.claude/rules/bekkedal-content.md`.
+- `mine_check_ore.js` — its last two families (the ore, and viability), split
+  the same way and for the same reason `mine_ore.js` is. Still one command.
 - `season_check.js` — `node apps/bekkedal/season_check.js`. See `.claude/rules/bekkedal-content.md`.
 - `act2_check.js` — `node apps/bekkedal/act2_check.js`. See `.claude/rules/bekkedal-content.md`.
 - `world_check.js` — `node apps/bekkedal/world_check.js`. The valley as one walkable thing: seams, flood fills, and everything placed by coordinate.
@@ -129,9 +150,25 @@ coordinates") lives in `bekkedal-art.md`.
 ## Save versioning
 
 The save key is `BEK_SAVE` (`data.js`). The in-save schema version is the `ver`
-field written by `fresh()` in `index.js` — currently **13**, which added
-`S.yst`/`S.xpDay` (what the player did yesterday, and the mark today is
-measured from) for the chat lines gated on it. A heart event adds no field of
+field written by `fresh()` in `index.js` — currently **14**, which added
+`S.run` (the descent you are currently in, or null) and `S.deepest` (the
+deepest floor ever reached, which is what the hoist at the mouth offers you).
+
+`S.run` is worth reading the shape of before you change anything near it. It is
+`{ seed, floor, dug }` and **the rows of a floor are never in it**: a floor is
+carved again from `(seed, floor)` on every load, which is only safe because
+`mine_check.js` asserts that carve is deterministic across processes. `dug` is
+keyed exactly the way `S.mined` is and is a separate table on purpose — a gruva
+vein regrows against `S.day`, and a floor of the descent is consumed for the
+run and replaced by the next one, so there is nothing a day counter could mean
+down there. Keeping them apart is also what lets `healCoords()` go on asserting
+that every key in `S.mined` names an authored map. A run does not survive a
+night (`newDay()` drops it), and a mid-run save either resumes on the same
+floor or resets cleanly to the mouth of the mine — `healCoords()` has no third
+outcome.
+
+Version 13 before it added `S.yst`/`S.xpDay` (what the player did yesterday,
+and the mark today is measured from) for the chat lines gated on it. A heart event adds no field of
 its own: it is one-shot through `S.seen['sc:' + id]`, and its run object is
 transient and must never be serialised. `heal()` in `index.js` is the
 migration function: it runs on every load and after `Object.assign(fresh(), ...)`
@@ -142,7 +179,7 @@ still load without throwing.
 
 ## Checks
 
-Run all ten before claiming anything is done:
+Run all eleven before claiming anything is done:
 
 - `node apps/bekkedal/tile_check.js` — terrain variation field is
   deterministic, uniform and aperiodic. Full paragraph: `.claude/rules/bekkedal-art.md`.
@@ -169,6 +206,17 @@ Run all ten before claiming anything is done:
   pass, and a sweep of all ~190 chat gates across every weather, season, hour
   and festival state: none throws, and no NPC is ever left with nothing to
   say. Full paragraph: `.claude/rules/bekkedal-content.md`.
+- `node apps/bekkedal/mine_check.js` — four hundred generated mine floors
+  (sixteen seeds × floors 1-25), walked: the same seed gives the same floor in
+  a second process, every floor is rectangular and no smaller than one screen
+  and made of nothing but the six glyphs the gruva already draws, every
+  walkable square is reachable from the one you arrive on, every shaft is a
+  real dead end that lands somewhere you can stand on the floor it names, every
+  floor carries a viable count of veins with none sealed in rock and none on a
+  shaft, the ore mix shifts toward silver band by band, the crystal is only
+  found below its floor, and nothing is empty or unwinnable. Full paragraph:
+  `.claude/rules/bekkedal-content.md`. **This is the check a change to the
+  generator is most likely to break, and the only one that can see it at all.**
 - `node apps/bekkedal/world_check.js` — the valley joins up: every seam is
   paired tile for tile and gated only on the way in, every map is one
   walkable piece, every place is reached from the farm without the travel

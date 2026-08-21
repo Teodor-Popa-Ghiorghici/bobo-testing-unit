@@ -97,6 +97,10 @@ export const UI = {
   bag:    { no: 'SEKKEN',     en: 'THE BAG'  },
   board:  { no: 'OPPSLAGSTAVLE', en: 'NOTICE BOARD' },
   map:    { no: 'KARTET',     en: 'THE MAP'  },
+  /* the hoist at the mouth of the descent (mine.js): the same travel panel,
+     a different sign over it, because it is a different question */
+  hoist:  { no: 'HEISEN',     en: 'THE HOIST' },
+  hoistHint: { no: 'SPACE — NED (+20 min)', en: 'SPACE — DOWN (+20 min)' },
   shop:   { no: 'LANDHANDEL', en: 'THE STORE'},
   buy:    { no: 'KJØP',       en: 'BUY'      },
   sell:   { no: 'SELG',       en: 'SELL'     },
@@ -148,6 +152,11 @@ export const BEK_ITEMS = {
   jern:       { name: { no: 'JERN',       en: 'IRON ORE'     }, sell: 70,  icon: 'ore',   col: 7  },
   kobber:     { name: { no: 'KOBBER',     en: 'COPPER ORE'   }, sell: 110, icon: 'ore',   col: 6  },
   solv:       { name: { no: 'SØLV',       en: 'SILVER ORE'   }, sell: 220, icon: 'ore',   col: 15 },
+  /* Only ever out of a rich vein below MINE_GEM_FLOOR (mine.js) — the one
+     thing in the game that has no source on the surface at all, which is what
+     makes it a reason to go down rather than a better version of one. Sells
+     for more than silver because getting it costs a descent, not a swing. */
+  krystall:   { name: { no: 'BERGKRYSTALL', en: 'ROCK CRYSTAL' }, sell: 320, icon: 'ore', col: 11 },
   spiker:     { name: { no: 'SPIKER',     en: 'NAILS'        }, buy: 30, sell: 12, icon: 'nail', col: 8 },
   tau:        { name: { no: 'TAU',        en: 'ROPE'         }, buy: 45, sell: 16, icon: 'rope', col: 6 },
   /* placeable farm gear — `place: true` is read by act()'s kanne branch,
@@ -190,6 +199,11 @@ export const BEK_ITEMS = {
   rabarbragrot: { name: { no: 'RABARBRAGRØT', en: 'RHUBARB PORR.'    }, sell: 65, eat: 150, icon: 'bowl', col: 10 },
   /* worn / carried gear (no sell) */
   lykt:       { name: { no: 'LYKT',       en: 'LANTERN'      }, icon: 'lamp', col: 14 },
+  /* The other end of the loop the crystal opens: a lamp that reaches further,
+     made of the thing you can only get where the reach is what you are short
+     of. Carried, never sold, and accepted by the same 'lamp' gate the plain
+     lantern is (gateOK() in index.js), so owning it is never owning less. */
+  krystallykt:{ name: { no: 'KRYSTALLYKT', en: 'CRYSTAL LAMP' }, icon: 'lamp', col: 11 },
   ullgenser:  { name: { no: 'ULLGENSER',  en: 'WOOL SWEATER' }, icon: 'shirt', col: 4 },
   bukett:     { name: { no: 'BUKETT',     en: 'BOUQUET'      }, icon: 'flower', col: 13 }
 };
@@ -554,7 +568,9 @@ export const BEK_DECOR = {
     { x: 25, y: 5,  kind: 'orecart' },
     { x: 20, y: 12, kind: 'spoilheap' },
     { x: 15, y: 19, kind: 'spoilheap' },
-    { x: 20, y: 22, kind: 'ladder' }
+    /* on the mouth of the descent (BEK_MINE_MOUTH) — the one prop in the
+       valley that is a way through rather than a piece of scenery */
+    { x: 12, y: 23, kind: 'ladder' }
   ],
   farmhouse: [
     { x: 18, y: 4,  kind: 'kettle' },
@@ -604,6 +620,20 @@ export const BEK_DECOR = {
    furniture you walk up to, not through; z is a rug, so it is not here. The
    space is the dead margin beyond a room's walls — nothing should stand in it. */
 export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJK ';
+
+/* ---- the mouth of the descent --------------------------------------------
+   The one square of the authored valley the mine reaches into: a one-tile
+   alcove cut off the gruva's bottom drift, with the rich vein at (11, 23)
+   beside it. That is the level Lars props shut every spring (talk_stone.js's
+   `la3`/`la4`/`la5`), and the `ladder` prop in BEK_DECOR.gruva stands on it
+   rather than in the middle of a corridor where it meant nothing.
+
+   Stated here rather than in mine.js because it is a coordinate into an
+   authored map, which is content — and because `world_check.js` reads
+   BEK_MAPS and this has to be a square it agrees you can stand on. The
+   descent's own rules (its bands, its stations, its shafts) are behaviour and
+   live in mine.js. */
+export const BEK_MINE_MOUTH = { map: 'gruva', x: 12, y: 23 };
 
 /* ==========================================================================
    27.3 THE PEOPLE
@@ -720,7 +750,12 @@ export const BEK_NPCS = [
     ],
     /* bukett is what she asked for (BEK_TALK.marit's own m1 ask), and it
        lives in her loved list too rather than as a special case */
-    gift: { loved: ['bukett', 'urt'], liked: ['blomst_bla', 'blomst_gul', 'blomst_ro'], disliked: ['jern', 'kobber'],
+    /* krystall goes in her loved list beside the bukett, and the two lines
+       above it are the reason: she is the one who dislikes jern and kobber,
+       so a stone out of the same mountain landing in the same list is not a
+       contradiction — it is the distinction. Ore is what a company came for;
+       a crystal is a thing that lets light through. */
+    gift: { loved: ['bukett', 'urt', 'krystall'], liked: ['blomst_bla', 'blomst_gul', 'blomst_ro'], disliked: ['jern', 'kobber'],
       reactions: {
         loved:    [{ no: 'En bukett. Akkurat det jeg ba om.', en: 'A bouquet. Just what I asked for.' }],
         liked:    [{ no: 'Fra enga, ser jeg. De vokser fint der.', en: 'From the meadow, I see. They grow well there.' }],
@@ -777,7 +812,7 @@ export const BEK_NPCS = [
       { id: 'home',     map: 'gruva', x: 3, y: 10, from: 1200, to: 480  },
       { id: 'festival', map: 'town',  x: 36, y: 14, from: 600, to: 1320, festival: true }
     ],
-    gift: { loved: ['solv', 'kobber'], liked: ['jern', 'stein'], disliked: ['blomst_bla', 'blomst_gul', 'blomst_ro'],
+    gift: { loved: ['krystall', 'solv', 'kobber'], liked: ['jern', 'stein'], disliked: ['blomst_bla', 'blomst_gul', 'blomst_ro'],
       reactions: {
         loved:    [{ no: 'Sølv. Nå snakker vi, gutt.', en: 'Silver. Now you are talking.' }],
         liked:    [{ no: 'Godt malm. Legger det med resten.', en: 'Good ore. I will put it with the rest.' }],
@@ -910,7 +945,15 @@ export const BEK_RECIPES = {
        colour in BEK_ITEMS with nothing that ever obtained it. The three
        meadow flowers are always pickable (see BEK_MAPS.enga), so no fr/lvl
        gate of its own: the flowers are the cost. */
-    { id: 'bukett', out: 'bukett', qty: 1, need: { blomst_bla: 1, blomst_gul: 1, blomst_ro: 1 } }
+    { id: 'bukett', out: 'bukett', qty: 1, need: { blomst_bla: 1, blomst_gul: 1, blomst_ro: 1 } },
+    /* The descent's one crafted thing, and the only recipe in the table whose
+       ingredient cannot be got above ground. Gated on Lars rather than on a
+       gathering level alone: he is the one who has been driving for it since
+       node `la2`, and he is the one who would know how to set a stone in a
+       lamp. `lvl.mine` 2 is the same tier that already makes a mined vein
+       regrow a day sooner — by the time you have it you have been down there. */
+    { id: 'krystallykt', out: 'krystallykt', qty: 1, need: { krystall: 1, jern: 2, tau: 1 },
+      fr: { npc: 'lars', min: 6 }, lvl: { kind: 'mine', min: 2 } }
   ],
   /* one raw crop plus one animal product each, and every dish restores more
      than the best shop food does (multekrem's 110) — see BEK_ITEMS */

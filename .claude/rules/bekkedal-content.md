@@ -36,6 +36,19 @@ crafting, and Act II.
   behaviour.
 - `scenes_valley.js` / `scenes_wild.js` — the twenty-four heart events, the
   same split by the same rule.
+- `mine.js` — the descent under the gruva: the four depth bands and everything
+  each one changes, a floor's layout, its ore mix, its shafts and what the old
+  crew left on it. Pure, in the same sense `schedule.js` and `scene.js` are —
+  a floor is a function of `(runSeed, floorNumber)` and of nothing else. See
+  **The descent** below.
+- `mine_carve.js` — the primitives `mine.js` cuts rock with: chambers, drifts,
+  the flood fill, the repair pass and the dead-end stub. A sibling for the
+  300-line rule, the way `decor_wild.js` is one of `decor.js`.
+- `mine_ore.js` — the second sibling: which faces of the rock carry ore and
+  which metal, and what the old crew left on the floor. The dependency runs one
+  way — it imports nothing back from `mine.js`, which is why `placeVeins` is
+  handed a floor's map id rather than asking for one. Same rule
+  `palette_marks.js` is split off `palette.js` under.
 
 ## Checks
 
@@ -51,6 +64,35 @@ crafting, and Act II.
   resolves to a real `BEK_TALK` entry and no batch asks the same NPC twice.
   Run it after touching `BEK_QUEST_TEMPLATES`, `quests.js`, or what any
   gathering action in `index.js` requires to succeed.
+- `node apps/bekkedal/mine_check.js` — the descent, over four hundred
+  generated floors (sixteen seeds × floors 1-25). Every other check in this
+  repo walks content somebody wrote and could in principle have looked at; a
+  floor of the mine is carved on the spot from a seed nobody will ever see
+  twice, so this is the only thing between a player and a ladder behind a
+  wall. Six families: **determinism** (the same seed gives byte-identical rows
+  in this process and in a second one that imports the module fresh — the save
+  carries the seed and never the rows, so a carve that drifted would put the
+  player on a square the save calls a corridor and the map calls stone);
+  **shape** (rectangular, never under one screen, a solid rim that stays solid
+  after every vein on it is mined out, and not one glyph outside the six the
+  gruva already draws); **connectivity** (every walkable square reachable from
+  the one you arrive on — not "the ladder is reachable", everything, because a
+  vein you can see and cannot walk to is the same bug in a smaller place);
+  **the shafts** (up and down on every floor, a hoist on the stations and only
+  there, each a genuine dead end, each landing on a square you can stand on,
+  on the floor it actually names, with the way back coming out at the ladder
+  you left by); **the ore** (a viable count on every single floor, never one
+  sealed in rock, never one on a shaft, never two sharing an edge, and the mix
+  moving toward silver band by band); and **viability** (room to walk, ore to
+  swing at, a way out and a way further down, on all four hundred).
+  It has already earned its keep twice: it found the fallen-block pass sealing
+  veins on 179 floors of 400, and it found the band weights sorting the mix
+  flat — 100% iron on the top band and 100% silver on the bottom — where the
+  intent was a proportion. Neither was visible from playing.
+  Its last two families live in `mine_check_ore.js` beside the `mine_ore.js`
+  they are about, split for the same 300-line reason — one check, one command.
+  Run it after touching `mine.js`, `mine_carve.js`, `mine_ore.js`, the `R_MINE`
+  channels in `noise_recipes.js`, or `oreKind` in `rock.js`.
 - `node apps/bekkedal/season_check.js` — the seasonal layer, simulated across
   4 in-game years. Asserts season index and day-of-season agree with an
   independently written formula on every one of the 320 simulated days and
@@ -404,6 +446,118 @@ goes to the bag through the usual soft cap, overflowing to the chest
 (uncapped) rather than being lost — so the chest is both where a farmer
 stockpiles ingredients ahead of a session and where a full bag's surplus
 ends up.
+
+## The descent
+
+The gruva was one hand-authored 24-row room with sixteen ore tiles, and
+`S.mined` put every one of them back on the same coordinate every morning. In
+Terraria and Stardew the mine is the engine that generates novelty, gear and
+stories over dozens of hours; here it was a vending machine you hit with a
+pick — and the art on it (`rock.js`: the recess, the seam, the three ore hues,
+the mineral traces that thicken in the wall as you approach a vein) was far too
+good for what it was attached to. `mine.js` is a mine under it.
+
+### It is built out of things the game already had
+
+This is the part to read before changing anything. Four constraints, and each
+one is why some part of this cost nothing:
+
+- **A floor is a `BEK_MAPS`-shaped map of the existing glyph set.** `M` rock,
+  `g` floor, `.` drift, `O` and `Q` veins, `^` a fallen block, and nothing
+  else. `surface.js`, `rock.js`, `autotile.js`, `caveGround`, the light pass,
+  the terrain cache, `solid()` and the camera clamp all keep working because
+  from their side nothing has happened. **`rock.js` was not touched.**
+- **A shaft is an `exits` entry**, on a walkable `.` tile, exactly like every
+  seam in `maps.js` — `move()` has travelled that way since the valley was
+  joined up and needed no new mechanism for a ladder. The only square in the
+  whole system that is not an exit is the mouth in the gruva
+  (`BEK_MINE_MOUTH`), because where it goes does not exist until the run has a
+  seed.
+- **A ladder is the `ladder` prop `decor_wild.js` already drew** — it was
+  standing in the middle of a gruva corridor meaning nothing, and it is on the
+  mouth now. The hoist (`heis`) is the one new kind.
+- **The ore mix moves with depth without `oreKind` moving.** `oreKind` already
+  decides a square's metal from a declared channel of the tile hash. The
+  generator does not reroll it; it chooses *which* rock faces become veins,
+  preferring the ones whose metal already suits the band. The vein you can see
+  is still the vein you get, and it is the same one when you come back.
+
+### Generated, not authored, and not random either
+
+Every decision a floor makes comes from `noise.js`'s declared `R_MINE`
+channels read at `mineSalt(runSeed, floor)` — the same avalanching hash and the
+same channel discipline the terrain art has used since the linear seeds came
+out. `mineSalt` sits above the whole space `mapSalt` can reach, so a floor can
+never land on an authored map's streams. There is exactly one `Math.random()`
+in the entire mine, in `mineStart()`, and everything downstream of it is a pure
+function of the number it returns. That is what lets a save carry
+`{seed, floor}` and no rows at all, and what lets `mine_check.js` walk four
+hundred floors in a second with no browser.
+
+**A channel that is not in `noise_recipes.js`'s `R_MINE` cannot be tested and
+must not be drawn from.** Its moduli are all sixteen or under for the reason
+stated in that file: 11232 tiles split sixteen ways resolves to about 11% of
+flat and sixty-four ways to about 27%, which is over `tile_check.js`'s own
+tolerance. A decision wanting finer resolution takes a priority class and
+breaks the tie on something else — `placeVeins` is the worked example.
+
+### The four bands, and the shape of a run
+
+`MINE_BANDS` is the whole of "depth changes what is down there", as a table
+rather than as branches: floors 1-4 are the company's own workings (rectangular
+chambers on a lattice, L-corridors, timbering and rail, iron-weighted, no rich
+veins, no fallen rock); 5-9 are worked out; 10-14 are hard rock, +1 energy a
+swing, and the first crystals; 15+ is natural cavity nobody cut, +2 energy,
+silver-weighted, and a third of its rich veins carry a crystal. The dark gets
+deeper with it — `MINE_LIGHT` in `light.js`, four `quantState`s, four and not
+one per floor because the light key is part of the terrain cache key.
+
+Every floor has a ladder up and a ladder down. **Only a station — every fifth
+floor — has a hoist out.** That asymmetry is the design: the fast way out of
+floor 13 is back up to 10, so "how far past a station dare I go on the energy I
+have left" is the decision every descent turns on, and it is a decision and not
+a threat, because there is no fail state at the bottom of it. The 02:00 clock
+and `spend()` are the entire pressure, exactly as they are on the surface, and
+the mine gets no exemption from either: `newDay()` drops a run and you wake on
+the farm with the bag you were carrying.
+
+`S.deepest` is the one thing a run leaves behind, and it is the shortcut: the
+hoist at the mouth offers floor 1 and every station up to it, for twenty
+minutes and no energy. That is what makes the mine somewhere you drop into for
+twenty minutes rather than something you replay.
+
+### The crystal closes the loop
+
+`krystall` is the only item in the game with no source on the surface: rich
+veins, below `MINE_GEM_FLOOR`, decided by the square rather than by the swing
+(the same rule `oreKind` follows, for the same reason). It sells for more than
+silver, it is loved by Lars — who has been driving for it since node `la2` —
+and by Marit, who dislikes `jern` and `kobber`, which is the distinction rather
+than a contradiction: ore is what a company came for and a crystal is a thing
+that lets light through.
+
+And it crafts `krystallykt`, a lamp with half again the reach of the plain one
+(`LANTERN` in `index.js`; the peak barely moves, because `lamp.js` is emphatic
+that you never brighten a light by painting harder). So the loop closes on
+itself: the deep bands are dark, the thing that answers the dark is only found
+in them, and going and getting it is what makes going further reasonable.
+
+### Two things not to do to it
+
+**Do not put a floor in `BEK_MAPS` at rest.** They are registered at runtime
+and torn down when a run ends, and that is what keeps `world_check.js`,
+`tile_check.js`, `palette_check.js` and `layout_check.js` walking exactly the
+eleven authored maps — none of them can be broken by a generated floor, and
+none of them can accidentally start covering one either. `mine_check.js` is the
+check that walks the generated ones. `layout_check.js` is the one exception and
+it is explicit about it: it asks `mineTitle(MINE_MAX)` by name, because the HUD
+band and the hoist's list both have to hold a floor title.
+
+**Do not let a shaft stop being a dead end.** Every one sits on a square with
+exactly one walkable neighbour, which is the only reason stepping onto an exit
+is a safe way to travel down here — a shaft you can cross in passing is a shaft
+you fall down by accident, and that would be the one fail state this game has.
+`mine_check.js` asserts it on every shaft of every floor.
 
 ## Act II
 

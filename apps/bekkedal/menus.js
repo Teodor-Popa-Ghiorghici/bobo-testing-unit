@@ -236,12 +236,20 @@ export function createMenus(A, GG, C) {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
     sign(TRAVEL_X, TRAVEL_Y, TRAVEL_W, TRAVEL_H);
     const bx = TRAVEL_X + PAD_SM;
-    text(T(UI.map), bx, TRAVEL_Y + PAD_SM, 14, FONT_SM);
+    /* One panel, two questions. The travel list names maps and reads their
+       titles out of BEK_MAPS; the mine's hoist names floors, which are not in
+       BEK_MAPS until a run registers them, so it carries its own row labels
+       (and its own sign and its own cost line) rather than this panel growing
+       a second copy of itself. `layout_check.js` measures the box against the
+       widest of either. */
+    text(T(travel.title || UI.map), bx, TRAVEL_Y + PAD_SM, 14, FONT_SM);
     let y = TRAVEL_Y + PAD_SM + LINE_SM * 2;
     travel.list.forEach((mp, i) => {
-      text((travel.sel === i ? '> ' : '  ') + T(BEK_MAPS[mp].title), bx, y + i * LINE_SM, travel.sel === i ? 15 : 7, FONT_SM);
+      const label = travel.names ? travel.names[i] : BEK_MAPS[mp].title;
+      text((travel.sel === i ? '> ' : '  ') + T(label), bx, y + i * LINE_SM, travel.sel === i ? 15 : 7, FONT_SM);
     });
-    text(TX('SPACE — GÅ (−10, +40min)', 'SPACE — WALK (−10, +40min)'), bx, TRAVEL_Y + TRAVEL_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
+    text(travel.hint ? T(travel.hint) : TX('SPACE — GÅ (−10, +40min)', 'SPACE — WALK (−10, +40min)'),
+         bx, TRAVEL_Y + TRAVEL_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
   }
   /* Sleep used to be drawn inline in index.js's draw(), the one panel that
      wasn't. Moved here so every panel the game puts over the picture really
