@@ -636,7 +636,18 @@ export const BEK_NPCS = [
       { id: 'shop_rain', map: 'town', x: 9,  y: 11, from: 480,  to: 1200, weather: 'regn' },
       { id: 'home',      map: 'town', x: 9,  y: 11, from: 1200, to: 480  },
       { id: 'festival',  map: 'town', x: 8,  y: 14, from: 600,  to: 1320, festival: true }
-    ] },
+    ],
+    /* GIFTING: loved/liked/disliked are BEK_ITEMS ids the player can hold —
+       anything else is neutral. reactions[tier] is a spoken line (dlg.lines
+       shape) rather than a number popping up — see talkTo()'s gift branch,
+       index.js. */
+    gift: { loved: ['kaffe', 'bukett'], liked: ['vaffel', 'lefse', 'jordbar'], disliked: ['tommer', 'jern'],
+      reactions: {
+        loved:    [{ no: 'Å! Du husket akkurat hva jeg trenger.', en: 'Oh! You remembered exactly what I needed.' }],
+        liked:    [{ no: 'Så snilt av deg. Takk skal du ha.', en: 'That is kind of you. Thank you.' }],
+        neutral:  [{ no: 'Takk, tror jeg. Jeg finner nok bruk for det.', en: 'Thanks, I suppose. I will find a use for it.' }],
+        disliked: [{ no: 'Hm. Ikke helt min smak, men takk.', en: 'Hm. Not quite my taste, but thank you.' }]
+      } } },
   { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 32, y: 24, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360,
     face: { skin: 'tan',  cut: 'crop',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 2, hat: 0 },
     /* his framing site by the house, 07:00 to 20:00, home the rest of the
@@ -647,21 +658,42 @@ export const BEK_NPCS = [
       { id: 'pen',      map: 'farm', x: 7,  y: 17, from: 420,  to: 1200, flag: 'barn' },
       { id: 'home',     map: 'town', x: 32, y: 24, from: 1200, to: 420  },
       { id: 'festival', map: 'town', x: 12, y: 14, from: 600,  to: 1320, festival: true }
-    ] },
+    ],
+    gift: { loved: ['tommer', 'stein'], liked: ['planke', 'spiker'], disliked: ['blomst_bla', 'blomst_gul', 'blomst_ro'],
+      reactions: {
+        loved:    [{ no: 'Godt tømmer. Nå bygger vi noe skikkelig.', en: 'Good timber. Now we build something proper.' }],
+        liked:    [{ no: 'Nyttig. Legger det med resten.', en: 'Useful. I will put it with the rest.' }],
+        neutral:  [{ no: 'Mm. Takk for det.', en: 'Mm. Thanks for that.' }],
+        disliked: [{ no: 'Blomster. Jeg bygger hus, ikke hager.', en: 'Flowers. I build houses, not gardens.' }]
+      } } },
   { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 11, y: 11, hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700,
     face: { skin: 'fair', cut: 'long',   beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 0, hat: 0 },
     posts: [
       { id: 'shore',    map: 'lake', x: 9,  y: 11, from: 420,  to: 1200 },
       { id: 'home',     map: 'lake', x: 11, y: 11, from: 1200, to: 420  },
       { id: 'festival', map: 'town', x: 16, y: 14, from: 600,  to: 1320, festival: true }
-    ] },
+    ],
+    gift: { loved: ['orret', 'laks'], liked: ['tang', 'sopp'], disliked: ['dyrefor'],
+      reactions: {
+        loved:    [{ no: 'En fin fisk. Du lærer fort.', en: 'A fine fish. You learn fast.' }],
+        liked:    [{ no: 'Takk. Alt fra vannet er velkomment her.', en: 'Thanks. Anything from the water is welcome here.' }],
+        neutral:  [{ no: 'Grei gave. Jeg setter pris på tanken.', en: 'A fair gift. I appreciate the thought.' }],
+        disliked: [{ no: 'Dyrefor? Jeg fisker, jeg gjeter ikke.', en: 'Animal feed? I fish, I do not herd.' }]
+      } } },
   { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 12, y: 7,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330,
     face: { skin: 'tan',  cut: 'short',  beard: 'chin',    brow: 2, iris: WAT[2], jaw: 1,  age: 2, hat: 'cap' },
     posts: [
       { id: 'dock',     map: 'lake', x: 13, y: 8,  from: 420,  to: 1200 },
       { id: 'home',     map: 'lake', x: 12, y: 7,  from: 1200, to: 420  },
       { id: 'festival', map: 'town', x: 20, y: 14, from: 600,  to: 1320, festival: true }
-    ] },
+    ],
+    gift: { loved: ['makrell', 'torsk'], liked: ['tau', 'kaffe'], disliked: ['ull'],
+      reactions: {
+        loved:    [{ no: 'Nå snakker vi. Rett fra fjorden.', en: 'Now you are talking. Straight from the fjord.' }],
+        liked:    [{ no: 'Kommer godt med på båten. Takk.', en: 'That will come in handy on the boat. Thanks.' }],
+        neutral:  [{ no: 'Grei nok. Jeg legger det i lasten.', en: 'Fair enough. I will stow it with the rest.' }],
+        disliked: [{ no: 'Ull? Jeg fryser ikke. Jeg blir våt.', en: 'Wool? I do not freeze. I get wet.' }]
+      } } },
   { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 15, y: 9,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660,
     face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 2, hat: 0 },
     /* out among the flowers 08:00 to 19:00; rain keeps her under her own
@@ -671,7 +703,16 @@ export const BEK_NPCS = [
       { id: 'field_rain', map: 'enga', x: 15, y: 9, from: 480,  to: 1140, weather: 'regn' },
       { id: 'home',        map: 'enga', x: 15, y: 9, from: 1140, to: 480  },
       { id: 'festival',    map: 'town', x: 24, y: 14, from: 600, to: 1320, festival: true }
-    ] },
+    ],
+    /* bukett is what she asked for (BEK_TALK.marit's own m1 ask), and it
+       lives in her loved list too rather than as a special case */
+    gift: { loved: ['bukett', 'urt'], liked: ['blomst_bla', 'blomst_gul', 'blomst_ro'], disliked: ['jern', 'kobber'],
+      reactions: {
+        loved:    [{ no: 'En bukett. Akkurat det jeg ba om.', en: 'A bouquet. Just what I asked for.' }],
+        liked:    [{ no: 'Fra enga, ser jeg. De vokser fint der.', en: 'From the meadow, I see. They grow well there.' }],
+        neutral:  [{ no: 'Takk, kjære deg. Jeg setter den på karmen.', en: 'Thank you, dear. I will put it on the sill.' }],
+        disliked: [{ no: 'Malm. Tungt å bære opp hit for lite.', en: 'Ore. A heavy thing to carry up here for little.' }]
+      } } },
   { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 7,  y: 8,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560,
     face: { skin: 'fair', cut: 'braids', beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 'kerchief' },
     /* the dairy at the setra, summer through autumn and into spring — but
@@ -686,14 +727,28 @@ export const BEK_NPCS = [
       { id: 'winter_shop',  map: 'farm',  x: 5, y: 9, from: 480,  to: 1200, season: 'vinter' },
       { id: 'winter_home',  map: 'farm',  x: 3, y: 9, from: 1200, to: 480,  season: 'vinter' },
       { id: 'festival',     map: 'town',  x: 28, y: 14, from: 600, to: 1320, festival: true }
-    ] },
+    ],
+    gift: { loved: ['multekrem', 'bukett'], liked: ['melk', 'brunost', 'ull'], disliked: ['tang'],
+      reactions: {
+        loved:    [{ no: 'Multekrem! Nå smaker det som hjemme.', en: 'Cloudberry cream! Now that tastes like home.' }],
+        liked:    [{ no: 'Takk. Det blir ikke noe til overs på setra.', en: 'Thanks. Nothing goes to waste at the dairy.' }],
+        neutral:  [{ no: 'Snilt tenkt. Jeg finner plass til det.', en: 'Kindly meant. I will find room for it.' }],
+        disliked: [{ no: 'Tang? Det vokser ikke akkurat her oppe.', en: 'Kelp? That does not exactly grow up here.' }]
+      } } },
   { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 22, y: 18, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290,
     face: { skin: 'tan',  cut: 'long',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 1, hat: 0 },
     posts: [
       { id: 'watch',    map: 'vidda', x: 20, y: 18, from: 420,  to: 1200 },
       { id: 'home',     map: 'vidda', x: 22, y: 18, from: 1200, to: 420  },
       { id: 'festival', map: 'town',  x: 32, y: 14, from: 600,  to: 1320, festival: true }
-    ] },
+    ],
+    gift: { loved: ['tyttebar', 'ull'], liked: ['blabar', 'multe'], disliked: ['kaffe'],
+      reactions: {
+        loved:    [{ no: 'Tyttebær. Du har lært vidda godt.', en: 'Lingonberries. You have learned the plateau well.' }],
+        liked:    [{ no: 'Bær er bær. Takk for det.', en: 'A berry is a berry. Thanks for that.' }],
+        neutral:  [{ no: 'Mm. Jeg tar imot.', en: 'Mm. I will take it.' }],
+        disliked: [{ no: 'Kaffe fryser før jeg får drukket den her oppe.', en: 'Coffee freezes before I drink it up here.' }]
+      } } },
   /* Lars stands in the alcove cut beside the adit, never on a corridor. The
      levels driven off the main drift are one tile wide, and a man standing on
      one is a wall; the alcove at (2-3, 9-10) is cut wide enough that he is
@@ -707,7 +762,14 @@ export const BEK_NPCS = [
       { id: 'shop',     map: 'gruva', x: 2, y: 9,  from: 480,  to: 1200 },
       { id: 'home',     map: 'gruva', x: 3, y: 10, from: 1200, to: 480  },
       { id: 'festival', map: 'town',  x: 36, y: 14, from: 600, to: 1320, festival: true }
-    ] },
+    ],
+    gift: { loved: ['solv', 'kobber'], liked: ['jern', 'stein'], disliked: ['blomst_bla', 'blomst_gul', 'blomst_ro'],
+      reactions: {
+        loved:    [{ no: 'Sølv. Nå snakker vi, gutt.', en: 'Silver. Now you are talking.' }],
+        liked:    [{ no: 'Godt malm. Legger det med resten.', en: 'Good ore. I will put it with the rest.' }],
+        neutral:  [{ no: 'Takk. Alt teller der nede.', en: 'Thanks. Everything counts down there.' }],
+        disliked: [{ no: 'Blomster dør fort der jeg jobber.', en: 'Flowers do not last long where I work.' }]
+      } } },
   { id: 'bjorn',  n: '',       map: 'forest', x: 12, y: 10, bear: true, from: 6 }
 ];
 
@@ -730,7 +792,7 @@ export const BEK_TALK = {
         lines: [{ no: 'Hei! You are the one who took the old plot.', en: 'Hi! You are the one who took the old plot.' },
                 { no: 'Nobody has turned that soil in six years.', en: 'Nobody has turned that soil in six years.', m: 'troubled' }],
         ask: { q: { no: 'Why did you come to Bekkedal?', en: 'Why did you come to Bekkedal?' }, opts: [
-          { t: { no: 'For the quiet.', en: 'For the quiet.' }, set: { why: 'quiet' }, fr: 1,
+          { t: { no: 'For the quiet.', en: 'For the quiet.' }, set: { why: 'quiet' }, fr: 2,
             reply: ['Then you came to the right valley.',
                     { no: 'Take these. Potatoes forgive a beginner.', en: 'Take these. Potatoes forgive a beginner.' }],
             give: { potetfro: 6 } },
@@ -741,18 +803,18 @@ export const BEK_TALK = {
         ] } },
       { id: 'a2', when: S => S.q.potet === 'active',
         lines: [{ no: 'Five poteter and the board is happy.', en: 'Five potatoes and the board is happy.' }] },
-      { id: 'a3', mood: 'warm', when: S => S.fr.astrid >= 3 && S.flag.why === 'quiet',
+      { id: 'a3', mood: 'warm', when: S => S.fr.astrid >= 6 && S.flag.why === 'quiet',
         lines: ['You still have not complained about the rain.',
                 { no: 'That is how I know you meant it. Kaffe, on me.', en: 'That is how I know you meant it. Coffee, on me.' }],
         give: { kaffe: 2 } },
-      { id: 'a4', when: S => S.fr.astrid >= 3 && S.flag.why === 'land',
+      { id: 'a4', when: S => S.fr.astrid >= 6 && S.flag.why === 'land',
         lines: ['You drive a hard bargain, so I will match it.',
                 'Ten percent off, permanently. Do not tell Håkon.'],
         set: { rabatt: 1 } },
-      { id: 'a5', mood: 'warm', when: S => S.fr.astrid >= 4,
+      { id: 'a5', mood: 'warm', when: S => S.fr.astrid >= 8,
         lines: [{ no: 'Jordbær seed came in. Slow, but it pays.', en: 'Strawberry seed came in. Slow, but it pays.' }],
         set: { jordbar: 1 } },
-      { id: 'a6', mood: 'warm', when: S => S.fr.astrid >= 5,
+      { id: 'a6', mood: 'warm', when: S => S.fr.astrid >= 10,
         lines: ['You have made this a real farm. I am glad you stayed.'] }
     ],
     chat: [
@@ -770,17 +832,17 @@ export const BEK_TALK = {
          one shop row is what makes room for the sprinkler on this list
          without the shop panel growing past SHOP_ROWS */
       { t: [{ no: 'A bigger sekk carries more before your back complains.', en: 'A bigger bag carries more before your back complains.' }],
-        if: S => !S.bagTier && S.fr.astrid >= 1,
+        if: S => !S.bagTier && S.fr.astrid >= 2,
         buy: { label: { no: 'STØRRE SEKK — 400 kr', en: 'BIGGER BAG — 400 kr' }, kr: 400, bagCapAdd: 40, bagTier: 1,
                ok: ['There. Room to breathe.'],
                no: ['400 kr. Ask me again later.'] } },
       { t: [{ no: 'There is a bigger sekk still, if the first was not enough.', en: 'There is a bigger bag still, if the first was not enough.' }],
-        if: S => S.bagTier === 1 && S.fr.astrid >= 3,
+        if: S => S.bagTier === 1 && S.fr.astrid >= 6,
         buy: { label: { no: 'STOR SEKK — 900 kr', en: 'BIG BAG — 900 kr' }, kr: 900, bagCapAdd: 60, bagTier: 2,
                ok: ['Now you can carry half the valley.'],
                no: ['900 kr. When you have it.'] } },
       { t: [{ no: 'A bigger kanne holds more, and waters three furrows at once.', en: 'A bigger can holds more, and waters three furrows at once.' }],
-        if: S => !S.kanneLv && S.fr.astrid >= 2,
+        if: S => !S.kanneLv && S.fr.astrid >= 4,
         buy: { label: { no: 'STOR VANNKANNE — 700 kr', en: 'BIG WATERING CAN — 700 kr' }, kr: 700, kanneLv: 1, waterMaxAdd: 15,
                ok: ['Mind your wrist. It is heavier full.'],
                no: ['700 kr. Come back when you have it.'] } },
@@ -812,7 +874,7 @@ export const BEK_TALK = {
         lines: ['Snekkeriet. I build what people can pay for.',
                 { no: 'You will want a house eventually. They all do.', en: 'You will want a house eventually. They all do.', m: 'warm' }],
         ask: { q: { no: 'How should it be built?', en: 'How should it be built?' }, opts: [
-          { t: { no: 'From the forest. I will fell it myself.', en: 'From the forest. I will fell it myself.' }, set: { build: 'skog' }, fr: 1,
+          { t: { no: 'From the forest. I will fell it myself.', en: 'From the forest. I will fell it myself.' }, set: { build: 'skog' }, fr: 2,
             reply: ['Good. Timber you carry is timber you respect.',
                     { no: 'Thirty tømmer, twenty stein, and 5000 kr.', en: 'Thirty timber, twenty stone, and 5000 kr.' }] },
           { t: { no: 'Order the planks. I will pay.', en: 'Order the planks. I will pay.' }, set: { build: 'kjop' }, fr: 0,
@@ -830,7 +892,7 @@ export const BEK_TALK = {
         buy: { label: { no: 'STÅLØKS — 900 kr', en: 'STEEL AXE — 900 kr' }, kr: 900, axeLv: 2,
                ok: ['Mind the swing. It bites deeper.'],
                no: ['900 kr. Come back when you have it.'] } },
-      { id: 'h5', mood: 'warm', when: S => S.fr.hakon >= 4 && S.flag.build === 'skog',
+      { id: 'h5', mood: 'warm', when: S => S.fr.hakon >= 8 && S.flag.build === 'skog',
         lines: ['Five hundred off the house. You did the felling, not me.'],
         set: { rabatt2: 1 } }
     ],
@@ -875,7 +937,7 @@ export const BEK_TALK = {
       { id: 'i1',
         lines: [{ no: 'God kveld. Or morning. Out here it is the same.', en: 'Good evening. Or morning. Out here it is the same.' }],
         ask: { q: { no: 'Why do you fish?', en: 'Why do you fish?' }, opts: [
-          { t: { no: 'For the calm.', en: 'For the calm.' }, set: { fisk: 'ro' }, fr: 1,
+          { t: { no: 'For the calm.', en: 'For the calm.' }, set: { fisk: 'ro' }, fr: 2,
             reply: ['Then stand at the end of the pier, not the middle.',
                     { no: 'The laks lie deep out there. Bring me three sopp', en: 'The salmon lie deep out there. Bring me three mushrooms' },
                     { no: 'and the old stang is yours.', en: 'and the old rod is yours.' }] },
@@ -885,12 +947,12 @@ export const BEK_TALK = {
         ] } },
       { id: 'i2', when: S => S.q.sopp === 'active',
         lines: [{ no: 'Three sopp. The skogen is full of them at dawn.', en: 'Three mushrooms. The forest is full of them at dawn.' }] },
-      { id: 'i3', mood: 'warm', when: S => S.fr.ingrid >= 3 && S.flag.fisk === 'ro',
+      { id: 'i3', mood: 'warm', when: S => S.fr.ingrid >= 6 && S.flag.fisk === 'ro',
         lines: ['You have learned to wait. That is all fishing is.'] },
-      { id: 'i4', mood: 'warm', when: S => S.fr.ingrid >= 3 && S.flag.fisk === 'mat',
+      { id: 'i4', mood: 'warm', when: S => S.fr.ingrid >= 6 && S.flag.fisk === 'mat',
         lines: ['Here. You still eat like a man who forgets to.'],
         give: { vaffel: 2 } },
-      { id: 'i5', when: S => S.fr.ingrid >= 4,
+      { id: 'i5', when: S => S.fr.ingrid >= 8,
         lines: [{ no: 'Røye run in the cold tarn up on the vidda. Colder, sweeter.', en: 'Char run in the cold tarn up on the plateau. Colder, sweeter.' }] }
     ],
     chat: [
@@ -909,7 +971,7 @@ export const BEK_TALK = {
       { id: 'o1', mood: 'troubled',
         lines: ['The boat leaks. Everything out here leaks, eventually.'],
         ask: { q: { no: 'The fjord, or the open sea?', en: 'The fjord, or the open sea?' }, opts: [
-          { t: { no: 'The open sea. I want the big ones.', en: 'The open sea. I want the big ones.' }, set: { sea: 'hav' }, fr: 1,
+          { t: { no: 'The open sea. I want the big ones.', en: 'The open sea. I want the big ones.' }, set: { sea: 'hav' }, fr: 2,
             reply: [{ no: 'A bold answer. Makrell run in shoals out past the mouth.', en: 'A bold answer. Mackerel run in shoals out past the mouth.' },
                     { no: 'Fix my boat and I will point you at them. Four tømmer, two tau.', en: 'Fix my boat and I will point you at them. Four timber, two rope.' }] },
           { t: { no: 'The fjord. Calm water suits me.', en: 'The fjord. Calm water suits me.' }, set: { sea: 'fjord' }, fr: 0,
@@ -918,9 +980,9 @@ export const BEK_TALK = {
         ] } },
       { id: 'o2', when: S => S.q.boat === 'active',
         lines: [{ no: 'Four tømmer, two tau. Astrid sells the tau.', en: 'Four timber, two rope. Astrid sells the rope.' }] },
-      { id: 'o3', when: S => S.flag.boat && S.fr.olav >= 3 && S.flag.sea === 'hav',
+      { id: 'o3', when: S => S.flag.boat && S.fr.olav >= 6 && S.flag.sea === 'hav',
         lines: [{ no: 'Cast off the end of the dock. The makrell will find you.', en: 'Cast off the end of the dock. The mackerel will find you.' }] },
-      { id: 'o4', mood: 'warm', when: S => S.flag.boat && S.fr.olav >= 3 && S.flag.sea === 'fjord',
+      { id: 'o4', mood: 'warm', when: S => S.flag.boat && S.fr.olav >= 6 && S.flag.sea === 'fjord',
         lines: ['Warm soup, for the crossings. You will thank me.'],
         give: { fiskesuppe: 1 } }
     ],
@@ -939,7 +1001,7 @@ export const BEK_TALK = {
         lines: ['You found the old church. Most only find the meadow.',
                 'The stave has stood eight hundred winters. It leans, but it stands.'],
         ask: { q: { no: 'Why did you climb all the way up here?', en: 'Why did you climb all the way up here?' }, opts: [
-          { t: { no: 'Someone I remember.', en: 'Someone I remember.' }, set: { marit: 'minne' }, fr: 1,
+          { t: { no: 'Someone I remember.', en: 'Someone I remember.' }, set: { marit: 'minne' }, fr: 2,
             reply: ['Then pick them a bouquet. One blåklokke, one soleie, one revebjelle.',
                     'Bring the three, and I will know the flowers found the right hands.'] },
           { t: { no: 'Just the quiet up here.', en: 'Just the quiet up here.' }, set: { marit: 'ro' }, fr: 0,
@@ -948,11 +1010,11 @@ export const BEK_TALK = {
         ] } },
       { id: 'm2', when: S => S.q.blomst === 'active',
         lines: [{ no: 'One of each. They open at first light, all over the enga.', en: 'One of each. They open at first light, all over the meadow.' }] },
-      { id: 'm3', mood: 'troubled', when: S => S.fr.marit >= 3 && S.flag.marit === 'minne',
+      { id: 'm3', mood: 'troubled', when: S => S.fr.marit >= 6 && S.flag.marit === 'minne',
         lines: ['You carry it well. Grief and gardening are the same craft.',
                 { no: 'Her — urter til gryta. De vokser der jeg plantet hennes favoritter.', en: 'Here — herbs for the pot. They grow where I planted her favourites.', m: 'warm' }],
         give: { urt: 3 } },
-      { id: 'm4', mood: 'warm', when: S => S.fr.marit >= 3 && S.flag.marit === 'ro',
+      { id: 'm4', mood: 'warm', when: S => S.fr.marit >= 6 && S.flag.marit === 'ro',
         lines: ['You have found the quiet, then. It suits the valley on you.'] }
     ],
     chat: [
@@ -970,7 +1032,7 @@ export const BEK_TALK = {
       { id: 's1',
         lines: ['Up here it is goats, brown cheese and weather. In that order.'],
         ask: { q: { no: 'Milk or wool — what do you keep them for?', en: 'Milk or wool — what do you keep them for?' }, opts: [
-          { t: { no: 'Milk. The brunost is worth the climb.', en: 'Milk. The brown cheese is worth the climb.' }, set: { dairy: 'melk' }, fr: 1,
+          { t: { no: 'Milk. The brunost is worth the climb.', en: 'Milk. The brown cheese is worth the climb.' }, set: { dairy: 'melk' }, fr: 2,
             reply: [{ no: 'A cheese answer. Bring me five multe and I will feed you well.', en: 'A cheese answer. Bring me five cloudberries and I will feed you well.' },
                     { no: 'The multe grow right here on the setra, gold in the grass.', en: 'The cloudberries grow right here on the dairy meadow, gold in the grass.' }] },
           { t: { no: 'Wool. The winters are long.', en: 'Wool. The winters are long.' }, set: { dairy: 'ull' }, fr: 0,
@@ -981,10 +1043,10 @@ export const BEK_TALK = {
       { id: 's3', when: S => S.q.multe === 'done' && !S.flag.rabarbra,
         lines: [{ no: 'Astrid has rabarbra seed now, on my word. Slow, but rich.', en: 'Astrid has rhubarb seed now, on my word. Slow, but rich.' }],
         set: { rabarbra: 1 } },
-      { id: 's4', mood: 'warm', when: S => S.fr.sigrid >= 3 && S.flag.dairy === 'melk',
+      { id: 's4', mood: 'warm', when: S => S.fr.sigrid >= 6 && S.flag.dairy === 'melk',
         lines: ['Cloudberry cream. Eat it slow.'],
         give: { multekrem: 1 } },
-      { id: 's5', mood: 'warm', when: S => S.fr.sigrid >= 3 && S.flag.dairy === 'ull',
+      { id: 's5', mood: 'warm', when: S => S.fr.sigrid >= 6 && S.flag.dairy === 'ull',
         lines: [{ no: 'A genser, knitted this winter. Now the wind up top is only wind.', en: 'A sweater, knitted this winter. Now the wind up top is only wind.' }],
         give: { ullgenser: 1 } }
     ],
@@ -1012,15 +1074,15 @@ export const BEK_TALK = {
       { id: 'g1', mood: 'troubled',
         lines: ['Few come up onto the vidda on purpose. Fewer twice.'],
         ask: { q: { no: 'Do you trap up here, or watch?', en: 'Do you trap up here, or watch?' }, opts: [
-          { t: { no: 'Trap. A living is a living.', en: 'Trap. A living is a living.' }, set: { fell: 'jakt' }, fr: 1,
+          { t: { no: 'Trap. A living is a living.', en: 'Trap. A living is a living.' }, set: { fell: 'jakt' }, fr: 2,
             reply: [{ no: 'Honest. Tyttebær grow thick past the tarn. Sell them low, sell them often.', en: 'Honest. Lingonberries grow thick past the tarn. Sell them low, sell them often.' }] },
           { t: { no: 'Watch. It is enough to be here.', en: 'Watch. It is enough to be here.' }, set: { fell: 'sjaa' }, fr: 0,
             reply: ['Then you already understand the plateau. Reindeer at dusk, if you are still.'] }
         ] } },
-      { id: 'g2', mood: 'warm', when: S => S.fr.gunnar >= 3 && S.flag.fell === 'jakt',
+      { id: 'g2', mood: 'warm', when: S => S.fr.gunnar >= 6 && S.flag.fell === 'jakt',
         lines: [{ no: 'Take the wool. The tyttebær are worth more when your hands still work.', en: 'Take the wool. The lingonberries are worth more when your hands still work.' }],
         give: { ull: 2 } },
-      { id: 'g3', mood: 'warm', when: S => S.fr.gunnar >= 3 && S.flag.fell === 'sjaa',
+      { id: 'g3', mood: 'warm', when: S => S.fr.gunnar >= 6 && S.flag.fell === 'sjaa',
         lines: ['Stand at the tarn at dusk. You will see what I stay up here for.'] }
     ],
     chat: [
@@ -1040,7 +1102,7 @@ export const BEK_TALK = {
       { id: 'l1', mood: 'troubled',
         lines: ['Watch your head. The good copper is where the ceiling is lowest.'],
         ask: { q: { no: 'Silver, or stone?', en: 'Silver, or stone?' }, opts: [
-          { t: { no: 'Silver. I came for the sølv.', en: 'Silver. I came for the silver.' }, set: { mine: 'solv' }, fr: 1,
+          { t: { no: 'Silver. I came for the sølv.', en: 'Silver. I came for the silver.' }, set: { mine: 'solv' }, fr: 2,
             reply: [{ no: 'A greedy answer. I like it. Rich veins glitter — you will know them.', en: 'A greedy answer. I like it. Rich veins glitter — you will know them.' }] },
           { t: { no: 'Stone. A house needs walls.', en: 'Stone. A house needs walls.' }, set: { mine: 'stein' }, fr: 0,
             reply: [{ no: 'A builder. Good. Every swing gives stein along with the ore.', en: 'A builder. Good. Every swing gives stone along with the ore.' }] }
@@ -1054,7 +1116,7 @@ export const BEK_TALK = {
         lines: [{ no: 'Bring me six jern and I will forge you a STÅLHAKKE.', en: 'Bring me six iron and I will forge you a STEEL PICK.' },
                 { no: 'The rich veins — the sølv — need steel to crack.', en: 'The rich veins — the silver — need steel to crack.' }],
         open: 'jern' },
-      { id: 'l4', mood: 'warm', when: S => S.fr.lars >= 3 && S.flag.mine === 'stein' && S.pickLv < 2,
+      { id: 'l4', mood: 'warm', when: S => S.fr.lars >= 6 && S.flag.mine === 'stein' && S.pickLv < 2,
         lines: [{ no: 'For a builder, the steel is cheaper. Four jern, not six.', en: 'For a builder, the steel is cheaper. Four iron, not six.' }],
         set: { steelcut: 1 } }
     ],
@@ -1073,25 +1135,25 @@ export const BEK_TALK = {
 
 /* ---- 27.5 the quests ----------------------------------------------------- */
 export const BEK_QUESTS = [
-  { id: 'potet',  who: 'astrid', need: { potet: 5 },  kr: 200, fr: 1,
+  { id: 'potet',  who: 'astrid', need: { potet: 5 },  kr: 200, fr: 2,
     t: { no: 'FEM POTETER — Astrid', en: 'FIVE POTATOES — Astrid' },
     d: { no: 'Bring Astrid five poteter.', en: 'Bring Astrid five potatoes.' } },
-  { id: 'sopp',   who: 'ingrid', need: { sopp: 3 },   kr: 0,   fr: 1, tool: 'stang',
+  { id: 'sopp',   who: 'ingrid', need: { sopp: 3 },   kr: 0,   fr: 2, tool: 'stang',
     t: { no: 'TRE SOPP — Ingrid', en: 'THREE MUSHROOMS — Ingrid' },
     d: { no: 'Bring Ingrid three sopp. She keeps a spare stang.', en: 'Bring Ingrid three mushrooms. She keeps a spare rod.' } },
-  { id: 'blomst', who: 'marit',  need: { blomst_bla: 1, blomst_gul: 1, blomst_ro: 1 }, kr: 150, fr: 1, grant: { item: { urt: 2 } },
+  { id: 'blomst', who: 'marit',  need: { blomst_bla: 1, blomst_gul: 1, blomst_ro: 1 }, kr: 150, fr: 2, grant: { item: { urt: 2 } },
     t: { no: 'EN BUKETT — Marit', en: 'A BOUQUET — Marit' },
     d: { no: 'Pick Marit one blåklokke, one soleie, one revebjelle.', en: 'Pick Marit one harebell, one buttercup, one foxglove.' } },
-  { id: 'tommer', who: 'hakon',  need: { tommer: 10 }, kr: 500, fr: 1,
+  { id: 'tommer', who: 'hakon',  need: { tommer: 10 }, kr: 500, fr: 2,
     t: { no: 'TI TØMMER — Håkon', en: 'TEN TIMBER — Håkon' },
     d: { no: 'Fell ten tømmer in the skogen for Håkon.', en: 'Fell ten timber in the forest for Håkon.' } },
-  { id: 'multe',  who: 'sigrid', need: { multe: 5 },  kr: 300, fr: 1,
+  { id: 'multe',  who: 'sigrid', need: { multe: 5 },  kr: 300, fr: 2,
     t: { no: 'FEM MULTE — Sigrid', en: 'FIVE CLOUDBERRIES — Sigrid' },
     d: { no: 'Bring Sigrid five multe from the setra.', en: 'Bring Sigrid five cloudberries from the dairy meadow.' } },
-  { id: 'boat',   who: 'olav',   need: { tommer: 4, tau: 2 }, kr: 0, fr: 1, grant: { flag: { boat: 1 } },
+  { id: 'boat',   who: 'olav',   need: { tommer: 4, tau: 2 }, kr: 0, fr: 2, grant: { flag: { boat: 1 } },
     t: { no: 'BÅTEN — Olav', en: 'THE BOAT — Olav' },
     d: { no: 'Patch Olav\u2019s boat: four tømmer, two tau.', en: 'Patch Olav\u2019s boat: four timber, two rope.' } },
-  { id: 'jern',   who: 'lars',   need: { jern: 6 },   kr: 0,   fr: 1, grant: { pickLv: 2 },
+  { id: 'jern',   who: 'lars',   need: { jern: 6 },   kr: 0,   fr: 2, grant: { pickLv: 2 },
     t: { no: 'SEKS JERN — Lars', en: 'SIX IRON — Lars' },
     d: { no: 'Bring Lars six jern for a stålhakke.', en: 'Bring Lars six iron for a steel pick.' } }
 ];
@@ -1114,6 +1176,11 @@ export const BEK_QUESTS = [
 export const BEK_QUEST_BOARD_MIN = 2;
 export const BEK_QUEST_BOARD_MAX = 3;
 export const BEK_QUEST_REFRESH_DAYS = 7;
+
+/* GIFTING: two gifts a week per person, cleared on the same
+   BEK_QUEST_REFRESH_DAYS cadence the board itself turns over on
+   (isRefreshDay(), quests.js) — see S.giftWeek in index.js's newDay(). */
+export const BEK_GIFT_CAP = 2;
 
 export const BEK_QUEST_TEMPLATES = [
   { id: 'crops',  items: ['potet', 'nepe', 'gulrot', 'kal', 'jordbar', 'rabarbra'], qty: [3, 8] },
@@ -1155,21 +1222,26 @@ export const BEK_QUEST_TEMPLATES = [
 export const BEK_RECIPES = {
   craft: [
     { id: 'sprinkler', out: 'sprinkler', qty: 1, need: { tommer: 4, jern: 1 },
-      fr: { npc: 'astrid', min: 2 }, lvl: { kind: 'farm', min: 1 } },
+      fr: { npc: 'astrid', min: 4 }, lvl: { kind: 'farm', min: 1 } },
     { id: 'gjerde',     out: 'gjerde',   qty: 1, need: { tommer: 3, spiker: 4 },
-      fr: { npc: 'hakon',  min: 1 }, lvl: { kind: 'mine', min: 1 } },
+      fr: { npc: 'hakon',  min: 2 }, lvl: { kind: 'mine', min: 1 } },
     { id: 'dyrefor',    out: 'dyrefor',  qty: 3, need: { potet: 1, nepe: 1 },
-      fr: { npc: 'sigrid', min: 1 }, lvl: { kind: 'farm', min: 1 } }
+      fr: { npc: 'sigrid', min: 2 }, lvl: { kind: 'farm', min: 1 } },
+    /* GIFTING: the one item on the ghost list — a name, an icon and a
+       colour in BEK_ITEMS with nothing that ever obtained it. The three
+       meadow flowers are always pickable (see BEK_MAPS.enga), so no fr/lvl
+       gate of its own: the flowers are the cost. */
+    { id: 'bukett', out: 'bukett', qty: 1, need: { blomst_bla: 1, blomst_gul: 1, blomst_ro: 1 } }
   ],
   /* one raw crop plus one animal product each, and every dish restores more
      than the best shop food does (multekrem's 110) — see BEK_ITEMS */
   cook: [
     { id: 'potetstuing',  out: 'potetstuing',  qty: 1, need: { potet: 2, melk: 1 },
-      fr: { npc: 'sigrid', min: 2 }, lvl: { kind: 'farm', min: 1 } },
+      fr: { npc: 'sigrid', min: 4 }, lvl: { kind: 'farm', min: 1 } },
     { id: 'gulrotkake',   out: 'gulrotkake',   qty: 1, need: { gulrot: 1, egg: 1 },
-      fr: { npc: 'sigrid', min: 3 }, lvl: { kind: 'farm', min: 2 } },
+      fr: { npc: 'sigrid', min: 6 }, lvl: { kind: 'farm', min: 2 } },
     { id: 'rabarbragrot', out: 'rabarbragrot', qty: 1, need: { rabarbra: 1, melk: 1 },
-      fr: { npc: 'sigrid', min: 4 }, lvl: { kind: 'farm', min: 3 } }
+      fr: { npc: 'sigrid', min: 8 }, lvl: { kind: 'farm', min: 3 } }
   ]
 };
 

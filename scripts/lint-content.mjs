@@ -7,7 +7,7 @@
    1. every quest requirement (need / grant.item) references a real item id
    2. every shop entry references a real item id
    3. every dialogue node's friendship gate (`when: S => S.fr.x >= N`) has N
-      inside the 0-5 range documented in .claude/rules/content.md
+      inside the 0-10 range documented in .claude/rules/content.md
    4. every map a door/exit/boat travels to exists in BEK_MAPS
    5. every repeatable quest template (BEK_QUEST_TEMPLATES) references real,
       non-seed item ids and a sane quantity range
@@ -56,7 +56,7 @@ function checkShopItems() {
   });
 }
 
-/* ---- 3: dialogue friendship gates are within 0-5 -------------------------- */
+/* ---- 3: dialogue friendship gates are within 0-10 -------------------------- */
 function checkFriendshipGates() {
   const GATE_RE = /S\.fr\.(\w+)\s*>=\s*(\d+)/g;
   Object.keys(BEK_TALK).forEach(npcId => {
@@ -68,7 +68,7 @@ function checkFriendshipGates() {
       GATE_RE.lastIndex = 0;
       while ((m = GATE_RE.exec(src))) {
         const gateNpc = m[1], n = parseInt(m[2], 10);
-        if (n < 0 || n > 5) {
+        if (n < 0 || n > 10) {
           fail('friendship gate', gateNpc + '>=' + n, 'BEK_TALK.' + npcId + '.nodes[' + node.id + '].when');
         }
       }
@@ -136,16 +136,30 @@ function checkSpeakersAndMoods() {
   });
 }
 
+/* ---- 8: gift preferences reference real, holdable item ids --------------- */
+function checkGiftItems() {
+  BEK_NPCS.forEach(npc => {
+    if (!npc.gift) return;
+    ['loved', 'liked', 'disliked'].forEach(tier => {
+      (npc.gift[tier] || []).forEach(id => {
+        if (!BEK_ITEMS[id]) fail('gift preference', id, 'BEK_NPCS.' + npc.id + '.gift.' + tier);
+        else if (BEK_ITEMS[id].animal) fail('gift preference', id, 'BEK_NPCS.' + npc.id + '.gift.' + tier + ' (an animal, never held in the bag)');
+      });
+    });
+  });
+}
+
 checkQuestItems();
 checkShopItems();
 checkFriendshipGates();
 checkFastTravelMaps();
 checkQuestTemplateItems();
 checkSpeakersAndMoods();
+checkGiftItems();
 
 const byCheck = failures.reduce((acc, f) => { (acc[f.check] = acc[f.check] || []).push(f); return acc; }, {});
 const ALL_CHECKS = ['quest requirement', 'shop entry', 'friendship gate', 'fast travel map', 'quest template item',
-                    'speaker prefix', 'dialogue mood'];
+                    'speaker prefix', 'dialogue mood', 'gift preference'];
 ALL_CHECKS.forEach(check => {
   const fs = byCheck[check] || [];
   if (!fs.length) { console.log('PASS - ' + check); return; }

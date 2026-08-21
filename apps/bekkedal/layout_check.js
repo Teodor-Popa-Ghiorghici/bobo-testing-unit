@@ -217,6 +217,18 @@ walk(D.BEK_TALK);
 const worstWrap = dlgLines.reduce((a, l) => Math.max(a, wrapLines(l, L.DLG_TW, F.FONT_LG).length), 0);
 ok(worstWrap <= L.DLG_BODY_LINES, 'every dialogue line wraps inside the box',
    'worst is ' + worstWrap + ' of ' + L.DLG_BODY_LINES + ' rows (' + cols(L.DLG_TW, F.FONT_LG) + ' chars/row)');
+
+/* GIFTING: a gift reaction is drawn through the same dialogue box (dlg.lines)
+   as a BEK_TALK node, but lives in BEK_NPCS[].gift.reactions instead — the
+   walker above never reaches it, so it gets its own pass over the same box. */
+const giftLines = [];
+D.BEK_NPCS.forEach(n => {
+  if (!n.gift) return;
+  Object.values(n.gift.reactions).forEach(ls => ls.forEach(l => giftLines.push(...both(l))));
+});
+const worstGift = giftLines.reduce((a, l) => Math.max(a, wrapLines(l, L.DLG_TW, F.FONT_LG).length), 0);
+ok(worstGift <= L.DLG_BODY_LINES, 'every gift reaction line wraps inside the box',
+   'worst is ' + worstGift + ' of ' + L.DLG_BODY_LINES + ' rows (' + giftLines.length + ' lines checked)');
 /* a question plus its options must also fit the same rows */
 const askWorst = (() => {
   let m = 0;
