@@ -117,15 +117,13 @@ export default {
          against the very tables the art draws from. */
       const TUFT = MARKS.TUFT.cols, TUFT_DRY = MARKS.TUFT_DRY.cols, BLADE = MARKS.BLADE.cols,
             PATH_GRIT = MARKS.PATH_GRIT.cols, CAVE_GRIT = MARKS.CAVE_GRIT.cols,
-            ROCK_FACE = MARKS.ROCK_FACE.cols, FLOOR_GRAIN = MARKS.FLOOR_GRAIN.cols,
-            WATER_DEEP = MARKS.WATER_DEEP.cols;
+            ROCK_FACE = MARKS.ROCK_FACE.cols, FLOOR_GRAIN = MARKS.FLOOR_GRAIN.cols;
       const PATH_CRACK = SHADOWS.PATH_CRACK.cols[0], ROCK_CRACK = SHADOWS.ROCK_CRACK.cols[0],
             FLOOR_JOINT = SHADOWS.FLOOR_JOINT.cols[0], TREE_INK = SHADOWS.TREE_INK.cols,
             MOSS_SHADE = SHADOWS.MOSS_SHADE.cols[0];
       /* the player, who has no entry in BEK_NPCS because there is only one */
       const PLAYER_HAIR = TIM[1], PLAYER_SHIRT = WAT[4], PLAYER_PANTS = ATMO[2];
       const FLOWER = FEATURES.FLOWER.cols, PICKABLE = FEATURES.PICKABLE.cols,
-            WATER_SUN = FEATURES.WATER_SUN.cols, FOAM = FEATURES.FOAM.cols,
             ORE_GLINT = FEATURES.ORE_GLINT.cols, HEARTH = FEATURES.HEARTH.cols,
             SNOWDRIFT = FEATURES.SNOWDRIFT.cols;
       const BEDROCK = MARKS.BEDROCK.cols[0];
@@ -1699,6 +1697,8 @@ export default {
         seam: i => seamVar(S.map, i),
         spot: spot,
         tileAt: (x, y) => tileAt(S.map, x, y),
+        map: () => S.map,
+        weather: () => S.weather,
         cols: COLS, rows: ROWS
       };
       const shore = createShore(waterArt);
@@ -1805,18 +1805,16 @@ export default {
       /* deep water: the depth ramp is in the cache, and what is left per frame
          is two short ripple bands and the odd catch of light */
       function waterTile(x, y, t) {
-        const px = x * BEK_T, py = y * BEK_T, w = Math.floor(t * 2 + x + y) % 4;
         const v = waterVar(S.map, x, y);
         native(() => {
           /* a deep tile that happens to touch land carries the surf, because
              on nine maps out of eleven that boundary is where the water ends */
           shore.live(x, y, t, v, -1);
-          g.fillStyle = C(WATER_DEEP[0]);
-          g.fillRect(px + spot(v.ax, BEK_T, 16), py + 6 + spot(v.ay, 28, 2) + w * 2, 16, 2);
-          g.fillStyle = C(WATER_DEEP[1]);
-          g.fillRect(px + spot(v.bx, BEK_T, 14), py + 6 + spot(v.by, 28, 2) - w * 2, 14, 2);
-          if (v.foam === 0) { g.fillStyle = C(WATER_SUN[0]); g.fillRect(px + spot(v.bx, BEK_T, 8), py + spot(v.ay, BEK_T, 2), 8, 2); }
-          if (v.glint === 3) { g.fillStyle = C(WATER_SUN[1]); g.fillRect(px + spot(v.ax, BEK_T, 4), py + 6 + spot(v.by, 28, 2) + w * 2, 4, 2); }
+          /* the swell, the glint and whatever is rising or drifting in the
+             water — see water.js, which is the pattern shore.js's own live
+             pass set: continuous motion off a declared channel, not a
+             per-tile restart */
+          water.live(x, y, t);
         });
       }
 
