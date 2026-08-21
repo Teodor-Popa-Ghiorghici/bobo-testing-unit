@@ -66,6 +66,11 @@ coordinates") lives in `bekkedal-art.md`.
   with its portrait column and name plate, and the buy prompt that comes out
   of one of its lines. A sibling of `menus.js` for the 300-line rule, the same
   way `decor_outdoor.js` is one of `decor.js`. See **The faces**.
+- `menus_chrome.js` — the materials the rest of `menus.js`'s panels are drawn
+  out of instead of `panel()`'s flat black rectangle: planed timber and
+  pinned paper for the board, cloth and leather for the bag, a counter and
+  its slate for the shop, bare planks for the workshop, a routed sign for
+  travel, a quiet dark card for sleep. See `.claude/rules/bekkedal-art.md`.
 - `music.js` — five tunes and the crossfading scheduler. See `.claude/rules/bekkedal-art.md`.
 - `ambience.js` — a bed per map, weather and the hour layered over it, positional hearth crackle, and material footsteps. See `.claude/rules/bekkedal-art.md`.
 - `decor.js` — room prop kinds; placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.

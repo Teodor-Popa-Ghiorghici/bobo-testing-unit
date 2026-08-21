@@ -1,8 +1,16 @@
 /* Bekkedal — every panel the game puts over the picture.
  *
  * The fishing gauge, the shop, the chest, the bag, the quest board, the travel
- * list and the ending painting. Lifted out of `index.js` line for line: a
- * move, not a rewrite, and the diff that created it should read as one.
+ * list, the sleep card and the ending painting. Lifted out of `index.js` line
+ * for line: a move, not a rewrite, and the diff that created it should read
+ * as one. Sleep joined it later, moved out of index.js's own draw() so this
+ * really is where every panel lives, per this header.
+ *
+ * The board, the bag, the shop/workshop counters and the travel sign draw
+ * their own material now instead of `panel()`'s flat black rectangle —
+ * `menus_chrome.js`'s `board`/`note`/`cloth`/`counter`/`workbench`/`sign`/
+ * `card`. `panel()` itself is untouched: the HUD, the tooltip and the
+ * fishing gauge stay the machine's own chrome, on purpose.
  *
  * The two panels a *conversation* puts up — the dialogue box and the buy
  * prompt that comes out of one of its lines — are the exception, and they are
@@ -38,6 +46,7 @@ import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_RECIPES, AXE_NAME, PICK_
          BEK_W, BEK_H } from './data.js';
 import { boardRows } from './quests.js';
 import { createDialogue } from './menus_talk.js';
+import { createChrome } from './menus_chrome.js';
 import { WAT, TIM, CON, WAR, SAN, SNO, ATMO } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -46,12 +55,14 @@ import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
          SHOP_ROWS, SHOP_ROW, SHOP_W, SHOP_H, SHOP_X, SHOP_Y, SHOP_COL_W, SHOP_NAME_DX, SHOP_PRICE_DX,
          BAG_COLS, BAG_ROWS, BAG_CAP, BAG_ROW, BAG_W, BAG_H, BAG_X, BAG_Y, BAG_CW, BAG_NAME_DX, BAG_QTY_DX,
          QUEST_VISIBLE_ROWS, QUEST_ENTRY, QUEST_W, QUEST_H, QUEST_X, QUEST_Y, QUEST_STATUS_DX,
+         QUEST_NOTE_X, QUEST_NOTE_W, QUEST_NOTE_H, QUEST_NOTE_INSET,
          TRAVEL_W, TRAVEL_H, TRAVEL_X, TRAVEL_Y,
+         SLEEP_W, SLEEP_H, SLEEP_X, SLEEP_Y,
          END_SRC_W, END_SRC_H, END_TREES, END_TREE_DX, END_HOUSE_W, END_HOUSE_X,
          END_TEXT_X, END_TEXT_Y } from './layout.js';
 
 export function createMenus(A, GG, C) {
-  const { T, TX, iname, price, houseCost, recipeUnlocked, craftCount, panel, icon, text, textW, dither, bear } = A;
+  const { T, TX, iname, price, houseCost, recipeUnlocked, craftCount, panel, icon, text, textW, dither, stipple, bear } = A;
   const BEK_ART_SCALE = A.artScale;
   /* The two panels a *conversation* puts on screen — the dialogue box with
      its portrait and the buy prompt that comes out of one of its lines —
@@ -59,6 +70,11 @@ export function createMenus(A, GG, C) {
      decor.js: this file was at the 300-line ceiling and the dialogue box is
      now the largest panel in the game, not a second organising principle. */
   const { drawTalk, drawOffer } = createDialogue(A, GG, C);
+  /* Every other panel's own material — a board, a bag, a counter, a
+     workbench, a sign, a card — instead of `panel()`'s flat black rectangle.
+     See menus_chrome.js. `panel()` itself is untouched: the HUD, the crop
+     tooltip and the fishing gauge stay the machine's own chrome. */
+  const { board, note, cloth, counter, workbench, sign, card } = createChrome(GG, C, stipple);
 
   function drawFish() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
@@ -85,7 +101,7 @@ export function createMenus(A, GG, C) {
 
   function drawShop() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(SHOP_X, SHOP_Y, SHOP_W, SHOP_H, 14);
+    counter(SHOP_X, SHOP_Y, SHOP_W, SHOP_H);
     const bx = SHOP_X + PAD_SM, sx = bx + SHOP_COL_W;
     let y = SHOP_Y + PAD_SM;
     text(T(UI.shop), bx, y, 14, FONT_SM);
@@ -123,7 +139,7 @@ export function createMenus(A, GG, C) {
      would be — a locked recipe shows neither, same as a locked shop row. */
   function drawCraft() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer(), craft = A.craft();
-    panel(SHOP_X, SHOP_Y, SHOP_W, SHOP_H, 14);
+    workbench(SHOP_X, SHOP_Y, SHOP_W, SHOP_H);
     const bx = SHOP_X + PAD_SM, sx = bx + SHOP_COL_W;
     let y = SHOP_Y + PAD_SM;
     text(T(UI.craft), bx, y, 14, FONT_SM);
@@ -149,7 +165,7 @@ export function createMenus(A, GG, C) {
      on one page and you stop having to guess what fell off the bottom. */
   function drawBag() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(BAG_X, BAG_Y, BAG_W, BAG_H, 11);
+    cloth(BAG_X, BAG_Y, BAG_W, BAG_H);
     const bx = BAG_X + PAD_SM;
     let y = BAG_Y + PAD_SM;
     text(T(UI.bag), bx, y, 14, FONT_SM);
@@ -181,7 +197,7 @@ export function createMenus(A, GG, C) {
   }
   function drawQuests() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(QUEST_X, QUEST_Y, QUEST_W, QUEST_H, 14);
+    board(QUEST_X, QUEST_Y, QUEST_W, QUEST_H);
     const bx = QUEST_X + PAD_SM;
     text(T(UI.board), bx, QUEST_Y + PAD_SM, 14, FONT_SM);
     let y = QUEST_Y + PAD_SM + LINE_SM * 2;
@@ -198,6 +214,7 @@ export function createMenus(A, GG, C) {
     if (!rows.length) text(TX('Ingen oppdrag ennå. Snakk med folk.', 'No quests yet. Go and talk to people.'), bx, y, 7, FONT_SM);
     const scroll = Math.max(0, Math.min(A.qScroll(), Math.max(0, rows.length - QUEST_VISIBLE_ROWS)));
     rows.slice(scroll, scroll + QUEST_VISIBLE_ROWS).forEach(r => {
+      note(QUEST_NOTE_X, y - QUEST_NOTE_INSET, QUEST_NOTE_W, QUEST_NOTE_H);
       text(T(r.t), bx, y, r.tc || (r.done ? 8 : 15), FONT_SM);
       text(T(r.st), bx + QUEST_STATUS_DX, y, r.stc || (r.done ? 10 : 11), FONT_SM);
       if (r.d) text(T(r.d), bx + CELL_SM, y + LINE_SM, 7, FONT_SM);
@@ -210,7 +227,7 @@ export function createMenus(A, GG, C) {
   }
   function drawTravel() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(TRAVEL_X, TRAVEL_Y, TRAVEL_W, TRAVEL_H, 14);
+    sign(TRAVEL_X, TRAVEL_Y, TRAVEL_W, TRAVEL_H);
     const bx = TRAVEL_X + PAD_SM;
     text(T(UI.map), bx, TRAVEL_Y + PAD_SM, 14, FONT_SM);
     let y = TRAVEL_Y + PAD_SM + LINE_SM * 2;
@@ -218,6 +235,14 @@ export function createMenus(A, GG, C) {
       text((travel.sel === i ? '> ' : '  ') + T(BEK_MAPS[mp].title), bx, y + i * LINE_SM, travel.sel === i ? 15 : 7, FONT_SM);
     });
     text(TX('SPACE — GÅ (−10, +40min)', 'SPACE — WALK (−10, +40min)'), bx, TRAVEL_Y + TRAVEL_H - PAD_SM - GLYPH_SM, 8, FONT_SM);
+  }
+  /* Sleep used to be drawn inline in index.js's draw(), the one panel that
+     wasn't. Moved here so every panel the game puts over the picture really
+     does live in one place, per this file's own header. */
+  function drawSleep() {
+    card(SLEEP_X, SLEEP_Y, SLEEP_W, SLEEP_H);
+    text(T(UI.sleep), SLEEP_X + PAD_LG, SLEEP_Y + PAD_LG, 15, FONT_LG);
+    text(T(UI.goodnight), SLEEP_X + PAD_LG, SLEEP_Y + PAD_LG + LINE_LG, 7, FONT_LG);
   }
 
   /* ---- the ending ----------------------------------------------------
@@ -270,5 +295,5 @@ export function createMenus(A, GG, C) {
 
   return { drawFish: drawFish, drawTalk: drawTalk, drawOffer: drawOffer, drawShop: drawShop,
            drawCraft: drawCraft, drawBag: drawBag, drawQuests: drawQuests, drawTravel: drawTravel,
-           drawEnd: drawEnd, toolName: toolName };
+           drawSleep: drawSleep, drawEnd: drawEnd, toolName: toolName };
 }
