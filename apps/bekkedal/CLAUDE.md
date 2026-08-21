@@ -79,6 +79,9 @@ coordinates") lives in `bekkedal-art.md`.
 - `wear.js` — the paths worn between the places people actually walk (door to field, road, pier, well), derived from a map's own landmark glyphs the same way `interior.js`'s `traceWear()` derives indoor wear. See `.claude/rules/bekkedal-art.md`.
 - `quests.js` — the repeatable quest board. See `.claude/rules/bekkedal-content.md`.
 - `seasons.js` — the seasonal layer (season/day-of-season/festival/weather). See `.claude/rules/bekkedal-content.md`.
+- `schedule.js` — where everybody is: two to four named posts per NPC, and
+  which one the clock (plus weather, season, a festival day, a story flag)
+  currently puts them at. See `.claude/rules/bekkedal-content.md`.
 - `progression.js` — money-sink formulas (`houseCost`, `houseTierCost`, `houseTierAvailable`, `barnSlots`). See `.claude/rules/bekkedal-content.md`.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. Also the dialogue
   box's two columns. See `.claude/rules/bekkedal-art.md`.
@@ -122,7 +125,7 @@ still load without throwing.
 
 ## Checks
 
-Run all nine before claiming anything is done:
+Run all ten before claiming anything is done:
 
 - `node apps/bekkedal/tile_check.js` — terrain variation field is
   deterministic, uniform and aperiodic. Full paragraph: `.claude/rules/bekkedal-art.md`.
@@ -136,6 +139,14 @@ Run all nine before claiming anything is done:
   `.claude/rules/bekkedal-content.md`.
 - `node apps/bekkedal/season_check.js` — 4 simulated years of the seasonal
   layer. Full paragraph: `.claude/rules/bekkedal-content.md`.
+- `node apps/bekkedal/schedule_check.js` — a simulated year of every NPC's
+  schedule: every post is a real, standable tile; each NPC's default posts
+  cover the full day with no gap and no overlap; across a year, every hour,
+  every weather and both story-flag states, nobody resolves to a solid tile
+  and no two NPCs ever share one; every shopkeeper stays on their own map
+  through their stated hours; every festival day gathers all eight on the
+  festival's own map at eight distinct tiles. Full paragraph:
+  `.claude/rules/bekkedal-content.md`.
 - `node apps/bekkedal/act2_check.js` — every Act II surface plus the balance
   pass. Full paragraph: `.claude/rules/bekkedal-content.md`.
 - `node apps/bekkedal/world_check.js` — the valley joins up: every seam is
