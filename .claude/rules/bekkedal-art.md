@@ -22,8 +22,22 @@ This file carries the full art/rendering doctrine for the siblings above.
   the geometry in `data.js` and the metrics in `font.js`. Nothing in here is a
   measured pixel.
 - `noise.js` — every "which tuft, what colour, where does the grit sit"
-  decision the terrain art makes. Pure functions of `(mapId, x, y)`; no state,
-  nothing seeded, nothing saved. See **Terrain variation** below.
+  decision the terrain art makes. Pure functions of `(mapId, x, y)`; no state
+  and nothing saved. One stream in it *is* seeded — `mineSalt(seed, floor)`,
+  for a floor of the descent, which is generated per run rather than authored
+  (`mine.js`) — and it sits above the whole space `mapSalt` can reach so it
+  can never land on an authored map's channels. Nothing about it is saved
+  either: the run carries the seed and the field is recomputed from it. See
+  **Terrain variation** below.
+- `noise_recipes.js` — the recipe tables `channels()` walks: every declared
+  stream and where it sits in the channel space. Split off `noise.js` for the
+  300-line rule the way `palette_marks.js` is split off `palette.js`, and the
+  dependency runs the same one way — `noise.js` imports the tables, nothing
+  imports back. What a stream *is* stayed in `noise.js`; *which streams exist*
+  is declared here, and `tile_check.js` tests exactly what `channels()`
+  returns. The moduli are all sixteen or under on purpose, and that file says
+  why: 11232 tiles split sixteen ways resolves to ~11% of flat and sixty-four
+  ways to ~27%, which is over the check's own 20% tolerance.
 - `palette.js` — the sixty-four colours, as twelve material ramps, plus the
   luminance ordering and the band constants the contrast rule is stated in,
   and `rampStep`. No functions that draw, no state. See **Palette** below.
@@ -549,6 +563,17 @@ And one change that is a gameplay improvement rather than a picture: the
 wall *around* a vein carries mineral traces that thicken as you get closer,
 in that vein's own colour. One speck three tiles out, a run of them at one.
 The rock tells you where to look.
+
+### The generator reads this file and does not write to it
+
+`mine.js` carves floors of the descent out of the same six glyphs the gruva
+uses, so every word above applies to them unchanged and **`rock.js` was not
+touched to add them**. The one place the two meet is `oreKind`, which `mine.js`
+*reads*: it does not reroll a square's metal to shift the ore mix with depth,
+it picks which rock faces become veins at all, preferring the ones whose metal
+the depth band already wants. So the die below is still rolled once per square,
+by the same channel, and a floor four hundred feet down is legible by exactly
+the rules the adit is.
 
 ### The die is rolled once per square, not once per swing
 
@@ -1253,6 +1278,57 @@ day resolves to (each one is a rebuild). Measured on this machine a rebuild
 is 5–12ms and there are ~300 a day, nearly all of them inside the ~90 real
 seconds of dawn and dusk — about 2% of a frame budget, and never a visible
 hitch. If you make the quanta coarser, say why.
+
+### And deeper: the mine has no hour, but it has a depth
+
+`CAVE_LIGHT` is the adit, and it is one fixed dark because a hole in a mountain
+does not have an hour. The descent under it (`mine.js`) is not one place, and
+the dark getting deeper is one of the four things depth changes there — so
+`light.js` carries `MINE_LIGHT`, four `quantState`s from `CAVE_LIGHT`'s own
+0.58 down to 0.42, each taking `k` down and leaning the tint further into the
+blue the entries already carry. `mineLight(band)` picks one; band 0 *is*
+`CAVE_LIGHT` unchanged, so nothing about the gruva moved.
+
+Four bands and not a curve per floor, and that is a cache decision as much as
+an art one: the light key is part of the terrain cache key, so a per-floor
+darkness would rebuild the whole map on every ladder, where four rebuild it
+four times across a twenty-floor descent.
+
+The bottom of the range is 0.42 for a measured reason rather than a chosen one.
+The contrast the mine actually needs is `STO[2]` rock against `STO[0]` gravel,
+which reads 0.381 at the adit and 0.356 at 0.42, against `palette_check.js`'s
+own floor of 0.055 — and that check now walks generated floors from all four
+bands through `mineLight()` as well as the eleven authored maps at the darkest
+hour, so this is asserted rather than asserted-in-a-commit-message. There is
+room below 0.42 and no picture left worth having: past it the lantern is not
+lighting a scene, it is the only scene. What answers the deep bands instead is
+the crystal lamp — half again the radius, found only where the reach is what
+you are short of — and the peak barely moves, because of the rule in the next
+section that you never brighten a light by painting harder.
+
+#### Cost
+
+A generated floor is cheaper than the authored gruva, which is the answer to
+the only performance question worth asking about this: whether generating maps
+at runtime costs anything to *draw*. It does not, because a floor is the same
+six glyphs going through the same two cached passes, and it carries fewer
+props and fewer veins per square than the hand-authored room does. Measured
+warm on this container, median of five forced rebuilds, `rects()` taken
+separately (its wrapper inflates the millisecond figure beside it) — the same
+methodology as every other Cost table in this file:
+
+| map          | rebuild | rects | live/frame |
+|--------------|---------|-------|------------|
+| gruva (adit) | 11.0ms  | 7544  |   3.55ms   |
+| synk 3       |  7.0ms  | 5109  |   2.65ms   |
+| synk 7       |  9.3ms  | 6154  |   3.29ms   |
+| synk 12      | 12.6ms  | 5758  |   3.46ms   |
+| synk 17      | 10.3ms  | 6039  |   3.78ms   |
+
+Worst rebuild 12.6ms against the 30ms budget and worst 6,154 rects against
+25,000. The *carve* itself is not in these figures and does not need to be: it
+happens once per floor entered, on three floors at a time, and is a few
+hundred microseconds of integer work with no canvas in it at all.
 
 ### Local light is a palette too
 

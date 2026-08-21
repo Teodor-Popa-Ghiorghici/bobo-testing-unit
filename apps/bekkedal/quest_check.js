@@ -43,6 +43,12 @@ console.log('\n-- template gates --');
    every save starts with. */
 const GATE = {
   jern: 'hakke', kobber: 'hakke', solv: 'hakke',
+  /* the descent's own drop: still a hakke swing, just one taken a long way
+     down (mine.js's MINE_GEM_FLOOR). The board never asks for it — see the
+     note on gift preferences at the bottom of this file for why a gift only
+     has to be obtainable eventually, where a rolled quest has to be
+     obtainable on the day it was rolled. */
+  krystall: 'hakke',
   orret: 'stang', laks: 'stang', roye: 'stang', torsk: 'stang', makrell: 'stang',
   kveite: 'stang', gullorret: 'stang',
   melk: 'animal', ull: 'animal', egg: 'animal'
@@ -166,6 +172,28 @@ if (bukettRecipe) {
   const badIngredient = Object.keys(bukettRecipe.need).filter(id => !obtainableNow(id, EQUIPPED));
   ok(badIngredient.length === 0, 'every bukett ingredient is obtainable', badIngredient.join(', '));
 }
+
+/* And then the same question of every recipe rather than of the one that
+   prompted it. A recipe asking for something nothing in the game produces is
+   the ghost-item bug the bouquet was, in a place that is harder to notice:
+   the workshop shows it, the player collects toward it, and it never
+   completes. Both tables, both gate kinds — an `fr` gate has to name somebody
+   who talks (or there is no way to raise it) and an `lvl` gate has to name a
+   real XP track. */
+const XP_KINDS = ['farm', 'mine', 'forage', 'fish'];
+const badRecipe = [];
+[].concat(BEK_RECIPES.craft, BEK_RECIPES.cook).forEach(r => {
+  if (!BEK_ITEMS[r.out]) { badRecipe.push(r.id + ' makes nothing real'); return; }
+  Object.keys(r.need).forEach(id => {
+    if (!BEK_ITEMS[id]) badRecipe.push(r.id + ' needs unknown item ' + id);
+    else if (!obtainableNow(id, EQUIPPED)) badRecipe.push(r.id + ' needs unobtainable ' + id);
+  });
+  if (r.fr && !TALKERS.has(r.fr.npc)) badRecipe.push(r.id + ' is gated on ' + r.fr.npc + ', who does not talk');
+  if (r.lvl && XP_KINDS.indexOf(r.lvl.kind) < 0) badRecipe.push(r.id + ' is gated on an XP track called ' + r.lvl.kind);
+});
+ok(badRecipe.length === 0, 'every recipe makes a real thing out of obtainable ones',
+   badRecipe.length ? badRecipe.slice(0, 3).join('; ')
+     : BEK_RECIPES.craft.length + ' craft + ' + BEK_RECIPES.cook.length + ' cook, ingredients and gates');
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' checks FAILED' : 'All ' + checks + ' quest checks pass.'));
 process.exit(fails ? 1 : 0);

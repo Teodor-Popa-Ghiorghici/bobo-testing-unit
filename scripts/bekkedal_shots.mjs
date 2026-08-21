@@ -22,6 +22,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { mineFloor, mineId, MINE_BANDS } from '../apps/bekkedal/mine.js';
 
 const OUT = path.resolve(process.argv[2] || '/tmp/bekshots');
 const URL_BASE = process.env.BEK_URL || 'http://localhost:3000/';
@@ -66,6 +67,57 @@ const shot = (name, save, opts) => shots.push({ name, save: Object.assign({}, BA
 for (const mp of MAPS.concat(INSIDE)) {
   const at = WHERE[mp] || [12, 8];
   for (const h of Object.keys(HOURS)) shot(mp + '_' + h, { map: mp, px: at[0], py: at[1], min: HOURS[h] });
+}
+/* ---- the descent ---------------------------------------------------------
+   A floor of the mine is not in BEK_MAPS at rest — it is registered at runtime
+   when a run enters it (mine.js, index.js's `mineRegister`) — so a shot of one
+   is a save with a live run in it, which is exactly what a player's autosave
+   looks like halfway down. The ids and the landing squares are computed here
+   from the same module the page will load, so the two always agree.
+
+   One floor per band, because the bands are the whole of what depth changes:
+   the company's own rectangular workings, the worked-out level, the hard rock
+   where the crystals start, and the natural cavity at the bottom. Plus the
+   bottom band twice more — once thresholded, to ask the question `gruva_1bit`
+   asks (can you still find a vein by shape alone, four hundred feet down and
+   two steps darker?), and once with the crystal lamp, which is the thing the
+   descent exists to make you want. */
+const MINE_SEED = 20260821;
+for (const b of MINE_BANDS) {
+  const f = b.from + 2, def = mineFloor(MINE_SEED, f);
+  const run = { seed: MINE_SEED, floor: f, dug: {} };
+  shot('synk_' + b.id + '_' + f, { map: mineId(MINE_SEED, f), px: def.home[0], py: def.home[1],
+    min: 12 * 60, run: run, deepest: f, bag: { lykt: 1, potetfro: 5 } });
+}
+{
+  const f = MINE_BANDS[MINE_BANDS.length - 1].from + 2, def = mineFloor(MINE_SEED, f);
+  const run = { seed: MINE_SEED, floor: f, dug: {} };
+  const at = { map: mineId(MINE_SEED, f), px: def.home[0], py: def.home[1], min: 12 * 60,
+               run: run, deepest: f };
+  shot('synk_deep_crystal', Object.assign({}, at, { bag: { krystallykt: 1 } }));
+  shot('synk_deep_nolamp', Object.assign({}, at, { bag: { potetfro: 5 } }));
+  shot('synk_1bit', Object.assign({}, at, { bag: { lykt: 1 } }), { bits: 1 });
+}
+/* And the two ways off a floor, which is the one piece of geometry a player
+   has to read at a glance: a ladder is a dead end you walk into on purpose and
+   has to look like one, and the hoist beside it on a station has to look like
+   a different kind of thing entirely — one moves you a floor, the other takes
+   you to the surface. Stood two squares back rather than on top of them, or
+   the player sprite covers the prop being photographed. Station 10 carries
+   both, which is what makes it the shot worth taking. */
+{
+  const f = 10, def = mineFloor(MINE_SEED, f);
+  const run = { seed: MINE_SEED, floor: f, dug: {} };
+  const down = def.exits.filter(e => e.to !== 'gruva')[0] || def.exits[0];
+  const hoist = def.exits.filter(e => e.to === 'gruva')[0] || def.exits[0];
+  const back = sh => {
+    const y = sh.y + (sh.y < def.rows.length / 2 ? 1 : -1);
+    return [sh.x, Math.max(1, Math.min(def.rows.length - 2, y))];
+  };
+  shot('synk_ladder', { map: mineId(MINE_SEED, f), px: back(down)[0], py: back(down)[1],
+    min: 12 * 60, run: run, deepest: f, bag: { lykt: 1 } });
+  shot('synk_hoist', { map: mineId(MINE_SEED, f), px: back(hoist)[0], py: back(hoist)[1],
+    min: 12 * 60, run: run, deepest: f, bag: { lykt: 1 } });
 }
 /* the mine at its darkest, with and without a lamp to carry */
 shot('gruva_dark_lamp', { map: 'gruva', px: 20, py: 12, min: 2 * 60, bag: Object.assign({}, BASE.bag, { lykt: 1 }) });

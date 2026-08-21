@@ -55,6 +55,27 @@ The machine's base rule is that all colour comes from `VGA16` (`kernel/god.js`) 
   a tile's vertical position inside its own building — so courses run across
   the seam between two wall rows and a window is taller than either of them.
   Chimney smoke is the one part of a building that is not in the terrain cache.
+  **The mine is a descent, not a room:** under the gruva's adit is a shaft, and
+  under that are numbered floors that are *generated* rather than authored —
+  `apps/bekkedal/mine.js`, carved by `mine_carve.js`, seeded per run so a floor
+  is stable while you stand on it and different next time. Four depth bands
+  move everything at once: the layout from the company's own rectangular
+  workings to natural cavity, the ore mix from iron toward silver, the rock
+  from seven energy a swing to nine, and the dark down four steps of
+  `MINE_LIGHT` (`light.js`). All of it out of parts the game already had — a
+  floor is a `BEK_MAPS`-shaped map of the six glyphs the gruva already draws,
+  a shaft is an `exits` entry on a dead-end stub exactly like a seam in
+  `maps.js`, a ladder is the prop `decor_wild.js` already drew, and **`rock.js`
+  is not touched**: the ore mix shifts because the generator picks which faces
+  become veins, not because `oreKind` rerolls. Every floor has a ladder up and
+  down; only a station (every fifth) has a hoist out, so how far past one you
+  dare go is the decision a run turns on — with no fail state under it, just
+  the 02:00 clock and the energy bar. Below floor 12 a rich vein can carry
+  `krystall`, the one thing with no source on the surface: it sells, Lars and
+  Marit love it, and it crafts the lamp that makes the deepest bands
+  survivable. `node apps/bekkedal/mine_check.js` walks four hundred generated
+  floors — connected, viable, no vein sealed in rock, no shaft you can cross
+  in passing.
   **The valley is walked, not chosen from a menu:** the nine outdoor maps are three to four times the size they were and join along whole runs of their own edges — walk west off the farm and you are in the wood. The seams are declared once each, as pairings, in `apps/bekkedal/maps.js`; the rows themselves are in `maps_valley.js` and `maps_wild.js`. The travel menu survives only for the setra and the vidda, which are up the mountain and have to be climbed on foot before they are ever offered (`BEK_HOME`, `index.js`). `node apps/bekkedal/world_check.js` is what holds all of that together.
   **They have arcs, and three scenes each:** all eight carry a five-beat arc —
   a reticence, a first admission, a difficulty, a turn, a resolution — as

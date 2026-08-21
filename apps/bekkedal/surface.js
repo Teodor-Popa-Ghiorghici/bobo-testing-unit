@@ -23,7 +23,13 @@ import { BEK_MAPS } from './data.js';
 export const rustic = mapId => mapId === 'farm' || mapId === 'setra' || mapId === 'lake' ||
                                mapId === 'enga' || mapId === 'farmhouse' || mapId === 'lakehouse';
 export const inside = mapId => !!(BEK_MAPS[mapId] && BEK_MAPS[mapId].inside);
-export const isCave = mapId => mapId === 'gruva';
+/* The adit, and every generated floor of the descent under it — a floor
+   declares `cave` on its own map object (see mine.js's `mineFloor`) rather
+   than being named here, because its id carries a run seed and nothing in
+   this file could know it. Asking the map is also what makes the descent free
+   for everything downstream: the ground pass, the ambience bed, the light and
+   the footstep material all already ask this one question. */
+export const isCave = mapId => mapId === 'gruva' || !!(BEK_MAPS[mapId] && BEK_MAPS[mapId].cave);
 export const snowy  = mapId => mapId === 'setra' || mapId === 'vidda';
 
 /* Water, and what counts as a shore's land. A cliff (`M`) and a pier (`P`)

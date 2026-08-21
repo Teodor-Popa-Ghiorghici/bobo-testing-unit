@@ -164,6 +164,41 @@ export const lightKey = (min, indoors) => keyOf(lightAt(min)) + (indoors ? '|in'
    opacity was hiding how bright the unlit rock already was. */
 export const CAVE_LIGHT = quantState(0.58, 0.70, [0, 2, 10], 0.34);
 
+/* ---- and deeper -----------------------------------------------------------
+   The gruva's adit is one hole in a mountain and sits at one fixed dark. The
+   descent under it (`mine.js`) is not one place, and the dark getting deeper
+   is one of the four things depth is supposed to change — so a floor's light
+   is a band of the descent rather than the adit's single answer.
+
+   Four states, not one per floor, and that is a cache decision as much as an
+   art one: the light key is part of the terrain cache key, so a per-floor
+   curve would rebuild the whole map on every ladder. Four means a descent of
+   twenty floors turns the LUT over four times.
+
+   Each step takes `k` down and leans the tint further into the blue the
+   entries are already carrying, and every one of them stays a `quantState`,
+   so the ordering guarantee at the top of this file holds for all four — no
+   band can reorder two palette entries by luminance, which is what keeps the
+   floor of floor 22 reading as floor and not as the wall beside it.
+   `palette_check.js` asserts that directly, on generated floors, at the
+   darkest band there is.
+
+   The bottom of the range is 0.42 rather than lower for a measured reason:
+   the solid-against-walkable contrast the mine actually needs (STO[2] rock
+   against STO[0] gravel) reads 0.38 at the adit's own 0.58 and 0.35 at 0.42,
+   against a floor of 0.055. There is room below this, and there is no picture
+   left worth having down there — past this the lantern is not lighting a
+   scene, it is the only scene. */
+export const MINE_LIGHT = [
+  CAVE_LIGHT,
+  quantState(0.53, 0.66, [0, 2, 11], 0.30),
+  quantState(0.48, 0.62, [0, 1, 12], 0.26),
+  quantState(0.42, 0.58, [0, 1, 13], 0.22)
+];
+/* `band` is mine.js's own band index; the adit and anything else that is a
+   cave without being a floor of the descent take the first. */
+export const mineLight = band => MINE_LIGHT[Math.max(0, Math.min(MINE_LIGHT.length - 1, band | 0))];
+
 const clamp255 = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
 
 /* ---- the lookup table ----------------------------------------------------- */

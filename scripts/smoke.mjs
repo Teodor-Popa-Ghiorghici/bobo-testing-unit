@@ -19,6 +19,12 @@
       later, and kr/day/bag are exactly what an idle run should leave them
       (day advances, nothing else does), which is the operational meaning of
       "never resets"
+   9. a descent, driven through the real move()/exits path: walk into the
+      mouth in the gruva, two ladders down, a swing at a vein, a save taken
+      mid-run reloaded onto the same square of the same regenerated floor, and
+      the climb back out — with nothing left registered or leaked into S
+     10. and what the 02:00 clock does to a run: the farm, an empty run, and
+      the bag and the deepest floor both still yours
    7. a save whose coordinates were written against maps that have since
       changed shape — a player off the edge of the world, a soil key over a
       wall, a felled key on grass, a mined key in bare rock, a picked key on
@@ -93,6 +99,11 @@ class FakeEl {
   getContext(type) { return type === '2d' ? makeCtx2D() : null; }
   click(payload) { (this._listeners.click || []).forEach(fn => fn(payload || {})); }
   keydown(payload) { (this._listeners.keydown || []).forEach(fn => fn(payload)); }
+  /* The app latches direction keys on keydown and clears them on keyup, so a
+     harness that only ever presses would walk the player into a wall and
+     leave them there. Case 9 is the first case to hold a key down across
+     frames and then let go of it. */
+  keyup(payload) { (this._listeners.keyup || []).forEach(fn => fn(payload)); }
 }
 
 let rafCb = null;
@@ -637,6 +648,167 @@ function caseHeartEvent() {
   if (problems.length === 0) beats.forEach(b => console.log('       ' + b));
 }
 
+/* ---- case 9: a descent, walked ------------------------------------------ */
+/* `mine_check.js` walks four hundred generated floors and asserts everything
+   that is true of a floor on its own. What it cannot see is whether the
+   engine can actually get you onto one: registration, the mouth in the gruva,
+   an `exits` entry whose destination did not exist when the map was authored,
+   the run's own dug table, the crystal, the hoist out, and a save taken
+   halfway down coming back up on the same square.
+
+   So this walks it. Every transition below goes through the real `move()` and
+   the real `exits`; the debug hook only ever stands the player in front of the
+   thing about to be walked into, which is the same licence case 8 takes with
+   a heart event. */
+function caseDescent() {
+  const NAME = 'a descent: walked in, mined, saved mid-run, climbed out';
+  clearSave();
+  let seedHandle;
+  try { seedHandle = mountApp(); } catch (e) { report(NAME, false, 'seed mount() threw: ' + (e && e.stack || e)); return; }
+  seedHandle.bSave.click();
+  const save = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+  /* at the mouth of the mine with a lantern, a pick and the steel to swing it */
+  save.map = 'gruva'; save.px = 12; save.py = 22; save.dir = 0;
+  save.tools.hakke = 1; save.pickLv = 2;
+  save.bag = { lykt: 1 };
+  save.en = save.enMax;
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+
+  const problems = [];
+  let handle, dbg, cv;
+  try { handle = mountApp(); } catch (e) { report(NAME, false, 'mount() threw: ' + (e && e.stack || e)); return; }
+  dbg = globalThis.window.__bekDebug; cv = findCanvas();
+  if (!dbg || !cv || !dbg.mine) { report(NAME, false, 'no debug hook or canvas after mount'); return; }
+
+  let ts = 0;
+  const frames = n => { for (let i = 0; i < n; i++) { ts += 100; const cb = handle.tick(); if (!cb) throw new Error('no rAF callback'); cb(ts); } };
+  /* a real key press, held long enough for move()'s own 0.14s step gate */
+  const step = k => { cv.keydown({ key: k, preventDefault: () => {} }); frames(3); cv.keyup({ key: k }); frames(1); };
+  const press = k => { cv.keydown({ key: k, preventDefault: () => {} }); frames(2); cv.keyup({ key: k }); frames(2); };
+
+  try {
+    frames(2);
+    /* 1. walk south into the alcove — the one square in the valley that is a
+          way down rather than a way across */
+    if (dbg.mine().floor !== 0) problems.push('a run was live before the player walked into one');
+    step('s');
+    let st = dbg.mine();
+    if (st.floor !== 1) problems.push('walking into the mouth did not start a run: floor ' + st.floor + ' on ' + st.map);
+    if (st.deepest !== 1) problems.push('floor 1 was not recorded as reached: deepest ' + st.deepest);
+    if (st.shafts < 2) problems.push('floor 1 has ' + st.shafts + ' shafts');
+    if (st.registered < 2) problems.push('only ' + st.registered + ' floors registered; the ladder down has nowhere to go');
+
+    /* 2. down two ladders, each one a real step onto a real exit */
+    for (let f = 2; f <= 3; f++) {
+      if (!dbg.mine('down')) { problems.push('no way down off floor ' + (f - 1)); break; }
+      const d = dbg.mine('down');
+      step(['s', 'w', 'a', 'd'][d.dir]);
+      st = dbg.mine();
+      if (st.floor !== f) { problems.push('the ladder down from ' + (f - 1) + ' arrived on floor ' + st.floor); break; }
+      if (st.deepest !== f) problems.push('floor ' + f + ' was not recorded: deepest ' + st.deepest);
+      if (dbg.mine().tile === 'M') problems.push('arrived inside rock on floor ' + f);
+    }
+
+    /* 3. swing at a vein. The run's own dug table takes it, S.mined does not,
+          and the square becomes floor you can walk on. */
+    const before = dbg.mine();
+    const v = dbg.vein('O');
+    if (!v) problems.push('floor 3 has no ordinary vein to swing at');
+    else {
+      press(' '); frames(20);
+      const after = dbg.mine();
+      if (after.dug !== 1) problems.push('the swing did not go in the run: dug ' + after.dug);
+      if (after.en >= before.en) problems.push('the swing cost no energy');
+      const got = Object.keys(after.bag).filter(k => !before.bag[k]);
+      if (!after.bag.stein) problems.push('no stone off the swing');
+      if (!got.some(k => k === 'jern' || k === 'kobber' || k === 'solv')) problems.push('no ore off the swing: ' + got.join(','));
+    }
+
+    /* 4. save halfway down and load it back. The rows are not in the save —
+          the seed and the floor are — so this is the assertion that a floor
+          carves back identical and puts the player on the same square. */
+    handle.bSave.click();
+    const mid = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+    const was = dbg.mine();
+    if (!mid.run || mid.run.floor !== 3) problems.push('the run was not saved: ' + JSON.stringify(mid.run));
+    if (mid.run && Object.keys(mid.run.dug).length !== was.dug) problems.push('the dug squares were not saved');
+    clearSave();
+    globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(mid));
+    let back;
+    try { back = mountApp(); } catch (e) { problems.push('reload mid-run threw: ' + (e && e.stack || e)); }
+    if (back) {
+      const now = globalThis.window.__bekDebug.mine();
+      if (now.map !== was.map) problems.push('the floor came back as a different map: ' + now.map + ' vs ' + was.map);
+      if (now.px !== was.px || now.py !== was.py) problems.push('the player moved across a reload: ' + now.px + ',' + now.py);
+      if (now.dug !== was.dug) problems.push('the dug squares did not survive the reload');
+      handle = back; dbg = globalThis.window.__bekDebug; cv = findCanvas();
+    }
+
+    /* 5. and out. Floor 3 is not a station, so the way out is the ladder up —
+          which is exactly the shape of the run the hoist rule creates. */
+    for (let i = 0; i < 4 && dbg.mine().floor > 0; i++) {
+      const u = dbg.mine('up');
+      if (!u) { problems.push('no way up off floor ' + dbg.mine().floor); break; }
+      step(['s', 'w', 'a', 'd'][u.dir]);
+    }
+    st = dbg.mine();
+    if (st.floor !== 0) problems.push('still underground after climbing out: floor ' + st.floor);
+    if (st.map !== 'gruva') problems.push('climbing out came up on ' + st.map);
+    if (st.registered !== 0) problems.push(st.registered + ' floors still registered after the run ended');
+    handle.bSave.click();
+    const out = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+    if (out.run !== null) problems.push('the run outlived the descent: ' + JSON.stringify(out.run));
+    if (out.deepest !== 3) problems.push('the shortcut was not kept: deepest ' + out.deepest);
+    if (Object.keys(out.disc).some(k => k.indexOf('synk') === 0)) problems.push('a floor leaked into S.disc');
+    if (Object.keys(out.mined).some(k => k.indexOf('synk') === 0)) problems.push('a floor leaked into S.mined');
+    if (out.ver !== 14) problems.push('a fresh save is ver ' + out.ver);
+  } catch (e) { report(NAME, false, 'threw driving the descent: ' + (e && e.stack || e)); return; }
+
+  report(NAME, problems.length === 0, problems.join('; '));
+}
+
+/* ---- case 10: a run does not survive the night --------------------------- */
+/* The 02:00 rule is the whole of the pressure the mine runs on, so what
+   happens when the clock catches you on floor 12 is worth asserting rather
+   than reading: you wake on the farm, the run is gone, the bag you carried is
+   not, and the deepest floor you reached is still yours. */
+function caseNightEndsARun() {
+  const NAME = 'the night ends a run, and keeps what you earned';
+  clearSave();
+  let seedHandle;
+  try { seedHandle = mountApp(); } catch (e) { report(NAME, false, 'seed mount() threw: ' + (e && e.stack || e)); return; }
+  seedHandle.bSave.click();
+  const save = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+  save.map = 'gruva'; save.px = 12; save.py = 22; save.dir = 0;
+  save.tools.hakke = 1; save.bag = { lykt: 1, solv: 3 };
+  save.min = 25 * 60 + 45;                      /* quarter of an hour to 02:00 */
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+
+  const problems = [];
+  try {
+    const handle = mountApp();
+    const dbg = globalThis.window.__bekDebug, cv = findCanvas();
+    let ts = 0;
+    const frames = n => { for (let i = 0; i < n; i++) { ts += 100; handle.tick()(ts); } };
+    frames(2);
+    cv.keydown({ key: 's', preventDefault: () => {} }); frames(3); cv.keyup({ key: 's' }); frames(1);
+    if (dbg.mine().floor !== 1) problems.push('never got underground');
+    const day = dbg.mine().map;
+    /* run the clock past 02:00 — tickClock() is what ends the day */
+    for (let i = 0; i < 4000 && dbg.mine().floor > 0; i++) frames(1);
+    const st = dbg.mine();
+    if (st.floor !== 0) problems.push('still on floor ' + st.floor + ' after the night');
+    if (st.map !== 'farm') problems.push('woke up on ' + st.map + ' rather than the farm');
+    if (st.registered !== 0) problems.push(st.registered + ' floors still registered the morning after');
+    if (st.deepest < 1) problems.push('the deepest floor reached was forgotten');
+    if ((st.bag.solv || 0) !== 3) problems.push('the bag did not come up with the player');
+    void day;
+  } catch (e) { report(NAME, false, 'threw: ' + (e && e.stack || e)); return; }
+  report(NAME, problems.length === 0, problems.join('; '));
+}
+
 caseSimulate30Days();
 caseRoundTrip();
 caseMigration();
@@ -645,5 +817,7 @@ caseStaleCoordinates();
 caseIdleYearFresh();
 caseIdleYearAct2();
 caseHeartEvent();
+caseDescent();
+caseNightEndsARun();
 
 process.exit(failed ? 1 : 0);

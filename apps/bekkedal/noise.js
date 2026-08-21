@@ -35,13 +35,32 @@
  *                   raw channel, so a caller reaching for hash/hv/hLow
  *                   directly has to add this itself or all eleven maps
  *                   share one field.
+ *   mineSalt        the same offset for a floor of the descent, which is the
+ *                   one field in this file that IS seeded. A gruva floor is
+ *                   generated per run rather than authored (see mine.js), so
+ *                   its stream has to be a function of the run's seed as well
+ *                   as of the floor number — and it still must not land on any
+ *                   authored map's channels, so it is offset clear of the
+ *                   whole space mapSalt can reach. Nothing about it is saved
+ *                   either: the seed is (S.run.seed), and the field is
+ *                   recomputed from it, so a floor reloads identical.
  *
- * `channels()` and the recipe tables below are the declaration of every
- * stream the art is allowed to draw from. `tileVariation` applies them, and
- * `tile_check.js` (`node apps/bekkedal/tile_check.js`) reads the same tables
- * to assert the field is uniform, aperiodic and reproducible. A channel that
- * is not declared there cannot be tested, so it must not be drawn from.
+ * `channels()` and the recipe tables are the declaration of every stream the
+ * art — and the mine's generator — is allowed to draw from. The tables
+ * themselves live in `noise_recipes.js`, split off for the 300-line rule the
+ * way `palette_marks.js` is split off `palette.js`; what a stream *is* stayed
+ * here, and *which streams exist* is declared there. `tileVariation` applies
+ * them, and `tile_check.js` (`node apps/bekkedal/tile_check.js`) reads the
+ * same tables to assert the field is uniform, aperiodic and reproducible. A
+ * channel that is not declared there cannot be tested, so it must not be
+ * drawn from.
  */
+
+import { R_GROUND, R_ROCK, R_PATH, R_WATER, R_WAVE, R_EDGE, R_SOIL, R_SEAM,
+         R_TREE, R_MINE, R_OBJ, objBase, JIT, GROUND_BASE, ROCK_BASE, PATH_BASE,
+         WATER_BASE, EDGE_BASE, SOIL_BASE, SEAM_BASE, WAVE_BASE, TREE_BASE,
+         MINE_CH_BASE } from './noise_recipes.js';
+export { JIT } from './noise_recipes.js';
 
 /* ---- the hash ------------------------------------------------------------
    xorshift-multiply: one bit of x, y or ch flips about half the output bits,
@@ -72,6 +91,17 @@ export function mapSalt(mapId) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
   return ((h >>> 0) & 1023) * CH_SPAN;
+}
+
+/* The descent's own salt. `mapSalt` can reach 1023 * CH_SPAN and no further,
+   so starting above that is what keeps a generated floor off every authored
+   map's streams — the point of the salt in the first place. Inside its own
+   space a floor is spread by the avalanching hash of (seed, floor) at a
+   stride wider than R_MINE declares, so floor 7 of one run and floor 7 of the
+   next are independent fields rather than the same cave twice. */
+const MINE_BASE = 1024 * CH_SPAN, MINE_SPAN = 64;
+export function mineSalt(seed, floor) {
+  return MINE_BASE + (hash(seed | 0, floor | 0, 7919) % 1048576) * MINE_SPAN;
 }
 
 /* ---- the low-frequency fields --------------------------------------------
@@ -137,130 +167,6 @@ export const PATCH = {
   DUST: { ch: LOW.DUST, period: 4, max: 3 }
 };
 
-/* ---- the recipes ---------------------------------------------------------
-   name / channel / how many values. `x` and `y` fields are step indices, not
-   pixels: the art turns one into a position with `spot()`, which spreads the
-   nine steps across whatever room the mark's own size leaves it. That is why
-   the same recipe serves a 40px native tile and a 20px source-space one.
-   Every mark gets its own pair of channels, so it jitters on both axes and
-   the two axes are independent of each other. */
-const F = (name, ch, n) => ({ name: name, ch: ch, n: n });
-export const JIT = 9;                            /* nine placements per axis */
-
-const R_GROUND = [];
-for (let i = 0; i < 4; i++) {
-  R_GROUND.push(F('x' + i, i * 3, JIT), F('y' + i, i * 3 + 1, JIT), F('c' + i, i * 3 + 2, 7));
-}
-
-const R_ROCK = [
-  F('fx', 0, JIT), F('fy', 1, JIT),              /* the lit face            */
-  F('gx', 2, JIT), F('gy', 3, JIT),              /* the second face         */
-  F('ax', 4, JIT), F('ay', 5, JIT),              /* two cracks              */
-  F('bx', 6, JIT), F('by', 7, JIT),
-  F('mx', 8, JIT), F('my', 9, JIT),              /* mineral, snow or seepage */
-  F('kind', 10, 5),                              /* which extra it carries  */
-  F('ix', 11, JIT), F('iy', 12, JIT),            /* four inclusions, for the */
-  F('jx', 13, JIT), F('jy', 14, JIT),            /* ore and crystal faces    */
-  F('hx', 15, JIT), F('hy', 16, JIT),
-  F('lx', 17, JIT), F('ly', 18, JIT),
-  /* Which metal this square carries. Twenty values rather than five because
-     the weights it stands in for are 55/30/15, and rounding those to fifths
-     would move the economy — see `oreKind` in rock.js. */
-  F('ore', 19, 20)
-];
-
-const R_PATH = [
-  F('ax', 0, JIT), F('ay', 1, JIT),              /* two scuffs of dark grit */
-  F('bx', 2, JIT), F('by', 3, JIT),
-  F('cx', 4, JIT), F('cy', 5, JIT),              /* two of pale grit        */
-  F('dx', 6, JIT), F('dy', 7, JIT),
-  F('kx', 8, JIT), F('ky', 9, JIT),              /* a crack in the hardpack */
-  F('px', 10, JIT), F('py', 11, JIT),            /* the odd pebble          */
-  F('peb', 12, 5)
-];
-
-const R_WATER = [
-  F('sw', 0, 5),                                 /* how high the swell sits */
-  F('ax', 1, JIT), F('ay', 2, JIT),              /* two ripple bands        */
-  F('bx', 3, JIT), F('by', 4, JIT),
-  F('foam', 5, 5), F('glint', 6, 7),
-  F('reflOn', 7, 3),                             /* whether this tile carries a broken reflection */
-  F('reflX', 8, JIT), F('reflW', 9, 5),          /* where along the shore it sits, how wide     */
-  F('feat', 10, 8),                              /* 0-4 nothing, 5 a rising fish, 6 weed, 7 a bird */
-  F('fx', 11, JIT), F('fy', 12, JIT)             /* where that feature sits in the tile          */
-];
-
-/* The wave's own axis, not a grid square: one crest height per step along
-   whichever direction the swell travels, so a lake's surface moves as one
-   continuous swell rather than as forty tiles each rolling on their own. `dir`
-   is only ever read at i=0 — it is a per-map constant, not a position — and it
-   is a declared channel of this same recipe rather than a second one so there
-   is exactly one place `tile_check.js` has to know about the wave. */
-const R_WAVE = [
-  F('h', 0, 9),                                  /* the crest's own irregularity  */
-  F('dir', 1, 2)                                 /* which axis the swell runs along */
-];
-
-const R_EDGE = [
-  F('ax', 0, JIT), F('ay', 1, JIT),              /* two ripple bands        */
-  F('bx', 2, JIT), F('by', 3, JIT),
-  F('fx', 4, JIT), F('gx', 5, JIT),              /* breaks in the foam seam */
-  F('sx', 6, JIT), F('sy', 7, JIT)               /* a stone on the bank     */
-];
-
-const R_SOIL = [                                 /* standing water in a furrow */
-  F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT)
-];
-
-/* The one stream that is not indexed by a grid square. A shore's foam used to
-   break per tile, which drew a visible 40px rhythm along any straight stretch
-   of it; the breaks come off the distance *along the seam* now, so a run of
-   shore is one line of surf however many tiles it crosses. Indexed by that
-   distance in `i`, with y pinned to 0 — still the same hash, still salted per
-   map, and still declared here so `tile_check.js` tests it. */
-const R_SEAM = [
-  F('foam', 0, 5),                               /* where the surf breaks   */
-  F('crest', 1, 7)                               /* and where it catches    */
-];
-
-/* The other stream that is not indexed by a grid square. The treeline is a
-   continuous strip rather than a row of stamped tiles (see forest.js), so its
-   trees are indexed by distance *along* the band and by which depth layer
-   they belong to — `x` is the step index along the band, `y` is the layer.
-   Nothing on a 40px cadence, which is the entire point of it. */
-const R_TREE = [
-  F('gap', 0, 8),                                /* how far to the next one */
-  F('sp', 1, 12),                                /* which species           */
-  F('h', 2, 7), F('w', 3, 5),                    /* how tall, how wide      */
-  F('lean', 4, 5), F('d', 5, 7),                 /* which way, how far back */
-  F('lit', 6, 4), F('br', 7, 6)                  /* catching light; brush   */
-];
-
-/* One block per glyph, so a fir and a birch on one square do not make the
-   same decision twice. */
-const OBJ_BASE = 128, OBJ_SPAN = 16;   /* 16 channels a glyph, 10 the most used */
-const objBase = c => OBJ_BASE + c.charCodeAt(0) * OBJ_SPAN;
-const R_OBJ = {
-  ',': [F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT),
-        F('cx', 4, JIT), F('cy', 5, JIT), F('dx', 6, JIT), F('dy', 7, JIT), F('c', 8, 7)],
-  'F': [F('ax', 0, JIT), F('ay', 1, JIT), F('ac', 2, 5), F('bx', 3, JIT), F('by', 4, JIT),
-        F('bc', 5, 5), F('cx', 6, JIT), F('cy', 7, JIT), F('cc', 8, 5)],
-  'p': [F('x', 0, JIT), F('y', 1, JIT), F('c', 2, 4), F('h', 3, 5)],
-  'T': [F('lean', 0, 3), F('lit', 1, 3), F('sx', 2, JIT), F('sy', 3, JIT), F('bare', 4, 6),
-        F('tx', 5, JIT), F('ty', 6, JIT), F('bx', 7, JIT), F('by', 8, JIT)],
-  'G': [F('lit', 0, 3), F('sx', 1, JIT), F('sy', 2, JIT), F('lx', 3, JIT), F('ly', 4, JIT)],
-  'Y': [F('turn', 0, 5), F('lx', 1, JIT), F('ly', 2, JIT), F('mx', 3, JIT), F('my', 4, JIT)],
-  '^': [F('mx', 0, JIT), F('my', 1, JIT), F('cap', 2, 5), F('sx', 3, JIT), F('sy', 4, JIT)],
-  'H': [F('win', 0, 5), F('kx', 1, JIT), F('ky', 2, JIT)],
-  /* `chim`: which roof column carries the stack; `lit`: when its fire goes on */
-  'R': [F('ax', 0, JIT), F('ay', 1, JIT), F('bx', 2, JIT), F('by', 3, JIT),
-        F('cx', 4, JIT), F('cy', 5, JIT), F('fx', 6, JIT), F('fy', 7, JIT),
-        F('chim', 8, 7), F('lit', 9, 5)]
-};
-
-const GROUND_BASE = 0, ROCK_BASE = 16, PATH_BASE = 40, WATER_BASE = 56,
-      EDGE_BASE = 72, SOIL_BASE = 80, SEAM_BASE = 84, WAVE_BASE = 88, TREE_BASE = 96;
-
 /* ---- reading a recipe ---------------------------------------------------- */
 function roll(recipe, base, mapId, x, y) {
   const s = mapSalt(mapId) + base, out = {};
@@ -277,6 +183,19 @@ export const objVar = (c, mapId, x, y) => (R_OBJ[c] ? roll(R_OBJ[c], objBase(c),
 export const seamVar = (mapId, i) => roll(R_SEAM, SEAM_BASE, mapId, i, 0);
 export const waveVar = (mapId, i) => roll(R_WAVE, WAVE_BASE, mapId, i, 0);
 export const treeVar = (mapId, i, layer) => roll(R_TREE, TREE_BASE, mapId, i, layer);
+/* The one reader that is handed a salt rather than a map id, because the map
+   it is about does not exist until the run generates it. `salt` is always a
+   mineSalt(seed, floor) above. */
+export function mineVar(salt, x, y) {
+  const s = salt + MINE_CH_BASE, out = {};
+  for (let i = 0; i < R_MINE.length; i++) out[R_MINE[i].name] = hv(x, y, s + R_MINE[i].ch, R_MINE[i].n);
+  return out;
+}
+export const mineV = (salt, x, y, name) => {
+  for (let i = 0; i < R_MINE.length; i++)
+    if (R_MINE[i].name === name) return hv(x, y, salt + MINE_CH_BASE + R_MINE[i].ch, R_MINE[i].n);
+  throw new Error('undeclared mine channel: ' + name);
+};
 
 /* ---- the tuple the checks compare ----------------------------------------
    Every high-frequency decision a tile of char `c` makes, flattened in
@@ -312,6 +231,8 @@ export function channels() {
   add('seam', R_SEAM, SEAM_BASE);
   add('wave', R_WAVE, WAVE_BASE);
   add('tree', R_TREE, TREE_BASE);
+  add('mine', R_MINE, MINE_CH_BASE);
   Object.keys(R_OBJ).forEach(c => add('obj[' + c + ']', R_OBJ[c], objBase(c)));
   return out;
 }
+

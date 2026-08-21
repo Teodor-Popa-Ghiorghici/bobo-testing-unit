@@ -17,6 +17,7 @@ import * as D from './data.js';
 import * as F from './font.js';
 import * as L from './layout.js';
 import * as Q from './quests.js';
+import { mineTitle, MINE_MAX, MINE_STATION } from './mine.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -174,7 +175,14 @@ pass('reel zone lands where it appears',
 console.log('\n-- text --');
 const items = Object.values(D.BEK_ITEMS);
 const longestItem = widest(items.flatMap(i => both(i.name)));
-const longestTitle = widest(Object.values(D.BEK_MAPS).flatMap(m => both(m.title)));
+/* The eleven authored maps, plus the deepest floor of the descent: a
+   generated floor is never in BEK_MAPS at rest (it is registered at runtime,
+   which is what keeps world_check.js and palette_check.js walking exactly the
+   authored valley), so its title has to be asked for by name or the HUD band
+   and the lift's list would both be measured against a map it can show and
+   this check has never seen. */
+const longestTitle = widest(Object.values(D.BEK_MAPS).flatMap(m => both(m.title))
+  .concat(both(mineTitle(MINE_MAX))));
 const longestTool = widest([].concat(
   D.BEK_TOOLS.flatMap(t => both(t.name)), D.AXE_NAME.no, D.AXE_NAME.en, D.PICK_NAME.no, D.PICK_NAME.en));
 const longestUI = widest(Object.values(D.UI).flatMap(both));
@@ -315,6 +323,18 @@ ok(w(scrollLabel, F.FONT_SM) + L.CELL_SM + w('ESC', F.FONT_SM) <= L.QUEST_W - L.
 
 ok(w('> ' + longestTitle, F.FONT_SM) <= L.TRAVEL_TW, 'travel list holds the longest map name');
 ok(Object.keys(D.BEK_MAPS).length <= 12, 'travel list has a row per destination', Object.keys(D.BEK_MAPS).length + ' maps');
+/* The same panel is the mine's hoist (`enterMine()` in index.js), and that is
+   now the longer of the two lists by some way: the travel menu is two places
+   up the mountain, and the hoist is floor 1 plus every station down to
+   MINE_MAX. Its rows have to clear the cost line at the foot of the sign,
+   which the two-row case never came close to. */
+const hoistRows = 1 + Math.floor(MINE_MAX / MINE_STATION);
+const lastRow = L.PAD_SM + L.LINE_SM * 2 + (hoistRows - 1) * L.LINE_SM + L.GLYPH_SM;
+const hintTop = L.TRAVEL_H - L.PAD_SM - L.GLYPH_SM;
+ok(lastRow <= hintTop, 'the hoist list clears the cost line at the foot of the sign',
+   hoistRows + ' rows end at ' + lastRow + ', the line sits at ' + hintTop + ' (' + (hintTop - lastRow) + 'px spare)');
+ok(w('> ' + widest(both(mineTitle(MINE_MAX))), F.FONT_SM) <= L.TRAVEL_TW,
+   'the hoist list holds the deepest floor name', JSON.stringify(mineTitle(MINE_MAX).en));
 
 ok(w(longestItem, F.FONT_SM) <= L.TIP_W - L.PAD_SM * 2, 'crop tooltip holds the longest crop name');
 ok(L.TIP_COL2 + w('WATERED', F.FONT_SM) <= L.TIP_W - L.PAD_SM * 2, 'tooltip second column fits');

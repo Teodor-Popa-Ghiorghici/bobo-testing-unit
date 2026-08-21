@@ -239,7 +239,14 @@ export function createAmbience(A) {
       const snd = A.snd(); snd.wake();
       const ctx = snd.ctx; if (!ctx) return;
       on = true;
-      const kind = MAP_BED[A.map()] || 'valley';
+      /* MAP_BED names the eleven authored maps. A floor of the descent
+         (mine.js) is registered at runtime under an id carrying its run's
+         seed, so it can never be in that table — but it is a cave, and
+         `isCave` already knows so off the map object itself. Without this a
+         floor two hundred feet down would come up under the valley's own bed
+         of wind and birdsong. */
+      const here = A.map();
+      const kind = MAP_BED[here] || (isCave(here) ? 'mine' : 'valley');
       const outdoor = A.context() !== 'mine' && kind !== 'room' && kind !== 'mine';
       const gain = A.gain();
       const wx = A.weather(), hr = A.hour();
