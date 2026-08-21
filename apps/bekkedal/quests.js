@@ -31,9 +31,14 @@ function templateAvailable(tpl, S) {
 
 /* a marked-up alternative to selling on the open market, never a discount —
    scales with how much was asked for and with the requester's own opinion
-   of you, same 0..5 S.fr counter every NPC already carries */
-function questReward(item, qty, fr) {
-  return Math.round(BEK_ITEMS[item].sell * qty * (1.2 + 0.15 * fr));
+   of you, same 0..5 S.fr counter every NPC already carries. QUALITY: also a
+   small markup off the item's own running grade average (S.cropGrade,
+   index.js), read here rather than recomputed — a board offer is priced the
+   day it is rolled, off whatever quality that crop has been running at. */
+function questReward(item, qty, fr, grade) {
+  const g = grade || 0;
+  const qMult = g >= 1.5 ? 1.15 : g >= 0.5 ? 1.05 : 1;
+  return Math.round(BEK_ITEMS[item].sell * qty * (1.2 + 0.15 * fr) * qMult);
 }
 
 /* Rolls a fresh BEK_QUEST_BOARD_MIN..MAX batch and returns it — index.js
@@ -56,8 +61,9 @@ export function refreshBoard(S, day, rand) {
     used.add(who);
     const qty = tpl.qty[0] + Math.floor(rand() * (tpl.qty[1] - tpl.qty[0] + 1));
     const fr = (S.fr && S.fr[who]) || 0;
+    const grade = (S.cropGrade && S.cropGrade[item]) || 0;
     out.push({ id: 'rq' + day + '_' + out.length, tpl: tpl.id, item, qty, who,
-               kr: questReward(item, qty, fr), expireDay: day + BEK_QUEST_REFRESH_DAYS, state: 'active' });
+               kr: questReward(item, qty, fr, grade), expireDay: day + BEK_QUEST_REFRESH_DAYS, state: 'active' });
   }
   return out;
 }

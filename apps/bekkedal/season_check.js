@@ -110,9 +110,25 @@ for (let day = 1; day <= LAST_DAY; day += 3) {           /* every third day over
   });
 }
 ok(gateMismatch === 0, 'cropInSeason() agrees with each crop’s own seasons list', gateMismatch + ' mismatches sampled');
-let emptySeason = null;
-BEK_SEASONS.forEach(s => { if (!crops.some(([, c]) => c.seasons.indexOf(s.id) >= 0)) emptySeason = s.id; });
-ok(!emptySeason, 'every season has at least one plantable crop', emptySeason ? emptySeason + ' has none' : crops.length + ' crops distributed');
+/* P20: the farming-depth pass grew the roster from six crops to twelve
+   specifically so every season clears a *real* floor rather than the bare
+   minimum of one — a season with a single viable crop is a season with no
+   choice in it. Twelve crops spread over four seasons only clears three
+   comfortably if each crop counts once per season it lists, which is
+   exactly what this counts. The greenhouse (BEK_GREENHOUSE_PLOT, data.js)
+   is the deliberate, documented exception to this whole family: plant() in
+   index.js skips cropInSeason() entirely inside its bounds, so every crop
+   in the game is "in season" there regardless of BEK_CROPS' own seasons
+   list — that is the point of it, not a gap this check should catch. */
+const SEASON_CROP_MIN = 3;
+let thinSeason = null, seasonCounts = {};
+BEK_SEASONS.forEach(s => {
+  const n = crops.filter(([, c]) => c.seasons.indexOf(s.id) >= 0).length;
+  seasonCounts[s.id] = n;
+  if (n < SEASON_CROP_MIN) thinSeason = s.id;
+});
+ok(!thinSeason, 'every season has at least ' + SEASON_CROP_MIN + ' plantable crops',
+   thinSeason ? thinSeason + ' has only ' + seasonCounts[thinSeason] : JSON.stringify(seasonCounts));
 pass('crop gating', Math.ceil(LAST_DAY / 3) * crops.length + ' crop-day checks');
 
 /* ---- 4. festivals ----------------------------------------------------------- */

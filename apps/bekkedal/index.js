@@ -4,7 +4,7 @@ import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, ROD_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_SCENES, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
-         BEK_BARN_PLOT2, BEK_ANIMAL_KINDS, BEK_GIFT_CAP, BEK_MINE_MOUTH,
+         BEK_BARN_PLOT2, BEK_GREENHOUSE_PLOT, BEK_ANIMAL_KINDS, BEK_GIFT_CAP, BEK_MINE_MOUTH,
          BEK_RECIPES, BEK_FISH_WATERS, BEK_SEASON_DAYS,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
@@ -33,7 +33,8 @@ import { createCrops } from './crops.js';
 import { refreshBoard, isRefreshDay, activeRepeatable, questTitle } from './quests.js';
 import { mineFloor, mineGem, mineDig, mineBand, mineTitle, mineId, floorOf, isMineId,
          mineClearCache, MINE_BANDS, MINE_STATION, MINE_MAX } from './mine.js';
-import { houseCost, houseTierCost, houseTierAvailable, barnSlots } from './progression.js';
+import { houseCost, houseTierCost, houseTierAvailable, barnSlots,
+         greenhouseCost, greenhouseAvailable } from './progression.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE } from './palette.js';
 import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
@@ -198,7 +199,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 15, lang: BEK_LANG, fullscreen: 0,
+        ver: 16, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -287,7 +288,16 @@ export default {
            `deepest` is the one part of a descent that outlives it: the lift at
            the mouth offers every station (mine.js's MINE_STATION) up to it, so
            this is the shortcut, and the only thing in the mine you keep. */
-        run: null, deepest: 0
+        run: null, deepest: 0,
+        /* ---- ver 16: QUALITY and PRESERVES --------------------------------
+           S.cropGrade is a crop item id's running quality average (0..2, an
+           EWMA over recent harvests — see cropGradeScore()/gradeMult() in
+           the verbs section), read by sellPrice(), a gift's reaction bonus
+           and the repeatable board's own reward. S.presv is the keg/jar
+           table, keyed like S.soil: `{kind, item, day}` per farm-map square,
+           `item` empty while nothing is fermenting. Neither one exists on a
+           save from before this pass, and both start honestly blank. */
+        cropGrade: {}, presv: {}
         };
         /* the repeatable quest board (quests.js) — two or three live
            instances on top of BEK_QUESTS above, seeded here so day 1 already
@@ -340,8 +350,17 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay', 'cropGrade', 'presv'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
+        });
+        /* ver 16: a save from before QUALITY has no plot's soil record
+           tracking fertiliser or a watering streak yet — backfill both
+           rather than leaving them undefined, which cropGradeScore() would
+           otherwise read as NaN through `>=`. */
+        Object.keys(s.soil).forEach(k => {
+          const c = s.soil[k];
+          if (c.fert == null) c.fert = 0;
+          if (c.tend == null) c.tend = 0;
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
@@ -488,6 +507,14 @@ export default {
         /* a morning's forage lying in rock. spawnDrops() lays a fresh set
            every day anyway, so dropping these costs a stale save nothing. */
         s.drops = s.drops.filter(d => d && walkable(d.map, d.x, d.y));
+        /* a placed keg/jar sits on the farm's own plain grass, key-shaped
+           like S.soil but with no map prefix — same reasoning as the soil
+           prune above, minus the field-expansion exemption a preserve was
+           never offered to place inside */
+        Object.keys(s.presv || {}).forEach(k => {
+          const [x, y] = k.split(',').map(Number);
+          if (base('farm', x, y) !== 'g') delete s.presv[k];
+        });
         /* an owned animal stands in a pen slot, and the pen moved with the
            farm — re-seat each one at the slot its purchase order gives it */
         const slots = barnSlots(s);
@@ -536,6 +563,10 @@ export default {
          BEK_BARN_PLOT2 (data.js) for why a second region rather than a
          bigger first one */
       const BARN_PLOTS = [BEK_BARN_PLOT, BEK_BARN_PLOT2];
+      /* the greenhouse's own rect — read by tileAt() (the overlay) and by
+         plant() (the one thing standing inside it is exempt from) */
+      const inGreenhouse = (x, y) => x >= BEK_GREENHOUSE_PLOT.x0 && x <= BEK_GREENHOUSE_PLOT.x1 &&
+                                      y >= BEK_GREENHOUSE_PLOT.y0 && y <= BEK_GREENHOUSE_PLOT.y1;
       /* The current map's size, which is now a question rather than a
          constant. Everything that walks the whole grid hoists these into
          locals first: they are two property lookups, and an inner loop that
@@ -564,6 +595,10 @@ export default {
             const p = BEK_FARM_PLOTS[i];
             if (S.flag[p.flag] && x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1) return 'f';
           }
+          /* the greenhouse — a fourth such region, same mechanism, same
+             overlay-not-replace rule. See inGreenhouse() below for the one
+             other place this rect is read (plant()'s season gate). */
+          if (S.flag.greenhouse && inGreenhouse(x, y)) return 'f';
           /* the pen, same mechanism — a third unlocked-region flag over the
              farm map's own grass, never a new map or its own tile state.
              Act II's second tier (BEK_BARN_PLOT2) is a fourth such region,
@@ -930,9 +965,15 @@ export default {
         const rainy = S.weather === 'regn';
         Object.keys(S.soil).forEach(k => {
           const c = S.soil[k];
-          if (!c.seed) { c.wet = 0; return; }
+          if (!c.seed) { c.wet = 0; c.tend = 0; return; }
           if (rainy) c.wet = 1;                          /* the rain waters for you */
-          if (c.wet) { c.age++; c.wet = 0; }
+          /* QUALITY: c.tend is a streak, not a total — it resets the moment
+             a growing day passes unwatered, so `>= spec.days` at harvest
+             means every single day was watered, never merely "most days".
+             The streak survives a regrowing crop's own reset in the harvest
+             branch above, which is the point: a jordbær kept watered every
+             day it held the plot earns its grade continuously, not once. */
+          if (c.wet) { c.age++; c.tend = (c.tend || 0) + 1; c.wet = 0; } else { c.tend = 0; }
           const spec = BEK_CROPS[c.seed];
           if (spec && c.age >= spec.days) c.ready = 1;
         });
@@ -949,7 +990,7 @@ export default {
             const x = sx + d[0], y = sy + d[1];
             if (tileAt('farm', x, y) !== 'f') return;
             const nk = key(x, y);
-            const nc = S.soil[nk] || (S.soil[nk] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
+            const nc = S.soil[nk] || (S.soil[nk] = { till: 0, wet: 0, seed: '', age: 0, ready: 0, fert: 0, tend: 0 });
             nc.wet = 1;
           });
         });
@@ -1022,6 +1063,54 @@ export default {
         if (S.en < cost) { say(TX('FOR SLITEN. LEGG DEG.', 'TOO TIRED. GO TO BED.')); deny(); return false; }
         S.en -= cost; return true;
       }
+      /* ---- QUALITY --------------------------------------------------------
+         Three grades (0 normal, 1 good, 2 best) off a score of up to three
+         controllable factors — fertiliser, a watering streak that never
+         missed a day the crop needed one, and farm level 2 — never off luck.
+         `c.tend` is a streak newDay() resets to 0 the moment a growing day
+         passes unwatered (see newDay() below), so `>= spec.days` means every
+         growing day of *this* planting was watered, not merely "watered
+         recently". Kept off S.soil itself rather than a second table, per
+         the brief: extend the shape that already tracks a plot's growth. */
+      function cropGradeScore(c, spec) {
+        let score = 0;
+        if (c.fert) score++;
+        if (spec && c.tend >= spec.days) score++;
+        if (S.lvl.farm >= 2) score++;
+        return score >= 3 ? 2 : score >= 1 ? 1 : 0;
+      }
+      const GRADE_TAG = ['', ' (G)', ' (B)'];
+      /* ---- PRESERVES --------------------------------------------------
+         Every crop feeds the same jam/wine, deliberately — the point is
+         converting time and surplus into value, not a second economy of
+         crop-specific vintages. S.presv is keyed like S.soil: `{x,y}` on
+         the farm map, `{kind, item, day}` where `item` is '' while empty
+         and `day` is the day it was last filled. */
+      const PRESV_DAYS = { jar: 2, keg: 4 };
+      const PRESV_OUT = { jar: 'syltetoy', keg: 'fruktvin' };
+      function presvAct(pr) {
+        if (pr.item) {
+          const left = PRESV_DAYS[pr.kind] - (S.day - pr.day);
+          if (left > 0) { say(TX('IKKE FERDIG. ' + left + ' DAG(ER) IGJEN.', 'NOT READY. ' + left + ' DAY(S) LEFT.')); return; }
+          const out = PRESV_OUT[pr.kind];
+          if (!gainCapped(out, 1)) return;
+          sfx.coin(); say('+1 ' + iname(out)); pr.item = ''; pr.day = 0; return;
+        }
+        const cropId = Object.keys(BEK_CROPS).map(c => BEK_CROPS[c].out).find(id => (S.bag[id] || 0) > 0);
+        if (!cropId) { say(TX('INGEN AVLING Å LEGGE I.', 'NO CROP TO PUT IN.')); return; }
+        add(cropId, -1); pr.item = cropId; pr.day = S.day; sfx.pick();
+        say(TX('LA I ', 'PUT IN ') + iname(cropId));
+      }
+      /* a crop's own running grade average (S.cropGrade, EWMA over recent
+         harvests) turns into the sell multiplier here — the one place
+         BEK_ITEMS[id].sell is marked up for quality, so shopSell() and the
+         repeatable board's questReward() read the same number. */
+      function gradeMult(id) {
+        const g = S.cropGrade[id];
+        if (g == null) return 1;
+        return g >= 1.5 ? 1.5 : g >= 0.5 ? 1.25 : 1;
+      }
+      const sellPrice = id => Math.round((BEK_ITEMS[id].sell || 0) * gradeMult(id));
       /* the tier-2 kanne's line: the two tiles either side of the one
          watered dead ahead, perpendicular to the way the player is facing
          (S.dir's own [x,y] delta), same as a real watering can pass */
@@ -1032,7 +1121,7 @@ export default {
           const x = f.x + p[0], y = f.y + p[1];
           if (tileAt(S.map, x, y) !== 'f') return;
           const k = key(x, y);
-          const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
+          const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0, fert: 0, tend: 0 });
           if (c.seed && !c.wet) c.wet = 1;
         });
       }
@@ -1128,6 +1217,34 @@ export default {
         if (t === 'S') { say(TX('OPPSLAGSTAVLE — TRYKK Q.', 'NOTICE BOARD — PRESS Q.')); return; }
         if (t === 'D') { if (doorTravel(f)) return; say(TX('LÅST.', 'LOCKED.')); deny(); return; }
         if (t === 'K') { openCraft(); return; }
+        /* QUALITY: ash off any hearth, once a day — S.met is already the
+           daily table every NPC's own "met today" bonus clears through
+           newDay(), so this needed no field of its own. Free, the way
+           filling the can at the well is free: the cost is that it is only
+           once. */
+        if (t === 'v') {
+          if (S.met.aske) { say(TX('ASKEN ER TOM I DAG.', 'NOTHING LEFT TO RAKE TODAY.')); return; }
+          S.met.aske = 1;
+          if (gainCapped('aske', 1)) { sfx.pick(); say('+1 ' + iname('aske')); }
+          return;
+        }
+        /* ---- PRESERVES: the keg and the jar, placed on plain farm grass
+           the same way the sprinkler is placed with the can. Once down they
+           are never spent — collect what finished, else deposit a crop and
+           start the clock, else say how much longer it needs. */
+        if (S.map === 'farm' && t === 'g') {
+          const pk = key(f.x, f.y);
+          const pr = S.presv[pk];
+          if (pr) { presvAct(pr); return; }
+          const kind = ['jar', 'keg'].find(id => has(id));
+          if (kind) {
+            if (!spend(1)) return;
+            add(kind, -1); S.presv[pk] = { kind: kind, item: '', day: 0 };
+            sfx.pick(); startSwing('hand');
+            say(TX('SATTE UT ', 'SET DOWN ') + iname(kind));
+            return;
+          }
+        }
 
         const tool = BEK_TOOLS[S.tool];
         if (t === 'p' && S.picked[rkey(S.map, f.x, f.y)] <= S.day) {   /* pick a wildflower */
@@ -1220,16 +1337,26 @@ export default {
         /* the soil tools */
         if (t !== 'f') { say(TX('IKKE HER.', 'NOT HERE.')); return; }
         const k = key(f.x, f.y);
-        const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0 });
+        const c = S.soil[k] || (S.soil[k] = { till: 0, wet: 0, seed: '', age: 0, ready: 0, fert: 0, tend: 0 });
         if (c.ready) {
           const spec = BEK_CROPS[c.seed];
           if (!spend(1)) return;
           /* farm lvl3: a chance at a second head off the same plant */
           const qty = S.lvl.farm >= 3 && Math.random() < 0.4 ? 2 : 1;
           if (!gainCapped(spec.out, qty)) return;
+          /* QUALITY: fertiliser, a full watering streak and farm level 2
+             each add a point; three grades off that score (0/1-2/3), see
+             cropGradeScore() below. Folded into a running average per crop
+             id (S.cropGrade) rather than a per-unit tag, so it feeds the
+             sell price (sellPrice()), a gift's reaction bonus (talkTo()) and
+             the repeatable board's reward (questReward()) without a second
+             item id per crop per grade. */
+          const grade = cropGradeScore(c, spec);
+          S.cropGrade[spec.out] = Math.min(2, Math.max(0, (S.cropGrade[spec.out] || 0) * 0.7 + grade * 0.3));
           sfx.pick(); addXp('farm', 1);
           startSwing('hand').drop = spec.col;
-          say('+' + qty + ' ' + iname(spec.out));
+          say('+' + qty + ' ' + iname(spec.out) + GRADE_TAG[grade]);
+          c.fert = 0; c.tend = 0;
           if (spec.regrow) {
             /* farm lvl2: a regrowing crop is ready a day sooner */
             const regrow = Math.max(1, spec.regrow - (S.lvl.farm >= 2 ? 1 : 0));
@@ -1239,7 +1366,18 @@ export default {
         }
         /* farm lvl1: the spade and the kanne both bite for less energy */
         const soilCost = Math.max(1, tool.e - (S.lvl.farm >= 1 ? 1 : 0));
-        if (tool.id === 'spade') { if (c.till) { say(TX('ALLEREDE SPADD.', 'ALREADY TURNED.')); return; } if (!spend(soilCost)) return; c.till = 1; sfx.till(); startSwing('spade'); return; }
+        if (tool.id === 'spade') {
+          /* QUALITY: a dose of gjødsel, held over a growing plot that has
+             not had one yet, fertilises instead of tilling — the same
+             "the tool held decides what the square means" convention the
+             kanne's sprinkler placement already uses just below. */
+          if (c.seed && !c.fert && has('gjodsel')) {
+            if (!spend(1)) return;
+            add('gjodsel', -1); c.fert = 1; sfx.till(); startSwing('spade');
+            say(TX('GJØDSLET.', 'FERTILISED.')); return;
+          }
+          if (c.till) { say(TX('ALLEREDE SPADD.', 'ALREADY TURNED.')); return; } if (!spend(soilCost)) return; c.till = 1; sfx.till(); startSwing('spade'); return;
+        }
         if (tool.id === 'kanne') {
           if (!c.seed) {
             /* holding the can at a tilled, empty square plants the sprinkler
@@ -1269,12 +1407,15 @@ export default {
         const seed = curSeed();
         if (!seed) { say(TX('INGEN FRØ I SEKKEN.', 'NO SEED IN THE BAG.')); deny(); return; }
         const cropId = BEK_ITEMS[seed].seed;
-        if (!cropInSeason(BEK_CROPS[cropId], S.day)) {
+        /* the greenhouse ignores cropInSeason() entirely — see
+           BEK_GREENHOUSE_PLOT (data.js) and inGreenhouse() above */
+        const underGlass = S.map === 'farm' && inGreenhouse(f.x, f.y);
+        if (!underGlass && !cropInSeason(BEK_CROPS[cropId], S.day)) {
           say(TX('IKKE SESONGEN FOR DEN. JORDA VIL IKKE HA DEN NÅ.', 'WRONG SEASON. THE GROUND WILL NOT TAKE IT NOW.'));
           deny(); return;
         }
         if (!spend(1)) return;
-        add(seed, -1); c.seed = cropId; c.age = 0; c.ready = 0; sfx.pick();
+        add(seed, -1); c.seed = cropId; c.age = 0; c.ready = 0; c.fert = 0; c.tend = 0; sfx.pick();
         startSwing('hand', 'sprout');
         say(TX('SÅDDE ', 'PLANTED ') + iname(seed));
       }
@@ -1445,7 +1586,11 @@ export default {
             const tier = g.loved.indexOf(giftSel) >= 0 ? 'loved'
                        : g.liked.indexOf(giftSel) >= 0 ? 'liked'
                        : g.disliked.indexOf(giftSel) >= 0 ? 'disliked' : 'neutral';
-            const delta = { loved: 2, liked: 1, neutral: 0, disliked: -1 }[tier];
+            /* QUALITY: a crop given at its best running grade lands a little
+               harder — one more friendship point on a gift that already
+               landed, never on a neutral or disliked one */
+            const qBonus = (tier === 'loved' || tier === 'liked') && (S.cropGrade[giftSel] || 0) >= 1.5 ? 1 : 0;
+            const delta = { loved: 2, liked: 1, neutral: 0, disliked: -1 }[tier] + qBonus;
             add(giftSel, -1);
             S.giftWeek[npc.id] = given + 1;
             S.fr[npc.id] = Math.max(0, Math.min(FR_MAX, S.fr[npc.id] + delta));
@@ -1569,6 +1714,11 @@ export default {
       function hakonTilbygg() {
         const hak2 = npcById('hakon');
         if (!houseTierAvailable(S)) {
+          /* the annex is either already standing, not yet earned, or
+             already both — either way the greenhouse is the next thing
+             Håkon has to offer once Act II is open, checked here rather
+             than as a third branch of hakonBuild() itself */
+          if (greenhouseAvailable(S)) { hakonGreenhouse(hak2); return; }
           dlg = { lines: [S.houseTier ? { no: 'Tilbygget står. Ikke mer å legge til.', en: 'The annex stands. Nothing more to add.' }
                                        : 'It is standing. Go and live in it.'], i: 0, npc: hak2, mood: 'warm' };
           mode = 'talk'; return;
@@ -1581,6 +1731,22 @@ export default {
         S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.houseTier = 1;
         S.fr.hakon = Math.min(FR_MAX, S.fr.hakon + 2); sfx.done(); terrDirty();
         dlg = { lines: [{ no: 'Et rom til, mot vannet. Det er ferdig.', en: 'One more room, facing the water. It is finished.' }], i: 0, npc: hak2, mood: 'warm' };
+        mode = 'talk';
+      }
+      /* P20: the greenhouse — same shape as hakonTilbygg() above, priced and
+         gated through progression.js's greenhouseCost()/greenhouseAvailable()
+         rather than a hand-copied number. Independent of S.houseTier: it is
+         its own late unlock, offered once Act II is open whether or not the
+         annex has been bought. See BEK_GREENHOUSE_PLOT (data.js). */
+      function hakonGreenhouse(hak2) {
+        const c = greenhouseCost();
+        if (S.kr < c.kr || !has('tommer', c.tommer) || !has('stein', c.stein)) {
+          dlg = { lines: [{ no: 'Et drivhus? ' + c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: 'A greenhouse? ' + c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
+                          'Come back when you have it.'], i: 0, npc: hak2, mood: 'troubled' }; mode = 'talk'; return;
+        }
+        S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.flag.greenhouse = 1;
+        S.fr.hakon = Math.min(FR_MAX, S.fr.hakon + 2); sfx.done(); terrDirty();
+        dlg = { lines: [{ no: 'Glasset er satt. Det bryr seg ikke om årstiden.', en: 'The glass is set. It does not care what season it is.' }], i: 0, npc: hak2, mood: 'warm' };
         mode = 'talk';
       }
 
@@ -1599,7 +1765,7 @@ export default {
         const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0 && BEK_ITEMS[id].sell);
         const id = ids[shop.sel % Math.max(1, ids.length)];
         if (!id) { deny(); return; }
-        S.kr += BEK_ITEMS[id].sell; add(id, -1); sfx.coin(); say(TX('SOLGTE ', 'SOLD ') + iname(id));
+        S.kr += sellPrice(id); add(id, -1); sfx.coin(); say(TX('SOLGTE ', 'SOLD ') + iname(id));
       }
 
       /* ---- crafting, at the chest ('K' on the farm map) ------------------

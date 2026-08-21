@@ -150,9 +150,14 @@ coordinates") lives in `bekkedal-art.md`.
 ## Save versioning
 
 The save key is `BEK_SAVE` (`data.js`). The in-save schema version is the `ver`
-field written by `fresh()` in `index.js` — currently **14**, which added
-`S.run` (the descent you are currently in, or null) and `S.deepest` (the
-deepest floor ever reached, which is what the hoist at the mouth offers you).
+field written by `fresh()` in `index.js` — currently **16**, which added
+`S.cropGrade` (a crop item id's running quality average, 0..2 — see
+**Farming depth** below) and `S.presv` (the keg/jar table, keyed like
+`S.soil`), and extended every `S.soil` plot's own record with `fert`/`tend`.
+Version 15 added `S.legend` (one legendary fish per water per year). Version
+14 added `S.run` (the descent you are currently in, or null) and
+`S.deepest` (the deepest floor ever reached, which is what the hoist at the
+mouth offers you).
 
 `S.run` is worth reading the shape of before you change anything near it. It is
 `{ seed, floor, dug }` and **the rows of a floor are never in it**: a floor is

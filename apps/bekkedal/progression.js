@@ -37,3 +37,14 @@ export function houseTierAvailable(S) {
 export function barnSlots(S) {
   return S.flag.barn2 ? BEK_BARN_SLOTS.concat(BEK_BARN_SLOTS2) : BEK_BARN_SLOTS;
 }
+
+/* P20: the greenhouse, priced and gated in the exact shape houseTierCost()/
+ * houseTierAvailable() already are above — see BEK_GREENHOUSE_PLOT (data.js)
+ * and hakonGreenhouse() (index.js). Independent of S.houseTier: it is its
+ * own late unlock, not a second annex. */
+export function greenhouseCost() {
+  return { kr: 3500, tommer: 20, stein: 15 };
+}
+export function greenhouseAvailable(S) {
+  return !!S.act2Unlocked && !!S.built && !S.flag.greenhouse;
+}

@@ -25,7 +25,7 @@
  */
 import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_QUESTS, BEK_LOT_COST, BEK_TALK,
          BEK_QUEST_TEMPLATES, BEK_BARN_PLOT, BEK_BARN_PLOT2, BEK_BARN_SLOTS2, BEK_FARM_PLOTS,
-         BEK_DECOR, BEK_MAPS } from './data.js';
+         BEK_GREENHOUSE_PLOT, BEK_DECOR, BEK_MAPS } from './data.js';
 import { houseCost, houseTierAvailable, barnSlots } from './progression.js';
 import { refreshBoard } from './quests.js';
 import { PROP } from './decor.js';
@@ -152,7 +152,7 @@ BEK_BARN_SLOTS2.forEach(sl => {
      'slot (' + sl.x + ',' + sl.y + ') sits inside BEK_BARN_PLOT2');
 });
 function overlaps(a, b) { return a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0; }
-const REGIONS = [BEK_BARN_PLOT, BEK_BARN_PLOT2, ...BEK_FARM_PLOTS];
+const REGIONS = [BEK_BARN_PLOT, BEK_BARN_PLOT2, BEK_GREENHOUSE_PLOT, ...BEK_FARM_PLOTS];
 let regionClash = null;
 for (let i = 0; i < REGIONS.length && !regionClash; i++)
   for (let j = i + 1; j < REGIONS.length; j++)

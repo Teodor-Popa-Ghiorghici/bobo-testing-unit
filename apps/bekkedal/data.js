@@ -126,6 +126,13 @@ export const BEK_ITEMS = {
   kalfro:     { name: { no: 'KÅLFRØ',     en: 'CABBAGE SEED' }, buy: 60,  sell: 24,  seed: 'kal',     icon: 'seed', col: 10 },
   jordbarfro: { name: { no: 'JORDBÆRFRØ', en: 'STRAWB. SEED' }, buy: 110, sell: 44,  seed: 'jordbar', icon: 'seed', col: 12 },
   rabarbrafro:{ name: { no: 'RABARBRAFRØ',en: 'RHUBARB SEED' }, buy: 160, sell: 64,  seed: 'rabarbra',icon: 'seed', col: 4  },
+  /* ---- P20: six more seeds, one per new crop below */
+  laukfro:    { name: { no: 'LAUKFRØ',    en: 'ONION SEED'   }, buy: 25,  sell: 10,  seed: 'lauk',    icon: 'seed', col: 15 },
+  purrefro:   { name: { no: 'PURREFRØ',   en: 'LEEK SEED'    }, buy: 50,  sell: 20,  seed: 'purre',   icon: 'seed', col: 2  },
+  kalrotfro:  { name: { no: 'KÅLROTFRØ',  en: 'RUTABAGA SEED'}, buy: 55,  sell: 22,  seed: 'kalrot',  icon: 'seed', col: 9  },
+  gresskarfro:{ name: { no: 'GRESSKARFRØ',en: 'PUMPKIN SEED' }, buy: 130, sell: 52,  seed: 'gresskar',icon: 'seed', col: 14 },
+  spinatfro:  { name: { no: 'SPINATFRØ',  en: 'SPINACH SEED' }, buy: 16,  sell: 6,   seed: 'spinat',  icon: 'seed', col: 10 },
+  gronnkalfro:{ name: { no: 'GRØNNKÅLFRØ',en: 'KALE SEED'    }, buy: 90,  sell: 36,  seed: 'gronnkal',icon: 'seed', col: 10 },
   /* crops */
   potet:      { name: { no: 'POTET',      en: 'POTATO'       }, sell: 45,  icon: 'root',  col: 14 },
   nepe:       { name: { no: 'NEPE',       en: 'TURNIP'       }, sell: 30,  icon: 'root',  col: 13 },
@@ -133,6 +140,14 @@ export const BEK_ITEMS = {
   kal:        { name: { no: 'KÅL',        en: 'CABBAGE'      }, sell: 120, icon: 'leaf',  col: 10 },
   jordbar:    { name: { no: 'JORDBÆR',    en: 'STRAWBERRY'   }, sell: 190, icon: 'berry', col: 12 },
   rabarbra:   { name: { no: 'RABARBRA',   en: 'RHUBARB'      }, sell: 240, icon: 'stalk', col: 10 },
+  /* ---- P20: six more crops, spread over the four seasons — see BEK_CROPS
+     below for which. gronnkal (kale) is the multi-season regrowing one. */
+  lauk:       { name: { no: 'LAUK',       en: 'ONION'        }, sell: 55,  icon: 'root',  col: 15 },
+  purre:      { name: { no: 'PURRE',      en: 'LEEK'         }, sell: 95,  icon: 'stalk', col: 2  },
+  kalrot:     { name: { no: 'KÅLROT',     en: 'RUTABAGA'     }, sell: 100, icon: 'root',  col: 9  },
+  gresskar:   { name: { no: 'GRESSKAR',   en: 'PUMPKIN'      }, sell: 260, icon: 'root',  col: 14 },
+  spinat:     { name: { no: 'SPINAT',     en: 'SPINACH'      }, sell: 35,  icon: 'leaf',  col: 10 },
+  gronnkal:   { name: { no: 'GRØNNKÅL',   en: 'KALE'         }, sell: 110, icon: 'leaf',  col: 10 },
   /* forage */
   sopp:       { name: { no: 'SOPP',       en: 'MUSHROOM'     }, sell: 30,  icon: 'mush',  col: 12 },
   kantarell:  { name: { no: 'KANTARELL',  en: 'CHANTERELLE'  }, sell: 90,  icon: 'mush',  col: 14 },
@@ -164,6 +179,31 @@ export const BEK_ITEMS = {
   sprinkler:  { name: { no: 'SPREDER',    en: 'SPRINKLER'    }, buy: 250, sell: 60, icon: 'sprinkler', col: 7, place: true },
   /* not sold anywhere — only BEK_RECIPES.craft produces it, at the chest */
   gjerde:     { name: { no: 'GJERDE',     en: 'FENCE'        }, sell: 35, icon: 'wood', col: 6 },
+  /* ---- P20: QUALITY -----------------------------------------------------
+     Craftable at the chest (BEK_RECIPES.craft), from things the valley
+     already made: kelp (tang), a fed animal's own wool (ull, standing in
+     for bedding) and ash — the one new raw ingredient, raked off any
+     hearth ('v') once a day for free (act() in index.js, gated on S.met
+     the same daily table an NPC's own "met today" bonus already uses). A
+     dose applied at a growing plot (the spade, held over soil that already
+     carries a seed) sets S.soil's own `fert` flag — see cropGradeScore()
+     in index.js for how it and the watering streak (`tend`) combine with
+     farm level into the three grades. */
+  aske:       { name: { no: 'ASKE',       en: 'ASH'          }, sell: 5,  icon: 'stone', col: 8 },
+  gjodsel:    { name: { no: 'GJØDSEL',    en: 'FERTILISER'   }, icon: 'leaf', col: 10 },
+  /* ---- P20: PRESERVES ----------------------------------------------------
+     Two more placeable farm objects, same `place: true` mechanism as the
+     sprinkler above and the same act()-driven placement it already reads
+     — see S.presv and the "preserves" section of act() in index.js. Once
+     placed they are never spent: feed either one a harvested crop and come
+     back after it works, forever, which is the whole point ("the answer to
+     money stops mattering" per the brief) — no clicking beyond the deposit
+     and the collect. Every crop feeds the same jam/wine, deliberately: the
+     value is in the wait, not in which crop paid for it. */
+  jar:        { name: { no: 'SYLTEKRUKKE', en: 'PRESERVE JAR' }, buy: 180, sell: 40, icon: 'sprinkler', col: 12, place: true },
+  keg:        { name: { no: 'TØNNE',      en: 'KEG'          }, buy: 320, sell: 70, icon: 'sprinkler', col: 6,  place: true },
+  syltetoy:   { name: { no: 'SYLTETØY',   en: 'JAM'          }, sell: 220, icon: 'bowl', col: 12 },
+  fruktvin:   { name: { no: 'FRUKTVIN',   en: 'FRUIT WINE'   }, sell: 420, icon: 'bowl', col: 6 },
   /* fish — each carries a `pattern` (index.js's tickFish reads it, never
      writes it) that shapes its own fight in the hold-to-reel tension bar:
      `tug`/`amp`/`period` are a sinusoidal pull on the line's own tension,
@@ -249,7 +289,8 @@ export const BEK_ITEMS = {
 };
 
 /* which items are seeds, in the order the planter cycles them */
-export const BEK_SEED_ORDER = ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro'];
+export const BEK_SEED_ORDER = ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro',
+  'laukfro', 'purrefro', 'kalrotfro', 'gresskarfro', 'spinatfro', 'gronnkalfro'];
 
 /* `col` is what the ripe head is drawn in — a palette index, and deliberately
    one per crop you can tell apart across a field at a glance. `seasons` is
@@ -262,7 +303,24 @@ export const BEK_CROPS = {
   gulrot:   { days: 4, out: 'gulrot',   col: WAR[3],   seasons: ['var', 'sommer'] },
   kal:      { days: 4, out: 'kal',      col: GRASS[4], seasons: ['sommer', 'host'] },
   jordbar:  { days: 5, out: 'jordbar',  col: WAR[2], regrow: 2, seasons: ['var', 'sommer'] },
-  rabarbra: { days: 6, out: 'rabarbra', col: WAR[1], regrow: 3, seasons: ['var', 'sommer', 'host'] }
+  rabarbra: { days: 6, out: 'rabarbra', col: WAR[1], regrow: 3, seasons: ['var', 'sommer', 'host'] },
+  /* ---- P20: six more, spread so every season clears season_check's new
+     three-crop floor. lauk/purre round out summer with a second onion-and-
+     leek pair; kalrot and gresskar are what make autumn/winter worth
+     planning a plot around; spinat is a fast three-season filler; gronnkal
+     is the one crop planned *around* rather than replanted — kale is
+     frost-hardy the way `regrow` already models here, so it is the
+     multi-season regrowing crop the brief asks for (spring through winter,
+     never summer, where nothing here needs to hold a plot that long). The
+     greenhouse (see BEK_GREENHOUSE_PLOT below) is the one surface every one
+     of these — and the original six — may be planted on regardless of
+     `seasons`; see plant() in index.js. */
+  lauk:     { days: 3, out: 'lauk',     col: SNO[2],   seasons: ['var', 'sommer'] },
+  purre:    { days: 4, out: 'purre',    col: GRASS[2], seasons: ['sommer', 'host'] },
+  kalrot:   { days: 4, out: 'kalrot',   col: DRY[1],   seasons: ['host', 'vinter'] },
+  gresskar: { days: 7, out: 'gresskar', col: WAR[0],   seasons: ['host'] },
+  spinat:   { days: 2, out: 'spinat',   col: GRASS[3], seasons: ['var', 'host', 'vinter'] },
+  gronnkal: { days: 4, out: 'gronnkal', col: GRASS[1], regrow: 2, seasons: ['var', 'host', 'vinter'] }
 };
 
 /* ---- 27.1a the four seasons -----------------------------------------------
@@ -401,6 +459,23 @@ export const BEK_FARM_PLOTS = [
   { flag: 'plot2', x0: 18, y0: 11, x1: 25, y1: 12 },
   { flag: 'plot3', x0: 25, y0: 15, x1: 31, y1: 17 }
 ];
+
+/* ==========================================================================
+   27.1c-2 THE GREENHOUSE
+   --------------------------------------------------------------------------
+   A late unlock in the shape of Act II's house-upgrade tier (progression.js:
+   greenhouseCost()/greenhouseAvailable(), read the same read-only way
+   houseTierCost()/houseTierAvailable() are) rather than a field expansion —
+   bought from Håkon once the house stands and S.act2Unlocked, index.js's
+   hakonGreenhouse(). Same overlay mechanism as BEK_FARM_PLOTS above (a flag
+   `tileAt()` reads over the farm map's own plain grass, cols 26-33 rows 1-2,
+   clear of every prop in BEK_DECOR.farm and of the two birches the map
+   itself draws at (30,3)/(35,2)) — the one difference is that `plant()`
+   skips `cropInSeason()` entirely for a soil key inside these bounds, so
+   this is the surface that keeps money meaningful into Act II: whatever the
+   calendar outside says, this glass does not agree with it. season_check.js
+   documents this plot as the deliberate exception to its per-season floor. */
+export const BEK_GREENHOUSE_PLOT = { flag: 'greenhouse', x0: 26, y0: 1, x1: 33, y1: 2 };
 
 /* ==========================================================================
    27.1d THE PEN
@@ -980,7 +1055,8 @@ export const BEK_FISH_WATERS = {
 };
 
 export const BEK_QUEST_TEMPLATES = [
-  { id: 'crops',  items: ['potet', 'nepe', 'gulrot', 'kal', 'jordbar', 'rabarbra'], qty: [3, 8] },
+  { id: 'crops',  items: ['potet', 'nepe', 'gulrot', 'kal', 'jordbar', 'rabarbra',
+                           'lauk', 'purre', 'kalrot', 'gresskar', 'spinat', 'gronnkal'], qty: [3, 8] },
   { id: 'forage', items: ['sopp', 'kantarell', 'blabar', 'multe', 'tyttebar', 'tang', 'urt'], qty: [3, 10] },
   { id: 'blomst', items: ['blomst_bla', 'blomst_gul', 'blomst_ro'], qty: [1, 3] },
   { id: 'wood',   items: ['tommer'], qty: [4, 12] },
@@ -1044,7 +1120,21 @@ export const BEK_RECIPES = {
     { id: 'agn_reke',  out: 'agn_reke',  qty: 2, need: { tang: 2 },
       fr: { npc: 'ingrid', min: 3 }, lvl: { kind: 'fish', min: 1 } },
     { id: 'snelle',    out: 'snelle',    qty: 1, need: { tau: 1, spiker: 2 },
-      fr: { npc: 'ingrid', min: 5 }, lvl: { kind: 'fish', min: 2 } }
+      fr: { npc: 'ingrid', min: 5 }, lvl: { kind: 'fish', min: 2 } },
+    /* ---- P20: QUALITY's one raw material, out of things the valley
+       already produces — kelp from the fjord, a fed animal's own wool
+       standing in for bedding, and ash raked off any hearth (act() in
+       index.js). Gated on Astrid rather than Sigrid: she is who sells the
+       sprinkler, the other thing that touches a plot rather than a meal. */
+    { id: 'gjodsel', out: 'gjodsel', qty: 3, need: { tang: 2, ull: 1, aske: 1 },
+      fr: { npc: 'astrid', min: 1 }, lvl: { kind: 'farm', min: 1 } },
+    /* ---- P20: PRESERVES — a jar and a keg, the same `place: true`
+       mechanism the sprinkler already reads. Gated on Sigrid, whose own
+       shop already sells the cooked food these compete with. */
+    { id: 'jar', out: 'jar', qty: 1, need: { planke: 3, tau: 1 },
+      fr: { npc: 'sigrid', min: 3 }, lvl: { kind: 'farm', min: 1 } },
+    { id: 'keg', out: 'keg', qty: 1, need: { planke: 5, jern: 1 },
+      fr: { npc: 'sigrid', min: 5 }, lvl: { kind: 'farm', min: 2 } }
   ],
   /* one raw crop plus one animal product each, and every dish restores more
      than the best shop food does (multekrem's 110) — see BEK_ITEMS */
