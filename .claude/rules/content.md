@@ -25,6 +25,19 @@ as everything else. A quest's `who` must match an id in `BEK_NPCS` and a key
 in `BEK_TALK`; the quest is only offered/completable through that NPC's
 dialogue nodes, so a quest with no matching `BEK_TALK` entry is unreachable.
 
+## Where the dialogue lives
+
+`BEK_TALK` is no longer written out in `data.js`. It is four sibling files,
+two characters each, grouped by where those two stand — `talk_town.js`
+(Astrid, Håkon), `talk_water.js` (Ingrid, Olav), `talk_field.js` (Marit,
+Sigrid), `talk_stone.js` (Gunnar, Lars) — which `data.js` joins into the one
+table every consumer still asks it for. The twenty-four heart events split
+the same way, into `scenes_valley.js` and `scenes_wild.js`, joined as
+`BEK_SCENES`. Same reasoning as the three map files: forty times as much
+dialogue as there was is more than one file should carry beside the items and
+the crops, and the repo's 300-line rule says so. A new line goes in the file
+its speaker is in; a new speaker goes in the file their place is in.
+
 ## Dialogue gating on friendship
 
 Friendship (`S.fr[npcId]`) is a 0–10 counter, raised through `fr` values on
@@ -36,8 +49,17 @@ order — nodes are one-shot (tracked in `S.seen`), so ordering nodes from
 lowest to highest required friendship is required for them to surface as the
 relationship grows rather than being skipped. `chat[]` entries are the
 fallback pool once no ungated node is available; an `if` predicate on a chat
-entry follows the same `S => ...` convention reading `S.flag`/`S.fr`/`S.disc`,
-never state that a chat line itself would need to mutate.
+entry follows the same `S => ...` convention, never reading state that a chat
+line itself would need to mutate. What it may read is most of `S`:
+`S.flag`/`S.fr`/`S.disc`/`S.q`, `S.weather`, `S.season` (an index, 0-3),
+`S.festival`, `S.min`, `S.bag`, `S.act2Unlocked`, and `S.yst` for what the
+player did yesterday. Two rules hold for all of them, and
+`act2_check.js` enforces both: read a bag or a counter through
+`(S.bag.x || 0)` so a partial state cannot make the gate throw, and never
+gate an NPC's whole pool off at once — `talkTo()` indexes the filtered pool
+modulo its length, so an NPC with nothing to say has nothing to say. The
+five-beat arcs and the friendship-4/7/10 heart events those gates carry are
+described in `.claude/rules/bekkedal-content.md`.
 
 ## Gifting
 

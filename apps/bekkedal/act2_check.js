@@ -63,7 +63,20 @@ function permissiveS(act2) {
     disc: { farm: 1, town: 1, lake: 1, forest: 1, enga: 1, setra: 1, vidda: 1, gruva: 1, fjord: 1 },
     festival: null, bagTier: 2, kanneLv: 1, pickLv: 2, axeLv: 2,
     tools: { spade: 1, kanne: 1, oks: 1, stang: 1, hakke: 1 },
-    animals: [{ id: 'a1', kind: 'goat' }]
+    animals: [{ id: 'a1', kind: 'goat' }],
+    /* the rest of the shape a chat gate may read — a `if:` predicate now
+       reaches the weather, the season, the hour, the bag and yesterday's
+       four activity counters as readily as it reaches S.flag, so a state
+       this check hands one has to be a whole `S` or the sweep below only
+       proves that the fields it happens to carry do not throw. Kept in step
+       with fresh() (index.js): a new top-level field there wants a line
+       here. */
+    map: 'town', px: 8, py: 8, day: 30, min: 12 * 60, weather: 'klar', season: 1,
+    bag: {}, chest: {}, seen: {}, met: {}, chatIx: {},
+    xp: { farm: 0, mine: 0, forage: 0, fish: 0 },
+    lvl: { farm: 0, mine: 0, forage: 0, fish: 0 },
+    yst: { farm: 0, mine: 0, forage: 0, fish: 0 },
+    xpDay: { farm: 0, mine: 0, forage: 0, fish: 0 }
   };
 }
 const sOff = permissiveS(false), sOn = permissiveS(true);
@@ -84,6 +97,50 @@ STORY_NPCS.forEach(id => {
      unlockedByAct2 + ' found');
 });
 ok(!anyGateThrew, 'no chat gate throws evaluating a permissive state', anyGateThrew ? anyGateThrew.id + ': ' + anyGateThrew.e.message : '');
+
+/* ---- and every other state the valley can actually be in -----------------
+   A chat gate is arbitrary code reading `S`, and there are a hundred of them
+   now — gated on the weather, the season, the hour, the festival, the bag
+   and what yesterday's four counters say. The pass above proves they survive
+   one state; this one sweeps the combinations a real day can hand them, on a
+   fresh save as well as a finished one, and additionally asserts that every
+   NPC always has at least one line left to say. An `if` that excluded the
+   last entry in a pool would divide by zero in talkTo()'s own
+   `pool[(ix - 1) % pool.length]`. */
+const WEATHERS = ['klar', 'regn', 'take'];
+const HOURS = [6, 9, 12, 15, 18, 21, 23];
+let sweepThrew = null, emptiest = null, sweeps = 0;
+function blankS(act2) {
+  const s = permissiveS(act2);
+  s.flag = {}; s.q = {}; s.disc = { farm: 1 }; s.bag = {};
+  s.fr = { astrid: 0, hakon: 0, ingrid: 0, olav: 0, marit: 0, sigrid: 0, gunnar: 0, lars: 0 };
+  s.bagTier = 0; s.kanneLv = 0; s.pickLv = 0; s.axeLv = 1;
+  s.tools = { spade: 1, kanne: 1, oks: 1, stang: 0, hakke: 0 };
+  s.animals = []; s.built = 0; s.houseTier = 0;
+  return s;
+}
+for (const base of [permissiveS(false), permissiveS(true), blankS(false), blankS(true)]) {
+  for (const weather of WEATHERS) for (const season of [0, 1, 2, 3]) for (const h of HOURS)
+    for (const festival of [null, ['var', 'sommer', 'host', 'vinter'][season]]) {
+      const st = Object.assign({}, base, { weather, season, festival, min: h * 60 });
+      STORY_NPCS.forEach(id => {
+        const chat = (BEK_TALK[id] && BEK_TALK[id].chat) || [];
+        let live = 0;
+        chat.forEach(c => {
+          sweeps++;
+          try { if (!c.if || c.if(st)) live++; }
+          catch (e) { sweepThrew = sweepThrew || { id, e, weather, season, h }; }
+        });
+        if (!emptiest || live < emptiest.live) emptiest = { id, live, weather, season, h };
+      });
+    }
+}
+ok(!sweepThrew, 'no chat gate throws in any weather, season or hour',
+   sweepThrew ? sweepThrew.id + ' (' + sweepThrew.weather + ', season ' + sweepThrew.season + ', ' +
+                sweepThrew.h + ':00): ' + sweepThrew.e.message : sweeps + ' gate evaluations');
+ok(emptiest && emptiest.live > 0, 'every NPC always has something left to say',
+   emptiest ? 'thinnest pool: ' + emptiest.id + ' with ' + emptiest.live + ' lines (' +
+              emptiest.weather + ', season ' + emptiest.season + ', ' + emptiest.h + ':00)' : '');
 pass('NPC chat gating', STORY_NPCS.length + ' NPCs checked');
 
 /* ---- 1c. the pen's second tier -------------------------------------------- */

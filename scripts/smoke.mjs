@@ -557,6 +557,86 @@ function caseStaleCoordinates() {
   report('coordinates into a map that changed shape are healed', problems.length === 0, problems.join('; '));
 }
 
+/* ---- case 8: a heart event fires, plays out and hands the world back ----- */
+/* The one thing no static check can see: whether walking into the right
+   place at the right hour, with the friendship actually earned, puts a scene
+   on the screen. Seeds a save at friendship 4 with Astrid, stands the player
+   at the western end of the town road at seven in the morning, and runs the
+   real frame loop — sceneWatch() is what decides, so nothing here reaches
+   past the front door. Then presses SPACE the way a player does until the
+   scene is spent, and asserts every beat had a speaker and a line, that the
+   clock did not move while it played, that the player is back on the square
+   they were standing on, and that the scene is marked one-shot. */
+function caseHeartEvent() {
+  const NAME = 'a heart event fires, plays out and restores the world';
+  clearSave();
+  let seedHandle;
+  try { seedHandle = mountApp(); } catch (e) { report(NAME, false, 'seed mount() threw: ' + (e && e.stack || e)); return; }
+  seedHandle.bSave.click();
+  const seedRaw = globalThis.localStorage.getItem(BEK_SAVE);
+  if (!seedRaw) { report(NAME, false, 'seed save was not written'); return; }
+  const save = JSON.parse(seedRaw);
+
+  const START = [1, 15];                         /* where the road out of the farm sets you down */
+  save.fr.astrid = 4;                            /* astrid4 gates on exactly this */
+  save.map = 'town'; save.px = START[0]; save.py = START[1]; save.dir = 3;
+  save.day = 5; save.min = 7 * 60;               /* inside the scene's 06:00-09:00 window */
+  save.met = { astrid: 1 };
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+
+  let handle;
+  try { handle = mountApp(); } catch (e) { report(NAME, false, 'mount() threw: ' + (e && e.stack || e)); return; }
+  const dbg = globalThis.window.__bekDebug;
+  const cv = findCanvas();
+  if (!dbg || !cv) { report(NAME, false, 'no debug hook or canvas after mount'); return; }
+
+  const problems = [];
+  const beats = [];
+  try {
+    /* one frame of the real loop — sceneWatch() runs inside it */
+    handle.tick()(100);
+    let st = dbg.scene(0);
+    if (!st.id) { problems.push('no scene fired on entering the town at 07:00 with astrid at 4'); }
+    else {
+      if (st.id !== 'astrid4') problems.push('the wrong scene fired: ' + st.id);
+      const startMin = st.min;
+      const space = { key: ' ', preventDefault: () => {} };
+      for (let i = 0; i < 60 && st.id; i++) {
+        if (!st.line) problems.push('beat ' + st.beat + ' of ' + st.id + ' has no line');
+        if (!st.who) problems.push('beat ' + st.beat + ' of ' + st.id + ' has no speaker on the plate');
+        beats.push(st.who + ': ' + st.line);
+        if (st.cast.length === 0) problems.push('the scene put nobody on stage');
+        cv.keydown(space);
+        st = dbg.scene(0);
+        if (st.id && st.min !== startMin) problems.push('the clock moved during the scene: ' + startMin + ' -> ' + st.min);
+      }
+      if (st.id) problems.push('the scene never ended after 60 presses');
+      if (beats.length < 2) problems.push('only ' + beats.length + ' beat(s) played');
+    }
+  } catch (e) { report(NAME, false, 'threw driving the scene: ' + (e && e.stack || e)); return; }
+
+  handle.bSave.click();
+  const after = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+  if (after.px !== START[0] || after.py !== START[1])
+    problems.push('the player was not put back where they were: ' + after.px + ',' + after.py);
+  if (!after.seen['sc:astrid4']) problems.push('the scene was not marked one-shot');
+  if (after.fr.astrid !== 5) problems.push('the scene did not pay its friendship: ' + after.fr.astrid);
+
+  /* and it must not fire a second time on the same save */
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(after));
+  try {
+    const again = mountApp();
+    again.tick()(100);
+    const st = globalThis.window.__bekDebug.scene(0);
+    if (st.id === 'astrid4') problems.push('the scene fired a second time');
+  } catch (e) { problems.push('re-mount threw: ' + (e && e.stack || e)); }
+
+  report(NAME, problems.length === 0, problems.join('; '));
+  if (problems.length === 0) beats.forEach(b => console.log('       ' + b));
+}
+
 caseSimulate30Days();
 caseRoundTrip();
 caseMigration();
@@ -564,5 +644,6 @@ caseHouseCompletionMilestone();
 caseStaleCoordinates();
 caseIdleYearFresh();
 caseIdleYearAct2();
+caseHeartEvent();
 
 process.exit(failed ? 1 : 0);

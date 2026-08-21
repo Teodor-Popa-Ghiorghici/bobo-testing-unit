@@ -25,6 +25,17 @@ crafting, and Act II.
 - `schedule.js` — where every NPC is, derived from their own `posts`
   (`BEK_NPCS[].posts`, `data.js`) plus the day, the minute, the weather and
   the story flags. See **NPC schedules** below.
+- `scene.js` — the heart-event runner: whether one should fire right now,
+  which beat is showing, where its cast stands and what the world gets back
+  when it ends. Pure, in the same sense `schedule.js` is; the scenes it runs
+  are content (`scenes_valley.js`/`scenes_wild.js`, re-exported from
+  `data.js` as `BEK_SCENES`). See **Arcs and heart events** below.
+- `talk_town.js` / `talk_water.js` / `talk_field.js` / `talk_stone.js` —
+  `BEK_TALK`, in four halves the way the maps are in three; `data.js` joins
+  them. Two characters each, grouped by where they stand. Rows only, no
+  behaviour.
+- `scenes_valley.js` / `scenes_wild.js` — the twenty-four heart events, the
+  same split by the same rule.
 
 ## Checks
 
@@ -54,7 +65,12 @@ crafting, and Act II.
   Run it after touching `seasons.js`, `BEK_SEASONS`/`BEK_SEASON_DAYS`/
   `BEK_SEASON_WEATHER`/`BEK_SEASON_TINT`/`BEK_FESTIVALS`, or `BEK_CROPS`'
   `seasons` lists.
-- `node apps/bekkedal/act2_check.js` — Act II. Asserts `houseTierAvailable()`
+- `node apps/bekkedal/act2_check.js` — Act II, and every chat gate in the
+  game. Beyond the Act II surfaces it sweeps all ~190 `chat[].if` predicates
+  across four base states (fresh and finished, before and after Act II) x
+  three weathers x four seasons x seven hours x festival-or-not, asserting
+  none throws and that no NPC is ever left with an empty chat pool. Run it
+  after adding or gating any chat line. Also asserts `houseTierAvailable()`
   stays false before `S.act2Unlocked` (even with the house standing) and
   becomes true once it is; that every story NPC's `chat[]` gains at least one
   entry (two for Håkon: the pen offer and the completion line) that is
@@ -91,8 +107,13 @@ crafting, and Act II.
   through the hours their own dialogue states (Sigrid's meaning either the
   setra or the farm, per **NPC schedules**' winter override below); and
   that every season's festival day gathers all eight onto the festival's
-  own map at eight distinct tiles. Run it after touching `BEK_NPCS[].posts`
-  or `schedule.js`.
+  own map at eight distinct tiles; and finally that no heart event is ever
+  played over somebody merely keeping their hours — sampled every 15 minutes
+  inside each scene's own window, over the same year and the same weather and
+  flag combinations, nobody the scene did *not* cast may be standing on the
+  square it stands the player on or on any square it gives an actor. Run it
+  after touching `BEK_NPCS[].posts`, `schedule.js`, or any scene's `stand`
+  or `cast`.
 
 ## Quests and the repeatable board
 
@@ -285,6 +306,74 @@ unflagged story state, and asserts no two of the eight ever resolve to the
 same tile at the same instant — the two-characters-share-a-tile bug this
 layer replaced is the operational failure that check exists to catch again
 if it ever comes back.
+
+## Arcs and heart events
+
+Every one of the eight has **an arc in five beats** — a reticence, a first
+admission, a difficulty, a turn, a resolution — carried by five `nodes[]`
+entries gated on ascending friendship (2, 4, 6, 8, 10). Nodes are one-shot
+and checked in array order, so the arc's beats are *interleaved by gate* with
+that character's quest and shop nodes rather than appended after them: the
+array reads lowest gate first from top to bottom, and a beat that sat below a
+lower-gated node would simply never surface. Each character also has one
+thing they want and one thing they will not talk about; the second is a
+`chat[]` entry, not a node, because a refusal that fires once and is spent is
+not a refusal.
+
+A **heart event** is the same arc played rather than told, at friendship 4, 7
+and 10. It is not a conversation: a conversation is something the player
+starts by walking up to somebody, a scene is something that happens because
+they walked into a place at an hour when it was going to happen anyway. The
+gates are in `scene.js`'s header, and the two that are easy to get wrong are
+`anchor`/`r` (a box the player has to be inside — entering the map usually
+puts them there, but walking up to it counts too, which is what stops a scene
+anchored at one end of a map being unreachable to a player who always comes
+in at the other) and `stand` (the square the runner puts the player on for
+the length of it, so the scene composes a tableau instead of hoping nobody is
+standing where an actor wants to be). The player's own square, facing and the
+clock all come back at the end; the one-shot mark is `S.seen['sc:' + id]`,
+the same table a dialogue node uses, so no scene costs the save a field.
+
+`scene.js` writes nothing. `sceneFor()` answers a question, `beginScene()`
+builds a plain run object, and `sceneRestore()`/`sceneEffects()` hand
+`index.js` the two writes it owes — the same division `schedule.js` keeps.
+A scene's cast is layered *over* `positionFor()`'s answer rather than beside
+it, so somebody a scene places is only where the scene puts them: that is
+what lets a scene stand Håkon at the stave church, or Lars at his sister's
+dairy, without touching either man's `posts`.
+
+Cross-reference is the point of eight people rather than eight vending
+machines. Astrid knows Håkon is building; Ingrid knows Olav's boat is
+patched and always has been; Håkon's arc and Marit's converge on the same
+rotten ridge beam and resolve in the same scene. A line about somebody else
+gates on what the player has actually seen of them (`S.disc`, `S.fr`,
+`S.q`) rather than being said to anyone at any time.
+
+## Chat gating
+
+A `chat[]` entry's `if` predicate is the cheapest content lever in the app
+and there are around a hundred and ninety of them. It may read anything on
+`S` that a chat line would not itself have to mutate: `S.weather`
+(`klar`/`regn`/`take`), `S.season` (an **index**, 0-3, not an id — see
+`seasonIndexOf()`), `S.festival` (a season id on a festival day, else null),
+`S.min` for the hour, `S.bag` for what the player is carrying, `S.q` for
+which quests are open, `S.flag`/`S.fr`/`S.disc`, `S.act2Unlocked`, and
+`S.yst` for what they did yesterday.
+
+`S.yst` is the one that needed engine support: `newDay()` subtracts the four
+XP counters from the mark it stamped at the start of the day that just ended
+and re-stamps it (`S.xpDay`). So "you were in the mine yesterday" is
+*measured* off the same counters the levels come from, never a flag somebody
+remembered to set, and it cannot disagree with them. Both fields are backfilled
+by `heal()`; a save from before them starts today with an honest blank.
+
+Two things a gate must never do. It must not throw on a partial `S` — every
+bag and counter read goes through `(S.bag.x || 0)`, because the state a check
+hands it is not always the state a running game holds. And the pool must
+never empty: `talkTo()` picks `pool[(ix - 1) % pool.length]`, so an NPC whose
+every entry is gated off has no line to say. `act2_check.js` sweeps every
+gate across four base states x three weathers x four seasons x seven hours x
+festival-or-not and asserts both.
 
 ## Crafting and the chest
 

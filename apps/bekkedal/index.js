@@ -3,7 +3,7 @@ import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
-         BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
+         BEK_TALK, BEK_SCENES, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
          BEK_BARN_PLOT2, BEK_ANIMAL_KINDS, BEK_GIFT_CAP,
          BEK_RECIPES,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
@@ -15,6 +15,8 @@ import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVa
          soilVar, objVar, seamVar, treeVar, LOW, PATCH, JIT } from './noise.js';
 import { seasonIndexOf, festivalOf, cropInSeason, rollWeather } from './seasons.js';
 import { positionFor, walkStep } from './schedule.js';
+import { sceneFor, beginScene, sceneBeat, sceneAdvance, sceneCast,
+         scenePlace, sceneRestore, sceneEffects } from './scene.js';
 import { createShore } from './shore.js';
 import { createWater } from './water.js';
 import { createRock, oreKind } from './rock.js';
@@ -194,7 +196,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 12, lang: BEK_LANG, fullscreen: 0,
+        ver: 13, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -221,6 +223,13 @@ export default {
            are not activities a level applies to. */
         xp: { farm: 0, mine: 0, forage: 0, fish: 0 },
         lvl: { farm: 0, mine: 0, forage: 0, fish: 0 },
+        /* what you did yesterday, and the mark today is measured from —
+           both derived from the same four XP counters above rather than a
+           fifth set of tallies, so nothing here can disagree with them.
+           newDay() subtracts one from the other and re-stamps the mark; a
+           chat line reads S.yst.mine the way it reads S.weather. */
+        yst: { farm: 0, mine: 0, forage: 0, fish: 0 },
+        xpDay: { farm: 0, mine: 0, forage: 0, fish: 0 },
         met: {}, seen: {}, flag: {}, q: {},
         /* GIFTING: gifts given this NPC this week, cleared the same
            BEK_QUEST_REFRESH_DAYS cadence the quest board itself turns over
@@ -258,7 +267,7 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
@@ -277,6 +286,10 @@ export default {
         }
         Object.keys(f.xp).forEach(k => { if (s.xp[k] == null) s.xp[k] = 0; });
         Object.keys(f.lvl).forEach(k => { if (s.lvl[k] == null) s.lvl[k] = 0; });
+        /* ver 13: a save from before the yesterday counters existed starts
+           today with an honest blank — "you did nothing yesterday" is the
+           truthful reading of a day this build never watched. */
+        Object.keys(f.xp).forEach(k => { if (s.yst[k] == null) s.yst[k] = 0; if (s.xpDay[k] == null) s.xpDay[k] = s.xp[k] || 0; });
         ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
         if (!Array.isArray(s.drops)) s.drops = [];
         if (!Array.isArray(s.animals)) s.animals = [];
@@ -353,6 +366,12 @@ export default {
       }
 
       let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
+      /* the heart event currently playing, or null — a run object out of
+         scene.js, transient by definition (it holds the square the player
+         came from, and that must not survive a reload). The scene draws
+         through the same `dlg` box every conversation uses; this is only
+         what says which beat is showing and who is standing where. */
+      let scene = null;
       /* the quest board's scroll offset — transient UI state, reset each time
          the board opens, never saved (see qScroll's use in menus.js) */
       let qScroll = 0;
@@ -487,10 +506,22 @@ export default {
          between two posts on different maps would otherwise still show up
          here on the map they started from. */
       const npcCtx = () => ({ weather: S.weather, flag: S.flag, act2Unlocked: S.act2Unlocked });
-      const npcsHere = () => BEK_NPCS
-        .filter(n => !n.from || S.day >= n.from)
-        .map(n => Object.assign({}, n, n.posts ? positionFor(n, S.day, S.min, npcCtx()) : { map: n.map, x: n.x, y: n.y, walking: false, dir: 0 }))
-        .filter(n => n.map === S.map);
+      /* A heart event's cast is layered over the schedule's answer rather
+         than beside it: somebody the scene places is *only* where the scene
+         puts them, never also standing at the post the clock would give
+         them. That is what lets a scene stand Håkon at the stave church, or
+         Lars at his sister's dairy, without touching either man's posts. */
+      const npcsHere = () => {
+        const cast = scene ? sceneCast(scene) : null;
+        return BEK_NPCS
+          .filter(n => !n.from || S.day >= n.from)
+          .map(n => {
+            const c = cast && cast.filter(x => x.id === n.id)[0];
+            if (c) return Object.assign({}, n, { map: scene.def.map, x: c.x, y: c.y, walking: false, dir: c.dir || 0 });
+            return Object.assign({}, n, n.posts ? positionFor(n, S.day, S.min, npcCtx()) : { map: n.map, x: n.x, y: n.y, walking: false, dir: 0 });
+          })
+          .filter(n => n.map === S.map);
+      };
       /* Håkon's build and annex lines are spoken by him but reached through
          the lot sign and the menu funnel rather than through talkTo(), so
          they have no `npc` to hand. The dialogue panel names its speaker on
@@ -672,6 +703,12 @@ export default {
       }
       function newDay(passedOut) {
         S.day++; S.min = 6 * 60;
+        /* yesterday, closed out: the difference between the XP counters now
+           and the mark stamped at the start of the day that just ended. The
+           chat lines gated on `S.yst.*` (BEK_TALK) read this and nothing
+           else, so "you were in the mine yesterday" is measured, never a
+           flag somebody remembered to set. */
+        Object.keys(S.xp).forEach(k => { S.yst[k] = (S.xp[k] || 0) - (S.xpDay[k] || 0); S.xpDay[k] = S.xp[k] || 0; });
         /* recomputed, never incremented — see the comment on fresh()'s own
            seed and on heal() above for why that is what keeps this from
            ever drifting off S.day */
@@ -1003,6 +1040,41 @@ export default {
         { no: 'DU SITTER LITT. Beina takker deg.', en: 'YOU SIT A WHILE. Your legs thank you.' }
       ];
 
+      /* ---- heart events --------------------------------------------------
+         The three gates a scene has to pass are scene.js's; what lives here
+         is the two writes it is not allowed to make itself. Starting one
+         stands the player on the scene's own square (so the tableau composes
+         instead of hoping nobody is on the tile an actor wants) and freezes
+         the clock — see tickClock(); ending one hands both back and applies
+         the effects as a patch, the same way a dialogue node's `set` is
+         applied. Checked every frame the player is not in a menu, which is
+         what makes walking up to a place the trigger rather than only the
+         doorway of it. */
+      function sceneWatch() {
+        if (mode || dlg || fish || swing || S.ending) return;
+        const def = sceneFor(BEK_SCENES, S);
+        if (def) sceneStart(def);
+      }
+      function sceneStart(def) {
+        scene = beginScene(def, S);
+        const p = scenePlace(scene);
+        S.px = p.px; S.py = p.py; S.dir = p.dir;
+        mode = 'talk'; sceneStep(); sfx.talk();
+      }
+      function sceneStep() {
+        const b = sceneBeat(scene);
+        dlg = { lines: b.lines.slice(), i: 0, npc: BEK_NPCS.filter(n => n.id === b.who)[0] || null,
+                mood: b.mood, scene: 1 };
+      }
+      function sceneEnd() {
+        const eff = sceneEffects(scene), back = sceneRestore(scene);
+        S.seen[eff.seen] = 1;
+        if (eff.flag) Object.assign(S.flag, eff.flag);
+        if (eff.fr) S.fr[eff.npc] = Math.min(FR_MAX, (S.fr[eff.npc] || 0) + eff.fr);
+        S.px = back.px; S.py = back.py; S.dir = back.dir;
+        scene = null; dlg = null; mode = '';
+      }
+
       /* ---- talking ------------------------------------------------------ */
       const BEAR_LINES = [
         { no: 'PERKELE.', en: 'PERKELE.' },
@@ -1113,6 +1185,10 @@ export default {
         if (dlg.opts) return;
         dlg.i++;                       /* speechTick() voices the new line */
         if (dlg.i < dlg.lines.length) return;
+        /* a scene beat is checked ahead of every other ending a box can
+           have: a beat carries no ask, no offer and no shop, and the next
+           one may be a different speaker entirely */
+        if (dlg.scene) { if (sceneAdvance(scene)) { sceneStep(); return; } sceneEnd(); return; }
         if (dlg.ask) { dlg.opts = dlg.ask; dlg.sel = 0; return; }
         /* The offer panel names its seller and the reply that follows draws
            their portrait, so the offer has to carry the speaker the line it
@@ -1451,7 +1527,7 @@ export default {
           S = heal(Object.assign(fresh(), JSON.parse(raw)));
           terrDirty();                                    /* a loaded save brings its own felled/mined/picked */
           BEK_LANG = S.lang || BEK_LANG; refreshBar();
-          mode = ''; dlg = null; shop = null; craft = null; fish = null; travel = null; offer = null;
+          mode = ''; dlg = null; shop = null; craft = null; fish = null; travel = null; offer = null; scene = null;
           say(T(UI.loaded) + ' DAG ' + S.day + '.'); sfx.coin();
         } catch (e) { say(TX('LAGRINGEN ER ØDELAGT.', 'SAVE IS UNREADABLE.')); }
         cv.focus();
@@ -1490,7 +1566,9 @@ export default {
         }
       }
       function tickClock(dt) {
-        if (mode === 'end') return;
+        /* a scene is a held breath: the hour it was triggered in is the hour
+           it plays out in, however long the player takes over the lines */
+        if (mode === 'end' || scene) return;
         S.min += dt * 4;
         if (S.min >= 26 * 60) { newDay(true); return; }
       }
@@ -2849,6 +2927,25 @@ export default {
                    lineMood: (l && l.m) || '', entryMood: dlg.mood || '',
                    opts: dlg.opts ? dlg.opts.opts.map(o => T(o.t)) : null };
         },
+        /* Drive a heart event from the harness, on the same path a player
+           reaches it by: sceneWatch() is what decides whether one fires
+           right now, sceneStep()/sceneEnd() are what play it out. Called
+           with no argument it asks the question a frame asks and returns
+           the scene that started, if any; called with a step count it
+           advances the box the way SPACE does. What comes back is the beat
+           the player would be reading, its speaker and the cast standing
+           around them, so a check can walk a whole scene and see that every
+           line has a face and every actor a square. */
+        scene: steps => {
+          if (steps == null) sceneWatch();
+          else for (let i = 0; i < steps; i++) { if (mode === 'talk' && dlg && dlg.scene) dlgAdvance(); }
+          if (!scene) return { id: '', line: '', who: '', beat: -1, cast: [] };
+          const l = dlg && dlg.lines[dlg.i];
+          return { id: scene.def.id, beat: scene.i, line: T(l) || '',
+                   who: dlg && dlg.npc ? dlg.npc.n : '', mood: (dlg && dlg.mood) || '',
+                   px: S.px, py: S.py, min: Math.floor(S.min),
+                   cast: sceneCast(scene).map(c => c.id + '@' + c.x + ',' + c.y) };
+        },
         /* Hold a swing at one of its three phases for a frame so the harness
            can photograph it. Nothing in the game calls this; it drives the
            same `swing` the keyboard does, so what it photographs is what a
@@ -2877,7 +2974,7 @@ export default {
         if (!alive || !document.body.contains(cv)) { alive = false; Song.stop(); Amb.stop(); return; }
         raf = requestAnimationFrame(frame);
         const dt = Math.min(0.1, (ts - last) / 1000 || 0); last = ts;
-        if (!mode) { move(dt); tickFish(dt); }
+        if (!mode) { move(dt); tickFish(dt); sceneWatch(); }
         tickSwing(dt); fx.step(dt);
         if (mode === 'end') S.ending += dt;
         tickClock(dt);

@@ -11,7 +11,12 @@ there is no separate dev entry point for this app.
 
 `data.js` holds only static content tables (items, crops, tools, NPCs,
 decor placements, treeline mixes, dialogue, quests) plus the geometry constants — no functions that mutate game
-state, no rendering, no DOM access. The maps themselves are content too, but
+state, no rendering, no DOM access. Two of those tables outgrew it and are
+re-exported from siblings rather than written out here. The dialogue is one:
+`BEK_TALK` is four files of two characters each, grouped by where the two
+stand — `talk_town.js`, `talk_water.js`, `talk_field.js`, `talk_stone.js` —
+and the twenty-four heart events split the same way into `scenes_valley.js`
+and `scenes_wild.js`, joined as `BEK_SCENES`. The maps are the other, but
 eleven maps of forty-odd columns is more than one file should carry beside
 all of that, so they live in three siblings and `data.js` re-exports
 `BEK_MAPS` from them: `maps_valley.js` (the farm, the town, the water, the
@@ -82,6 +87,14 @@ coordinates") lives in `bekkedal-art.md`.
 - `schedule.js` — where everybody is: two to four named posts per NPC, and
   which one the clock (plus weather, season, a festival day, a story flag)
   currently puts them at. See `.claude/rules/bekkedal-content.md`.
+- `scene.js` — the heart-event runner: whether one fires here and now, which
+  beat is showing, where its cast stands, and what the world gets back when
+  it ends. Pure, the way `schedule.js` is. See **Arcs and heart events**,
+  `.claude/rules/bekkedal-content.md`.
+- `talk_town.js`, `talk_water.js`, `talk_field.js`, `talk_stone.js` —
+  `BEK_TALK`, two characters per file. Content only.
+- `scenes_valley.js`, `scenes_wild.js` — `BEK_SCENES`, the twenty-four heart
+  events. Content only.
 - `progression.js` — money-sink formulas (`houseCost`, `houseTierCost`, `houseTierAvailable`, `barnSlots`). See `.claude/rules/bekkedal-content.md`.
 - `layout_check.js` — `node apps/bekkedal/layout_check.js`. Also the dialogue
   box's two columns. See `.claude/rules/bekkedal-art.md`.
@@ -116,7 +129,11 @@ coordinates") lives in `bekkedal-art.md`.
 ## Save versioning
 
 The save key is `BEK_SAVE` (`data.js`). The in-save schema version is the `ver`
-field written by `fresh()` in `index.js`. `heal()` in `index.js` is the
+field written by `fresh()` in `index.js` — currently **13**, which added
+`S.yst`/`S.xpDay` (what the player did yesterday, and the mark today is
+measured from) for the chat lines gated on it. A heart event adds no field of
+its own: it is one-shot through `S.seen['sc:' + id]`, and its run object is
+transient and must never be serialised. `heal()` in `index.js` is the
 migration function: it runs on every load and after `Object.assign(fresh(), ...)`
 to backfill any field a stale save is missing. Any change to the shape of `S`
 (new top-level field, new nested object, renamed key) must bump `ver` and add
@@ -145,19 +162,24 @@ Run all ten before claiming anything is done:
   every weather and both story-flag states, nobody resolves to a solid tile
   and no two NPCs ever share one; every shopkeeper stays on their own map
   through their stated hours; every festival day gathers all eight on the
-  festival's own map at eight distinct tiles. Full paragraph:
+  festival's own map at eight distinct tiles; and no heart event is ever
+  played over somebody merely keeping their own hours. Full paragraph:
   `.claude/rules/bekkedal-content.md`.
-- `node apps/bekkedal/act2_check.js` — every Act II surface plus the balance
-  pass. Full paragraph: `.claude/rules/bekkedal-content.md`.
+- `node apps/bekkedal/act2_check.js` — every Act II surface, the balance
+  pass, and a sweep of all ~190 chat gates across every weather, season, hour
+  and festival state: none throws, and no NPC is ever left with nothing to
+  say. Full paragraph: `.claude/rules/bekkedal-content.md`.
 - `node apps/bekkedal/world_check.js` — the valley joins up: every seam is
   paired tile for tile and gated only on the way in, every map is one
   walkable piece, every place is reached from the farm without the travel
   menu, and nobody and nothing placed by coordinate — the eight who talk,
   the goats, the room props, the pens, the field expansions, the finished
-  house, the menu's own landing squares — stands in a wall or on the water.
+  house, every heart event's cast and the square it stands the player on, the
+  menu's own landing squares — stands in a wall or on the water.
   This is the check that a map edit is most likely to break.
-- `node scripts/smoke.mjs` — headless 30-day run, save migration, and a
-  full simulated year run idle. Full paragraph: `.claude/rules/bekkedal-engine.md`.
+- `node scripts/smoke.mjs` — headless 30-day run, save migration, a full
+  simulated year run idle, and a heart event played end to end through the
+  real frame loop from a save seeded at friendship 4. Full paragraph: `.claude/rules/bekkedal-engine.md`.
 - `node scripts/lint-content.mjs` — the static content conventions: real item
   ids, sane friendship gates, real travel destinations, and — since the
   dialogue box grew a name plate — that no spoken line repeats the speaker's
