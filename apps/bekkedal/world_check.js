@@ -16,11 +16,12 @@
  *             (or, for the fjord, in the boat) without opening the menu;
  *   standing— nobody and nothing that is placed by coordinate — the eight
  *             who talk, the goats, the room props, the pens and the field
- *             expansions, the finished house, the travel menu's own landing
- *             squares — stands in a wall or on the water;
+ *             expansions, the finished house, a heart event's whole cast and
+ *             the square it stands the player on, the travel menu's own
+ *             landing squares — stands in a wall or on the water;
  *   menu    — the travel list is down to the two places up the mountain.
  */
-import { BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS, BEK_DECOR, BEK_HOUSE,
+import { BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS, BEK_DECOR, BEK_HOUSE, BEK_SCENES,
          BEK_FARM_PLOTS, BEK_BARN_PLOT, BEK_BARN_PLOT2, BEK_BARN_SLOTS,
          BEK_BARN_SLOTS2, mapCols, mapRows } from './data.js';
 import { readFileSync } from 'fs';
@@ -251,6 +252,70 @@ for (const [mp, list] of Object.entries(BEK_DECOR)) {
 }
 ok(decorBad === 0, 'every room prop is inside the room it belongs to',
    Object.values(BEK_DECOR).reduce((a, l) => a + l.length, 0) + ' props');
+
+/* ---- 3b. the heart events -------------------------------------------------
+   A scene composes a tableau out of fixed squares: where it stands the
+   player, and where it puts each of its cast. Every one of those has to be a
+   square somebody can stand on, on the scene's own map, distinct from every
+   other square the same scene claims — two actors on one tile is one actor
+   as far as the picture is concerned. The anchor is not stood on, only
+   measured from, but it is checked too: an anchor in a wall is an anchor
+   whose radius the player approaches from one side only.
+
+   The other half of a scene's placement — that nobody merely keeping their
+   own hours walks into one of these squares while it is playing — is a
+   question about the clock, so it lives in schedule_check.js. */
+console.log('\n-- the heart events --');
+const npcById = Object.fromEntries(BEK_NPCS.map(n => [n.id, n]));
+let sceneMap = 0, sceneTile = 0, sceneDup = 0, sceneWho = 0, sceneReach = 0, sceneCastNpc = 0;
+const seenScene = new Set();
+for (const sc of BEK_SCENES) {
+  if (seenScene.has(sc.id)) { sceneDup++; console.log('  two scenes share the id ' + sc.id); }
+  seenScene.add(sc.id);
+  if (!BEK_MAPS[sc.map]) { sceneMap++; console.log('  ' + sc.id + ' names a map that does not exist: ' + sc.map); continue; }
+  const claimed = new Map();
+  const claim = (what, x, y) => {
+    if (!walk(sc.map, x, y)) { sceneTile++; console.log('  ' + sc.id + ' ' + what + ' stands on ' + JSON.stringify(at(sc.map, x, y)) + ' at ' + x + ',' + y); }
+    const k = x + ',' + y;
+    if (claimed.has(k)) { sceneDup++; console.log('  ' + sc.id + ': ' + what + ' and ' + claimed.get(k) + ' claim ' + k); }
+    claimed.set(k, what);
+  };
+  claim('stand', sc.stand[0], sc.stand[1]);
+  if (!walk(sc.map, sc.anchor[0], sc.anchor[1])) { sceneTile++; console.log('  ' + sc.id + ' anchor is in a wall at ' + sc.anchor.join(',')); }
+  /* the player has to be inside the box for the scene to fire, and the
+     square the scene then stands them on is inside it by construction */
+  if (Math.max(Math.abs(sc.stand[0] - sc.anchor[0]), Math.abs(sc.stand[1] - sc.anchor[1])) > sc.r) {
+    sceneReach++; console.log('  ' + sc.id + ' stands the player outside its own trigger box');
+  }
+  sc.cast.forEach(c => {
+    if (!npcById[c.id]) { sceneCastNpc++; console.log('  ' + sc.id + ' casts somebody who is not in BEK_NPCS: ' + c.id); return; }
+    claim(c.id, c.x, c.y);
+  });
+  /* the character whose heart event it is has to be in it */
+  if (!sc.cast.some(c => c.id === sc.npc)) { sceneCastNpc++; console.log('  ' + sc.id + ' does not place ' + sc.npc); }
+  sc.beats.forEach((b, i) => {
+    if (!npcById[b.who]) { sceneWho++; console.log('  ' + sc.id + ' beat ' + i + ' is spoken by nobody: ' + b.who); return; }
+    if (!sc.cast.some(c => c.id === b.who)) { sceneWho++; console.log('  ' + sc.id + ' beat ' + i + ' is spoken by ' + b.who + ', who is not on stage'); }
+  });
+}
+ok(sceneMap === 0, 'every heart event names a real map', BEK_SCENES.length + ' scenes');
+ok(sceneTile === 0, 'every square a heart event claims is one you can stand on', sceneTile + ' bad');
+ok(sceneDup === 0, 'no two of a scene\'s actors claim the same square', sceneDup + ' clashes');
+ok(sceneReach === 0, 'a scene stands the player inside its own trigger box');
+ok(sceneCastNpc === 0, 'every cast member is a real NPC, and each scene places its own');
+ok(sceneWho === 0, 'every line in a scene is spoken by somebody standing in it',
+   BEK_SCENES.reduce((a, sc) => a + sc.beats.length, 0) + ' beats');
+/* three per character, at four, seven and ten, in that order — which is what
+   sceneFor()'s first-match walk relies on to hand out the low one first */
+const byNpc = {};
+BEK_SCENES.forEach(sc => (byNpc[sc.npc] = byNpc[sc.npc] || []).push(sc.at));
+const talkers = BEK_NPCS.filter(n => n.n).map(n => n.id);
+const arcOK = talkers.every(id => {
+  const a = byNpc[id] || [];
+  return a.length === 3 && a[0] === 4 && a[1] === 7 && a[2] === 10;
+});
+ok(arcOK, 'each of the eight has three, at friendship 4, 7 and 10, in order',
+   talkers.map(id => id + ':' + (byNpc[id] || []).join('/')).join('  '));
 
 /* ---- 4. the menu --------------------------------------------------------- */
 console.log('\n-- the travel menu --');

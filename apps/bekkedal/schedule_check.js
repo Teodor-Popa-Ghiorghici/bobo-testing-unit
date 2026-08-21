@@ -26,10 +26,16 @@
  *                   not pinned to one tile;
  *   festivals    — on each season's festival day, every one of the eight
  *                   resolves to the festival's own map, at eight distinct
- *                   tiles — the operational meaning of "everyone converges".
+ *                   tiles — the operational meaning of "everyone converges";
+ *   heart events — a scene (scene.js) puts its own cast on fixed squares and
+ *                   stands the player on one more. Over the same simulated
+ *                   year, at every minute inside each scene's own window,
+ *                   nobody the scene did *not* cast may be standing on any
+ *                   of them: an NPC merely keeping their hours would be
+ *                   drawn on top of an actor, or in the player's lap.
  */
 import { BEK_NPCS, BEK_MAPS, BEK_SOLID, BEK_SEASON_DAYS, BEK_SEASONS, BEK_FESTIVALS,
-         mapCols, mapRows } from './data.js';
+         BEK_SCENES, mapCols, mapRows } from './data.js';
 import { positionFor } from './schedule.js';
 import { isFestivalDay, seasonOf } from './seasons.js';
 
@@ -179,6 +185,44 @@ ok(festBad === 0, 'every festival day puts every NPC on the festival’s own map
 ok(festDup === 0, 'every festival day gives every NPC their own tile', festDup + ' collisions');
 ok(festDays === BEK_SEASONS.length, 'one festival day found per season in the sampled year', festDays + ' of ' + BEK_SEASONS.length);
 pass('festivals', festDays + ' festival days, ' + NPCS.length + ' NPCs each');
+
+/* ---- 6. the heart events against everybody else's hours -----------------
+   world_check.js already holds each scene's squares to being real, standable
+   and distinct from each other. What it cannot see is the clock: a scene
+   plays at a fixed hour on a fixed map, and anyone the scene has *not* cast
+   is still wherever their posts put them. Sampled every 15 minutes across
+   each scene's own window, over the same year and the same weather and
+   story-flag combinations the walk above uses. */
+console.log('\n-- heart events against the schedule --');
+let sceneClash = 0, sceneSamples = 0;
+for (const sc of BEK_SCENES) {
+  const claimed = new Map([[sc.stand.join(','), 'the player']]);
+  sc.cast.forEach(c => claimed.set(c.x + ',' + c.y, c.id));
+  const cast = new Set(sc.cast.map(c => c.id));
+  for (let day = 1; day <= YEAR_DAYS; day++) {
+    /* a scene that names a season only ever plays in it */
+    if (sc.season != null && BEK_SEASONS.indexOf(seasonOf(day)) !== sc.season) continue;
+    for (const weather of WEATHERS) for (const fs of FLAG_STATES) {
+      for (let m = 0; m < 1440; m += 15) {
+        if (!inWindow(sc.from, sc.to, m)) continue;
+        sceneSamples++;
+        for (const n of NPCS) {
+          if (cast.has(n.id)) continue;
+          const pos = positionFor(n, day, m, { weather: weather, flag: fs.flag, act2Unlocked: fs.act2Unlocked });
+          if (pos.map !== sc.map) continue;
+          const k = pos.x + ',' + pos.y;
+          if (!claimed.has(k)) continue;
+          sceneClash++;
+          if (sceneClash < 6) console.log('  ' + sc.id + ' day ' + day + ' ' + Math.floor(m / 60) + ':' +
+            String(m % 60).padStart(2, '0') + ': ' + n.id + ' stands on ' + claimed.get(k) + ' at ' + k);
+        }
+      }
+    }
+  }
+}
+ok(sceneClash === 0, 'nobody keeping their own hours stands in a heart event',
+   sceneClash + ' clashes over ' + sceneSamples + ' sampled minutes');
+pass('heart events', BEK_SCENES.length + ' scenes against ' + NPCS.length + ' schedules');
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' checks FAILED' : 'All ' + checks + ' schedule checks pass.'));
 process.exit(fails ? 1 : 0);

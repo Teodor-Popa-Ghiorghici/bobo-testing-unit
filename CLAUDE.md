@@ -56,6 +56,24 @@ The machine's base rule is that all colour comes from `VGA16` (`kernel/god.js`) 
   the seam between two wall rows and a window is taller than either of them.
   Chimney smoke is the one part of a building that is not in the terrain cache.
   **The valley is walked, not chosen from a menu:** the nine outdoor maps are three to four times the size they were and join along whole runs of their own edges — walk west off the farm and you are in the wood. The seams are declared once each, as pairings, in `apps/bekkedal/maps.js`; the rows themselves are in `maps_valley.js` and `maps_wild.js`. The travel menu survives only for the setra and the vidda, which are up the mountain and have to be climbed on foot before they are ever offered (`BEK_HOME`, `index.js`). `node apps/bekkedal/world_check.js` is what holds all of that together.
+  **They have arcs, and three scenes each:** all eight carry a five-beat arc —
+  a reticence, a first admission, a difficulty, a turn, a resolution — as
+  `nodes` gated on ascending friendship, one thing they want and one thing
+  they will not talk about, and around a hundred and ninety chat lines gated
+  on the weather, the season, the hour, the festival, what you are carrying,
+  what you did yesterday (`S.yst`, measured off the XP counters at each
+  rollover), which quests are open and `act2Unlocked`. At friendship 4, 7 and
+  10 the arc stops being told and is played: a *heart event*, triggered by
+  being in a place inside an hour window rather than by talking to anyone,
+  run by `apps/bekkedal/scene.js` — pure and data-driven, the way
+  `schedule.js` is — over scenes authored in `scenes_valley.js`/
+  `scenes_wild.js`. A scene places its own cast over the schedule's answer,
+  stands the player somewhere for the length of it, freezes the clock and
+  hands all three back at the end. They talk about each other: Astrid knows
+  Håkon is building, Ingrid knows Olav's boat is patched, and Håkon's arc and
+  Marit's converge on the same rotten ridge beam. `BEK_TALK` is four files of
+  two characters each (`talk_town.js`, `talk_water.js`, `talk_field.js`,
+  `talk_stone.js`), joined by `data.js`.
   **The people have faces:** the conversation box is a portrait, a name plate
   and the line, with answers as rows the selection moves between
   (`apps/bekkedal/menus_talk.js`). The eight portraits are one head-and-

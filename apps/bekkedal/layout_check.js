@@ -180,7 +180,9 @@ const longestTool = widest([].concat(
 const longestUI = widest(Object.values(D.UI).flatMap(both));
 
 /* every glyph the content can ask for must exist */
-const src = ['index.js', 'data.js', 'maps.js', 'maps_valley.js', 'maps_wild.js']
+const src = ['index.js', 'data.js', 'maps.js', 'maps_valley.js', 'maps_wild.js',
+             'talk_town.js', 'talk_water.js', 'talk_field.js', 'talk_stone.js',
+             'scenes_valley.js', 'scenes_wild.js', 'scene.js']
   .map(f => readFileSync(join(HERE, f), 'utf8')).join('\n');
 const used = new Set();
 for (const m of src.matchAll(/'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g))
@@ -204,19 +206,39 @@ const longestNote = widest(notes.concat(Object.values(D.UI).flatMap(both)));
 ok(w(longestNote, F.FONT_SM) <= D.BEK_W - L.HUD_PAD * 2, 'longest note fits the bottom HUD band',
    JSON.stringify(longestNote.slice(0, 44)) + ' = ' + w(longestNote, F.FONT_SM) + 'px of ' + (D.BEK_W - L.HUD_PAD * 2));
 
-/* dialogue wraps, so the test is that it wraps into the rows the box has */
+/* dialogue wraps, so the test is that it wraps into the rows the box has.
+   Everything the box can be handed goes through here, and that is more than
+   a `nodes[]` entry's own `lines`: a chat line's `t` is drawn in the same
+   box by the same code (talkTo()'s else branch, index.js), and so are an
+   offer's `ok` and its refusal `no`. Those three used to fall out of this
+   walker — it recursed past a `t` array without collecting it — which left
+   the widest content in the game unmeasured. They are named explicitly now,
+   and `Array.isArray` is what keeps a {no, en} pair's own `no` (a string,
+   not a list of them) out of the list. */
+const SPOKEN = ['lines', 't', 'ok', 'no'];
 const dlgLines = [];
 const walk = o => {
   if (!o || typeof o !== 'object') return;
   if (Array.isArray(o)) return o.forEach(walk);
-  if (o.lines) o.lines.forEach(l => dlgLines.push(...both(l)));
+  SPOKEN.forEach(k => { if (Array.isArray(o[k])) o[k].forEach(l => dlgLines.push(...both(l))); });
   if (o.ask) { dlgLines.push(...both(o.ask.q)); o.ask.opts.forEach(x => { dlgLines.push(...both(x.t)); (x.reply || []).forEach(r => dlgLines.push(...both(r))); }); }
   Object.values(o).forEach(walk);
 };
 walk(D.BEK_TALK);
+const talkLineCount = dlgLines.length;
+/* A heart event's beats are drawn through the same box, out of a table the
+   walker above never reaches — same `lines` shape, so the same walker does
+   the job once it is pointed at BEK_SCENES. Counted together with the rest:
+   the longest string the content tables can produce is as likely to be in a
+   scene as in a chat line. */
+walk(D.BEK_SCENES);
 const worstWrap = dlgLines.reduce((a, l) => Math.max(a, wrapLines(l, L.DLG_TW, F.FONT_LG).length), 0);
 ok(worstWrap <= L.DLG_BODY_LINES, 'every dialogue line wraps inside the box',
    'worst is ' + worstWrap + ' of ' + L.DLG_BODY_LINES + ' rows (' + cols(L.DLG_TW, F.FONT_LG) + ' chars/row)');
+const worstLine = widest(dlgLines);
+pass('dialogue and scene lines measured', dlgLines.length + ' strings (' + talkLineCount +
+     ' spoken in conversation, ' + (dlgLines.length - talkLineCount) + ' in heart events), longest ' +
+     worstLine.length + ' chars');
 
 /* GIFTING: a gift reaction is drawn through the same dialogue box (dlg.lines)
    as a BEK_TALK node, but lives in BEK_NPCS[].gift.reactions instead — the
