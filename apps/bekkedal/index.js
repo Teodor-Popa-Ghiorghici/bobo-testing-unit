@@ -2,10 +2,10 @@ import { createWindow, raise } from '../../kernel/wm.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
-         BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
+         BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, ROD_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_SCENES, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
          BEK_BARN_PLOT2, BEK_ANIMAL_KINDS, BEK_GIFT_CAP, BEK_MINE_MOUTH,
-         BEK_RECIPES,
+         BEK_RECIPES, BEK_FISH_WATERS, BEK_SEASON_DAYS,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          mapCols, mapRows, camMaxX, camMaxY,
@@ -198,12 +198,21 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 14, lang: BEK_LANG, fullscreen: 0,
+        ver: 15, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
         tools: { spade: 1, kanne: 1, oks: 1, stang: 0, hakke: 0 },
         tool: 0, axeLv: 1, pickLv: 0, kanneLv: 0, seedIx: 0,
+        /* the rod's own tier, same shape as axeLv/pickLv (BEK_TOOLS' header) —
+           1 is the plain rod Ingrid gives out, 2 the carbon rod she sells on
+           past friendship 5. See ROD_NAME (data.js) and the reel in tickFish. */
+        rodLv: 1,
+        /* ---- ver 15: legendary fish ----------------------------------------
+           One catch per water per year. Keyed by BEK_ITEMS id, valued at the
+           S.day it was landed — pickFishSpecies() (below) refuses to offer a
+           legend again until BEK_SEASON_DAYS * 4 days have passed. */
+        legend: {},
         /* the bag's soft cap — see gainCapped() — and the shop tier it was
            bought at, so the offer that sells tier 2 knows tier 1 is done */
         bagCap: 80, bagTier: 0,
@@ -354,7 +363,9 @@ export default {
            today with an honest blank — "you did nothing yesterday" is the
            truthful reading of a day this build never watched. */
         Object.keys(f.xp).forEach(k => { if (s.yst[k] == null) s.yst[k] = 0; if (s.xpDay[k] == null) s.xpDay[k] = s.xp[k] || 0; });
-        ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq', 'deepest'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        ['axeLv', 'pickLv', 'rodLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq', 'deepest'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        /* ver 15: a save from before legendary fish existed has caught none */
+        if (typeof s.legend !== 'object' || s.legend === null) s.legend = {};
         /* ver 14: a save from before the descent existed has never been down
            one, so it starts at the mouth with no shortcut — the honest
            reading, the same one the yesterday counters take above. A run that
@@ -989,6 +1000,23 @@ export default {
       }
       const busy = () => !!swing;
       function facing() { const d = [[0,1],[0,-1],[-1,0],[1,0]][S.dir]; return { x: S.px + d[0], y: S.py + d[1] }; }
+      /* Stand on the first walkable square next to a tile of `glyph`, facing
+         it — the harness's vein()/water() debug hooks below both share this,
+         so the pick's own vein search and the rod's own water search stay
+         one implementation. */
+      function standNear(glyph) {
+        const D = [[0, 1], [0, -1], [-1, 0], [1, 0]];
+        for (let y = 0; y < mapRows(S.map); y++) for (let x = 0; x < mapCols(S.map); x++) {
+          if (tileAt(S.map, x, y) !== glyph) continue;
+          for (let d = 0; d < 4; d++) {
+            const nx = x - D[d][0], ny = y - D[d][1];
+            if (solid(S.map, nx, ny)) continue;
+            S.px = nx; S.py = ny; S.dir = d;
+            return { at: [nx, ny], tile: [x, y] };
+          }
+        }
+        return null;
+      }
       function spend(n) {
         const cost = n + (S.en < 20 ? 1 : 0);               /* tired hands work harder */
         if (S.en < cost) { say(TX('FOR SLITEN. LEGG DEG.', 'TOO TIRED. GO TO BED.')); deny(); return false; }
@@ -1008,17 +1036,55 @@ export default {
           if (c.seed && !c.wet) c.wet = 1;
         });
       }
-      /* what a rare bite turns into, by water */
-      function rareSpecies() { return S.map === 'fjord' ? 'kveite' : 'gullorret'; }
-      function fishSpecies(clean, rare) {
-        if (rare) return rareSpecies();
-        let pool = ['orret', 'laks'];
-        if (S.map === 'fjord') pool = ['torsk', 'makrell'];
-        else if (S.map === 'vidda') pool = ['roye', 'orret'];
-        let goodChance = clean ? 0.6 : 0.28;
-        if (S.map === 'lake' && S.flag.fisk === 'ro') goodChance += 0.1;
-        if (S.map === 'fjord' && S.flag.sea === 'hav') goodChance += 0.12;
-        return Math.random() < goodChance ? pool[1] : pool[0];
+      /* what bites, by water, weather, season and hour — BEK_FISH_WATERS
+         (data.js) is the table, this is the one place that reads it. Called
+         once at the cast (act()'s stang branch), not at landing, so the
+         species — and so its own fight pattern — is known from the strike
+         onward rather than sprung on the player after the reel is already
+         won. */
+      function pickFishSpecies(spotGood, bait) {
+        const water = BEK_FISH_WATERS[S.map] || BEK_FISH_WATERS.lake;
+        const seasonId = BEK_SEASONS[S.season].id;
+        const lw = water.legendWhen;
+        /* a legend only ever bites inside its own season/weather/hour
+           window, and only once a year — S.legend[id] is the day it was
+           last landed, and a year is four BEK_SEASON_DAYS */
+        if (lw && seasonId === lw.season && S.weather === lw.weather &&
+            S.min >= lw.h0 && S.min < lw.h1 &&
+            S.day - (S.legend[water.legend] == null ? -Infinity : S.legend[water.legend]) >= BEK_SEASON_DAYS * 4)
+          return water.legend;
+        const rareChance = 0.1 + (spotGood ? 0.05 : 0) +
+          (bait && bait.weight && bait.weight[water.rare] ? 0.05 : 0);
+        if (Math.random() < rareChance) return water.rare;
+        const weights = water.pool.map(p => {
+          let w = p.w;
+          const wm = water.weather[S.weather]; if (wm && wm[p.id]) w *= wm[p.id];
+          const sm = water.season[seasonId]; if (sm && sm[p.id]) w *= sm[p.id];
+          if (bait && bait.weight && bait.weight[p.id]) w *= bait.weight[p.id];
+          /* the two dialogue-choice leanings (Ingrid's "for the calm",
+             Olav's open sea) — folded in here rather than a second table
+             for two flag-gated conditions */
+          if (S.map === 'lake' && S.flag.fisk === 'ro' && p.id === 'laks') w *= 1.3;
+          if (S.map === 'fjord' && S.flag.sea === 'hav' && p.id === 'makrell') w *= 1.4;
+          return w;
+        });
+        const total = weights.reduce((a, b) => a + b, 0);
+        let r = Math.random() * total;
+        for (let i = 0; i < water.pool.length; i++) { r -= weights[i]; if (r <= 0) return water.pool[i].id; }
+        return water.pool[water.pool.length - 1].id;
+      }
+      /* bait and tackle are consumed on cast, first match in the bag — same
+         "spend from what you're carrying" rule act()'s own `r` (eat) key
+         already uses. Two independent slots: bait shapes the bite itself
+         (BEK_ITEMS[id].bait.bite/.weight), tackle shapes the fight that
+         follows (.widen/.grace) — nothing stops both being held at once. */
+      function pickBait() {
+        for (const id of ['agn_reke', 'agn_mark']) if ((S.bag[id] || 0) > 0) { add(id, -1); return BEK_ITEMS[id].bait; }
+        return null;
+      }
+      function pickTackle() {
+        if ((S.bag.snelle || 0) > 0) { add('snelle', -1); return BEK_ITEMS.snelle.bait; }
+        return null;
       }
       function doorTravel(f) {
         if (S.map === 'lake' && S.built && f.x === 5 && f.y === 4) { S.map = 'lakehouse'; S.px = 11; S.py = 12; S.dir = 1; say(T(BEK_MAPS.lakehouse.title)); return true; }
@@ -1080,10 +1146,17 @@ export default {
              strike frame, rather than racing it: `fish` does not exist until
              the rod has actually gone out. */
           sfx.cast();
-          /* fish lvl1: a fish finds the hook sooner */
-          const waitCut = S.lvl.fish >= 1 ? 0.4 : 0;
+          /* a rising ring under the hook (water.js's own life() feature 5)
+             reads as a better spot, and now is one: shorter wait, better odds */
+          const spotGood = waterVar(S.map, f.x, f.y).feat === 5;
+          const bait = pickBait(), tackle = pickTackle();
+          const sp = pickFishSpecies(spotGood, bait);
+          /* fish lvl1 and a carbon rod (rodLv 2) both find the hook sooner,
+             same as a good spot or bait does */
+          const waitCut = (S.lvl.fish >= 1 ? 0.4 : 0) + (S.rodLv >= 2 ? 0.2 : 0) +
+            (spotGood ? 0.3 : 0) + (bait ? bait.bite || 0 : 0);
           startSwing('stang').then = () => {
-            fish = { phase: 'wait', t: Math.max(0.3, 0.8 - waitCut + Math.random() * 1.6), rare: Math.random() < 0.1 };
+            fish = { phase: 'wait', t: Math.max(0.2, 0.8 - waitCut + Math.random() * 1.6), sp: sp, tackle: tackle };
           };
           return;
         }
@@ -1447,6 +1520,7 @@ export default {
         if (o.tool) S.tools[o.tool] = 1;
         if (o.axeLv) S.axeLv = Math.max(S.axeLv, o.axeLv);
         if (o.pickLv) S.pickLv = Math.max(S.pickLv, o.pickLv);
+        if (o.rodLv) S.rodLv = Math.max(S.rodLv, o.rodLv);
         if (o.kanneLv) S.kanneLv = Math.max(S.kanneLv, o.kanneLv);
         if (o.waterMaxAdd) S.waterMax += o.waterMaxAdd;
         if (o.bagCapAdd) S.bagCap += o.bagCapAdd;
@@ -1719,42 +1793,54 @@ export default {
       wrap.addEventListener('mousedown', () => setTimeout(() => cv.focus(), 0));
       setTimeout(() => cv.focus(), 30);
 
+      /* fishTap only ever hooks the fish now — SPACE held during the fight
+         itself is read continuously, straight off `keys[' ']`, in tickFish
+         below. See "The reel" there for the mechanic. */
       function fishTap() {
-        if (!fish) return;
-        if (fish.phase === 'bite') {
-          const r = fish.rare;
-          fish.phase = 'reel'; fish.pos = 0; fish.dir = 1; fish.hits = 0; fish.miss = 0;
-          /* a rare fish is a much narrower window on a much faster needle,
-             wants one more pull, and forgives one fewer slip */
-          fish.need = r ? 3 : 2;
-          /* fish lvl2: one more slip is forgiven before the line breaks */
-          fish.maxMiss = (r ? 2 : 3) + (S.lvl.fish >= 2 ? 1 : 0);
-          fish.spd = r ? 2.7 : 1.15;
-          /* fish lvl3: the catch window itself is wider — the drawn zone in
-             menus.js reads these same fish.z0/z1, so the widened window is
-             what the player sees as well as what tickFish/fishTap test */
-          const widen = S.lvl.fish >= 3 ? 0.04 : 0;
-          fish.z0 = Math.max(0, (r ? 0.455 : 0.34) - widen);
-          fish.z1 = Math.min(1, (r ? 0.545 : 0.66) + widen);
-          fish.t = r ? 7 : 6;
-          sfx.cast(); return;
+        if (!fish || fish.phase !== 'bite') return;
+        const item = BEK_ITEMS[fish.sp], rare = !!item.rare, legend = !!item.legend;
+        fish.phase = 'reel';
+        /* fish lvl2 and reinforced line both forgive tension sitting outside
+           the safe zone a little longer before it costs the fish; fish lvl3
+           and reinforced line both widen the zone itself — the drawn zone in
+           menus.js reads these same fish.z0/z1, so the widened window is
+           what the player sees as well as what tickFish tests. */
+        const widen = (S.lvl.fish >= 3 ? 0.04 : 0) + (fish.tackle && fish.tackle.widen || 0);
+        const band = legend ? [0.42, 0.58] : rare ? [0.455, 0.545] : [0.34, 0.66];
+        fish.z0 = Math.max(0, band[0] - widen);
+        fish.z1 = Math.min(1, band[1] + widen);
+        fish.pos = (fish.z0 + fish.z1) / 2;
+        fish.prog = 0; fish.overT = 0; fish.underT = 0; fish.ft = 0; fish.jerkT = 0.4;
+        fish.landTime = legend ? 6.5 : rare ? 5 : 3.2;
+        fish.grace = FISH_BREAK_GRACE + (S.lvl.fish >= 2 ? 0.4 : 0) + (fish.tackle && fish.tackle.grace || 0);
+        fish.t = FISH_FIGHT_T;
+        sfx.cast();
+      }
+      /* ---- the reel -------------------------------------------------------
+         Not a needle bouncing for a tap in a zone any more: the fish pulls
+         (BEK_ITEMS[id].pattern — a sinusoidal tug plus a chance of a sudden
+         dart, both species content), holding SPACE reels against it and
+         letting go gives slack, and fish.pos is the tension that results.
+         Too much tension for too long (fish.overT past fish.grace) breaks
+         the line; too little for too long (fish.underT) lets it swim off;
+         staying inside [z0, z1] is what lands it (fish.prog reaching 1).
+         z0/z1 keep the exact rounding contract layout_check.js asserts —
+         only what pos *means* changed, not how the zone is drawn or hit. */
+      /* Both rates comfortably clear every species' tug + amp (data.js's
+         highest is havkonge at 0.46 + 0.12): holding always wins the tug of
+         war and releasing always loses it, on every fish. What separates one
+         species' fight from another is never "can you ever recover" — it is
+         how often (jerk/kick) and how hard (amp/period) you have to. */
+      const FISH_REEL_RATE = 0.85, FISH_EASE_RATE = 0.85, FISH_BREAK_GRACE = 0.7, FISH_FIGHT_T = 18;
+      function landFish() {
+        const sp = fish.sp, item = BEK_ITEMS[sp];
+        if (gainCapped(sp, 1)) {
+          addXp('fish', item.legend ? 8 : item.rare ? 5 : 3);
+          if (item.legend) { S.legend[sp] = S.day; sfx.done(); say(TX('LEGENDARISK FANGST! +1 ', 'LEGENDARY CATCH! +1 ') + iname(sp)); }
+          else if (item.rare) { sfx.done(); say(TX('SJELDEN FANGST! +1 ', 'RARE CATCH! +1 ') + iname(sp)); }
+          else { sfx.catch_(); say('+1 ' + iname(sp)); }
         }
-        if (fish.phase === 'reel') {
-          const inZone = fish.pos > fish.z0 && fish.pos < fish.z1;
-          if (inZone) {
-            fish.hits++; sfx.bite();
-            if (fish.hits >= fish.need) {
-              const sp = fishSpecies(fish.miss === 0, fish.rare);
-              if (gainCapped(sp, 1)) {
-                addXp('fish', fish.rare ? 5 : 3);
-                say('+1 ' + iname(sp));
-                if (fish.rare) { sfx.done(); say(TX('SJELDEN FANGST! +1 ', 'RARE CATCH! +1 ') + iname(sp)); } else sfx.catch_();
-              }
-              fish = null;
-            }
-          }
-          else { fish.miss++; deny(); if (fish.miss >= fish.maxMiss) { say(TX('DEN SLAPP UNNA.', 'IT GOT AWAY.')); fish = null; } }
-        }
+        fish = null;
       }
 
       bSave.addEventListener('click', () => { try { S.lang = BEK_LANG; localStorage.setItem(BEK_SAVE, JSON.stringify(S)); say(T(UI.saved)); sfx.coin(); } catch (e) { say(TX('KUNNE IKKE LAGRE.', 'COULD NOT SAVE.')); } cv.focus(); });
@@ -1843,12 +1929,44 @@ export default {
       }
       function tickFish(dt) {
         if (!fish) return;
-        if (fish.phase === 'wait') { fish.t -= dt; if (fish.t <= 0) { fish.phase = 'bite'; fish.t = fish.rare ? 0.8 : 1.0; if (fish.rare) sfx.rare(); else sfx.bite(); } return; }
+        if (fish.phase === 'wait') {
+          const item = BEK_ITEMS[fish.sp], rare = !!item.rare, legend = !!item.legend;
+          fish.t -= dt;
+          if (fish.t <= 0) {
+            fish.phase = 'bite'; fish.t = legend ? 0.6 : rare ? 0.8 : 1.0;
+            if (legend || rare) sfx.rare(); else sfx.bite();
+          }
+          return;
+        }
         if (fish.phase === 'bite') { fish.t -= dt; if (fish.t <= 0) { fish = null; say(TX('INGET NAPP.', 'NO BITE.')); } return; }
-        if (fish.phase === 'reel') {
-          fish.t -= dt; if (fish.t <= 0) { say(TX('DEN SLAPP UNNA.', 'IT GOT AWAY.')); fish = null; return; }
-          fish.pos += fish.dir * dt * fish.spd;
-          if (fish.pos > 1) { fish.pos = 1; fish.dir = -1; } else if (fish.pos < 0) { fish.pos = 0; fish.dir = 1; }
+        if (fish.phase !== 'reel') return;
+        fish.t -= dt; if (fish.t <= 0) { say(TX('DEN SLAPP UNNA.', 'IT GOT AWAY.')); fish = null; return; }
+        const p = BEK_ITEMS[fish.sp].pattern;
+        fish.ft += dt;
+        const osc = p.amp * Math.sin(2 * Math.PI * fish.ft / p.period);
+        const holding = !!keys[' '];
+        const reelBonus = S.rodLv >= 2 ? 0.12 : 0;
+        const drive = p.tug + osc + (holding ? FISH_REEL_RATE + reelBonus : -(FISH_EASE_RATE + reelBonus));
+        fish.pos = Math.max(0, Math.min(1.2, fish.pos + drive * dt));
+        /* the dart: a per-second chance of a sudden, *instant* jump on top of
+           the continuous pull above — scaling it by dt the way the pull is
+           would make it too small to ever read as a dart */
+        fish.jerkT -= dt;
+        if (fish.jerkT <= 0) {
+          fish.jerkT = 0.3 + Math.random() * 0.6;
+          if (Math.random() < p.jerk) fish.pos = Math.max(0, Math.min(1.2, fish.pos + p.kick));
+        }
+        if (fish.pos >= 1.15) { deny(); say(TX('SNORA RØK.', 'THE LINE BROKE.')); fish = null; return; }
+        if (fish.pos > fish.z1) {
+          fish.overT += dt; fish.underT = 0;
+          if (fish.overT > fish.grace) { deny(); say(TX('SNORA RØK.', 'THE LINE BROKE.')); fish = null; return; }
+        } else if (fish.pos < fish.z0) {
+          fish.underT += dt; fish.overT = 0;
+          if (fish.underT > fish.grace) { deny(); say(TX('DEN SLAPP UNNA.', 'IT GOT AWAY.')); fish = null; return; }
+        } else {
+          fish.overT = 0; fish.underT = 0;
+          fish.prog += dt / fish.landTime;
+          if (fish.prog >= 1) landFish();
         }
       }
 
@@ -2842,6 +2960,7 @@ export default {
         const tl = BEK_TOOLS[S.tool];
         if (tl.id === 'oks') return T({ no: AXE_NAME.no[Math.min(1, S.axeLv - 1)], en: AXE_NAME.en[Math.min(1, S.axeLv - 1)] });
         if (tl.id === 'hakke') { const lv = Math.max(1, S.pickLv); return T({ no: PICK_NAME.no[Math.min(1, lv - 1)], en: PICK_NAME.en[Math.min(1, lv - 1)] }); }
+        if (tl.id === 'stang') { const lv = Math.max(1, S.rodLv); return T({ no: ROD_NAME.no[Math.min(1, lv - 1)], en: ROD_NAME.en[Math.min(1, lv - 1)] }); }
         return T(tl.name);
       }
 
@@ -3171,8 +3290,9 @@ export default {
              which places the menu still offers, not S.disc on its own */
           if (name === 'travel') travel = { list: Object.keys(S.disc).filter(m => BEK_HOME[m]), sel: 0 };
           if (name === 'end') S.ending = 4.2;
-          if (name === 'fish') fish = { phase: 'reel', t: 4, pos: 0.42, dir: 1, spd: 0.7,
-                                        z0: 0.3, z1: 0.5, hits: 1, need: 3, miss: 0, maxMiss: 3, rare: 0 };
+          if (name === 'fish') fish = { phase: 'reel', t: 4, pos: 0.42, sp: 'orret', tackle: null,
+                                        z0: 0.34, z1: 0.66, prog: 0.2, overT: 0, underT: 0, ft: 0, jerkT: 0.4,
+                                        landTime: 3.2, grace: FISH_BREAK_GRACE };
         },
         /* Drive a real conversation from the harness: the same `talkTo` the
            act key calls and the same `dlgAdvance` SPACE calls, so what comes
@@ -3250,20 +3370,9 @@ export default {
            harness can swing at it with the real act(). Same reasoning as
            `mine` above: the pick is what is being tested, not the pathing. */
         vein: kind => {
-          const m = BEK_MAPS[S.map];
-          if (!m) return null;
-          const D = [[0, 1], [0, -1], [-1, 0], [1, 0]];
-          for (let y = 0; y < mapRows(S.map); y++) for (let x = 0; x < mapCols(S.map); x++) {
-            if (tileAt(S.map, x, y) !== kind) continue;
-            for (let d = 0; d < 4; d++) {
-              const nx = x - D[d][0], ny = y - D[d][1];
-              if (solid(S.map, nx, ny)) continue;
-              S.px = nx; S.py = ny; S.dir = d;
-              for (let i = 0; i < BEK_TOOLS.length; i++) if (BEK_TOOLS[i].id === 'hakke') S.tool = i;
-              return { at: [nx, ny], vein: [x, y] };
-            }
-          }
-          return null;
+          const r = standNear(kind);
+          if (r) for (let i = 0; i < BEK_TOOLS.length; i++) if (BEK_TOOLS[i].id === 'hakke') S.tool = i;
+          return r;
         },
         /* Hold a swing at one of its three phases for a frame so the harness
            can photograph it. Nothing in the game calls this; it drives the
@@ -3284,7 +3393,39 @@ export default {
                   : phase === 2 ? sp.wind + sp.hit * 0.4
                   : sp.wind + sp.hit + sp.rec * 0.45);
           return true;
-        }
+        },
+        /* Stand facing a 'W' tile and equip the rod, the same way vein()
+           above stands you facing ore and equips the pick. */
+        water: () => {
+          const r = standNear('W');
+          if (r) for (let i = 0; i < BEK_TOOLS.length; i++) if (BEK_TOOLS[i].id === 'stang') S.tool = i;
+          return r;
+        },
+        /* Drive a whole cast, from the harness, on synthetic frames rather
+           than real wall time: act() casts (water() above must have stood
+           you facing water first), then wait/bite/reel are stepped with
+           `holdFn(fish)` deciding whether SPACE is held for each tick, until
+           the fish resolves (landed, broke the line or swam off) or a step
+           ceiling is hit. Nothing in the game calls this; it drives the same
+           act()/fishTap()/tickFish() the keyboard does. */
+        fishRun: (holdFn, opts) => {
+          opts = opts || {};
+          const dt = opts.dt || 1 / 20, maxSteps = opts.maxSteps || 4000;
+          act();
+          if (!fish && !swing) return { steps: 0, result: 'no-cast' };
+          for (let i = 0; i < maxSteps; i++) {
+            if (swing) { tickSwing(dt); continue; }
+            if (!fish) return { steps: i, result: 'resolved' };
+            if (fish.phase === 'bite') fishTap();
+            else if (fish.phase === 'reel') keys[' '] = !!holdFn(fish);
+            tickFish(dt);
+            if (!fish) return { steps: i, result: 'resolved' };
+          }
+          keys[' '] = false;
+          return { steps: maxSteps, result: 'timeout' };
+        },
+        /* A plain snapshot of the fields a fishing test cares about. */
+        state: () => JSON.parse(JSON.stringify({ bag: S.bag, legend: S.legend, xp: S.xp, kr: S.kr }))
       };
       window.__bekDebug = dbg;
 

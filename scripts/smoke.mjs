@@ -762,7 +762,7 @@ function caseDescent() {
     if (out.deepest !== 3) problems.push('the shortcut was not kept: deepest ' + out.deepest);
     if (Object.keys(out.disc).some(k => k.indexOf('synk') === 0)) problems.push('a floor leaked into S.disc');
     if (Object.keys(out.mined).some(k => k.indexOf('synk') === 0)) problems.push('a floor leaked into S.mined');
-    if (out.ver !== 14) problems.push('a fresh save is ver ' + out.ver);
+    if (out.ver !== 15) problems.push('a fresh save is ver ' + out.ver);
   } catch (e) { report(NAME, false, 'threw driving the descent: ' + (e && e.stack || e)); return; }
 
   report(NAME, problems.length === 0, problems.join('; '));

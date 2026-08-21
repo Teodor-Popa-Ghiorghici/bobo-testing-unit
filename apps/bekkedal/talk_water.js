@@ -41,6 +41,14 @@ export const WATER_TALK = {
         lines: ['This year is short. Two hundred and nine marks by midsummer.',
                 { no: 'Det burde vært over tre hundre. Det har vært det hvert år.', en: 'It should be over three hundred. It has been, every year.' },
                 'I have stopped fishing the shallows. It has not helped.'] },
+      /* the rod's own tier, same shape as Håkon's STÅLØKS node — offered once
+         she trusts you with a line at all and stops the moment S.rodLv is 2 */
+      { id: 'i4b', when: S => S.tools.stang && S.fr.ingrid >= 5 && S.rodLv < 2,
+        lines: [{ no: 'That old stang bends too easy for anything with weight. I have a KARBONSTANG. 700 kr.',
+                   en: 'That old rod bends too easy for anything with weight. I have a CARBON ROD. 700 kr.' }],
+        buy: { label: { no: 'KARBONSTANG — 700 kr', en: 'CARBON ROD — 700 kr' }, kr: 700, rodLv: 2,
+               ok: ['Stiffer in the hand. You will feel the difference on the next big one.'],
+               no: ['700 kr. It will still be here.'] } },
       { id: 'i5', when: S => S.fr.ingrid >= 8,
         lines: [{ no: 'Røye run in the cold tarn up on the vidda. Colder, sweeter.', en: 'Char run in the cold tarn up on the plateau. Colder, sweeter.' }] },
       { id: 'ia4', when: S => S.fr.ingrid >= 8,

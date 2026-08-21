@@ -74,12 +74,18 @@ export const TIP_COL2 = CELL_SM * 14;
    FISH_TRACK_W multiplied by those same figures, so the two agree by
    construction and the zone lands where the player sees it. */
 export const FISH_TRACK_W = CELL_SM * 18, FISH_TRACK_H = GLYPH_SM / 2;
+/* the reel progress bar — how far the fish is landed — sits under the
+   tension track in the same box, same width, so "how much tension" and
+   "how much left to land it" read as one instrument rather than two. */
+export const FISH_GAP = BEK_ART_SCALE * 2;
+export const FISH_PROG_H = FISH_TRACK_H;
 export const FISH_W = FISH_TRACK_W + PAD_SM * 2;
-export const FISH_H = PAD_SM * 2 + LINE_SM + FISH_TRACK_H + LINE_SM;
+export const FISH_H = PAD_SM * 2 + LINE_SM + FISH_TRACK_H + FISH_GAP + FISH_PROG_H + FISH_GAP;
 export const FISH_X = Math.round((BEK_W - FISH_W) / 2);
 export const FISH_Y = BEK_VIEW_Y + Math.round((BEK_VIEW_H - FISH_H) / 2);
 export const FISH_TRACK_X = FISH_X + PAD_SM;
 export const FISH_TRACK_Y = FISH_Y + PAD_SM + LINE_SM;
+export const FISH_PROG_Y = FISH_TRACK_Y + FISH_TRACK_H + FISH_GAP;
 export const FISH_NEEDLE_W = BEK_ART_SCALE * 2;
 export const FISH_NEEDLE_OVER = BEK_ART_SCALE * 2;
 

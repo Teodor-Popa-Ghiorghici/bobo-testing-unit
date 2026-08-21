@@ -142,8 +142,12 @@ pass('portrait column and name plate', L.PORT_SRC_W + 'x' + L.PORT_SRC_H + ' art
 
 /* ---- 2. the fishing reel zone -------------------------------------------- */
 console.log('\n-- fishing reel zone --');
-/* the two difficulty bands tickFish actually uses */
-const BANDS = [[0.455, 0.545], [0.34, 0.66]];
+/* the safe-tension bands fishTap actually sets (common, rare, legend), each
+   also sampled at its widest — fish lvl3 (+0.04) and reinforced line
+   (+0.03) stacked, the most a zone can ever widen by */
+const BASE_BANDS = [[0.34, 0.66], [0.455, 0.545], [0.42, 0.58]];
+const WIDEN = [0, 0.07];
+const BANDS = BASE_BANDS.flatMap(([z0, z1]) => WIDEN.map(w => [Math.max(0, z0 - w), Math.min(1, z1 + w)]));
 let drift = 0, worst = null;
 for (const [z0, z1] of BANDS) {
   const zx = Math.round(L.FISH_TRACK_W * z0);
@@ -339,7 +343,8 @@ ok(w('> ' + widest(both(mineTitle(MINE_MAX))), F.FONT_SM) <= L.TRAVEL_TW,
 ok(w(longestItem, F.FONT_SM) <= L.TIP_W - L.PAD_SM * 2, 'crop tooltip holds the longest crop name');
 ok(L.TIP_COL2 + w('WATERED', F.FONT_SM) <= L.TIP_W - L.PAD_SM * 2, 'tooltip second column fits');
 
-const fishLabels = ['DRA! SPACE x9', 'REEL! SPACE x9', 'SJELDEN! NÅ!', 'RARE! NOW!', 'VENTER...', 'WAITING...'];
+const fishLabels = ['LEGENDARISK! NÅ!', 'LEGENDARY! NOW!', 'SJELDEN! NÅ!', 'RARE! NOW!', 'NÅ! SPACE', 'NOW! SPACE',
+                     'DRA INN!', 'REEL IN!', 'SLIPP!', 'EASE OFF!', 'HOLD.', 'VENTER...', 'WAITING...'];
 ok(fishLabels.every(l => w(l, F.FONT_SM) <= L.FISH_TRACK_W), 'every fishing label fits the box',
    'widest ' + w(widest(fishLabels), F.FONT_SM) + 'px of ' + L.FISH_TRACK_W);
 
