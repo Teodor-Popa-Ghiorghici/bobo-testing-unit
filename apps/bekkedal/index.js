@@ -14,6 +14,7 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS,
 import { hLowV, patchAmt, mapSalt, groundVar, rockVar, pathVar, waterVar, edgeVar,
          soilVar, objVar, seamVar, treeVar, LOW, PATCH, JIT } from './noise.js';
 import { seasonIndexOf, festivalOf, cropInSeason, rollWeather } from './seasons.js';
+import { positionFor, walkStep } from './schedule.js';
 import { createShore } from './shore.js';
 import { createWater } from './water.js';
 import { createRock, oreKind } from './rock.js';
@@ -443,7 +444,19 @@ export default {
       const dawn  = () => S.min >= 5 * 60 && S.min < 6 * 60 + 30;
       const dusk  = () => S.min >= 18 * 60 && S.min < 20 * 60;
       const night = () => S.min >= 20 * 60 || S.min < 5 * 60;
-      const npcsHere = () => BEK_NPCS.filter(n => n.map === S.map && (!n.from || S.day >= n.from));
+      /* An NPC with `posts` (schedule.js) is placed by the clock rather than
+         by their own static map/x/y — those stay their fallback (bjorn, who
+         has no schedule, and every debug hook that just wants an NPC
+         object). Object.assign layers the live map/x/y/walking/dir over a
+         copy of the static entry, never mutating BEK_NPCS itself, and the
+         S.map filter runs after, on the *computed* map — an NPC mid-walk
+         between two posts on different maps would otherwise still show up
+         here on the map they started from. */
+      const npcCtx = () => ({ weather: S.weather, flag: S.flag, act2Unlocked: S.act2Unlocked });
+      const npcsHere = () => BEK_NPCS
+        .filter(n => !n.from || S.day >= n.from)
+        .map(n => Object.assign({}, n, n.posts ? positionFor(n, S.day, S.min, npcCtx()) : { map: n.map, x: n.x, y: n.y, walking: false, dir: 0 }))
+        .filter(n => n.map === S.map);
       /* Håkon's build and annex lines are spoken by him but reached through
          the lot sign and the menu funnel rather than through talkTo(), so
          they have no `npc` to hand. The dialogue panel names its speaker on
@@ -2541,7 +2554,14 @@ export default {
           }
           const n = a.n;
           if (n.bear) { const sway = Math.floor(t * 1.2) % 2; bear(n.x * BEK_T_SRC + 2 + sway, n.y * BEK_T_SRC + 1, sway * 2); }
-          else person(n.x * BEK_T_SRC + 4, n.y * BEK_T_SRC + 2, 0, Math.floor(t) % 2 ? 0 : 2, n.hair, n.shirt, n.pants);
+          /* walking between two posts (schedule.js) gets the real walk
+             cycle, off the game clock rather than off `t` — a schedule is a
+             pure function of the day and the minute, so its own animation
+             phase has to be too, or two frames of the same minute (a paused
+             game, a replayed save) would show two different poses. Standing
+             still keeps the slow idle bob every NPC always had. */
+          else person(n.x * BEK_T_SRC + 4, n.y * BEK_T_SRC + 2, n.walking ? n.dir : 0,
+                       n.walking ? walkStep(S.min) : (Math.floor(t) % 2 ? 0 : 2), n.hair, n.shirt, n.pants);
         });
 
         /* the chips, the dust and the spray, in front of everything in the

@@ -22,6 +22,9 @@ crafting, and Act II.
   `houseTierAvailable`, `barnSlots`), pulled out of `index.js`'s closures so
   `act2_check.js` reads the exact numbers the game does. See **Act II**
   below.
+- `schedule.js` — where every NPC is, derived from their own `posts`
+  (`BEK_NPCS[].posts`, `data.js`) plus the day, the minute, the weather and
+  the story flags. See **NPC schedules** below.
 
 ## Checks
 
@@ -75,6 +78,21 @@ crafting, and Act II.
   `houseTierCost()`, `BEK_LOT_COST`, `BEK_QUEST_TEMPLATES`' `act2` entries,
   `BEK_BARN_PLOT2`/`BEK_BARN_SLOTS2`, `BEK_DECOR.lakehouse_t2`, or any
   `BEK_TALK` chat line gated on `S.act2Unlocked`.
+- `node apps/bekkedal/schedule_check.js` — every NPC's schedule. Asserts
+  every post any NPC owns is a real map and a tile you can stand on; that
+  each NPC's own *default* posts (the ones with no `weather`/`season`/
+  `flag` of their own) together cover all 1440 minutes of a day exactly
+  once, which is what guarantees `activePost()` never has to fall back to
+  "whichever post happens to be last"; then, across a simulated year
+  sampled every 30 minutes, both with and without `S.flag.barn`/
+  `S.act2Unlocked` and across all three weather states, that every NPC
+  resolves to a walkable tile on a real map and that no two of the eight
+  ever share one; that Astrid, Sigrid and Lars stay on their own home map
+  through the hours their own dialogue states (Sigrid's meaning either the
+  setra or the farm, per **NPC schedules**' winter override below); and
+  that every season's festival day gathers all eight onto the festival's
+  own map at eight distinct tiles. Run it after touching `BEK_NPCS[].posts`
+  or `schedule.js`.
 
 ## Quests and the repeatable board
 
@@ -182,6 +200,91 @@ asked for this layer:
   flag/friendship-gated chat line in that file already uses.
 
 `season_check.js` is the check for all of it — see **Checks** above.
+
+## NPC schedules
+
+The eight who talk used to stand on one fixed tile forever, which the app's
+own doctrine defended on the grounds that a shopkeeper who wanders is a
+shopkeeper you cannot find — a real concern, but eight statues was the
+clearest signal in the whole game that nothing was alive. `schedule.js`
+keeps the concern and drops the statues: every NPC has a small, named set of
+**posts** (`BEK_NPCS[].posts`, `data.js`, two to four each) — a map, a tile,
+and the hours they hold it — and is always either standing at one of them or
+visibly walking between two, never anywhere else. A shopkeeper's stated shop
+hours are one of their posts, stated in their own dialogue (Astrid's,
+Sigrid's and Lars's `chat` entries), so "where do I find them" always has an
+answer a player can act on rather than a memorised map coordinate.
+
+Same convention as `seasons.js`/`quests.js`: `schedule.js` is pure functions
+of `(npc, day, minute, ctx)` — nothing seeded, nothing saved, nothing that
+mutates `npc` or `ctx`, so `schedule_check.js` can exercise a full simulated
+year of it without mounting the app. `index.js`'s `npcsHere()` is the only
+caller in the running game: it calls `positionFor()` once per NPC per frame
+and reads the result straight off, the same way it already reads
+`seasonIndexOf()`/`festivalOf()` fresh every `newDay()` rather than storing
+anything that could drift.
+
+**A post is content, and it is graded like any other.** Each one is
+`{ id, map, x, y, from, to, weather?, season?, flag? }`; `from`/`to` are
+minutes-of-day (`from > to` wraps past midnight, the same convention
+`index.js`'s own `dawn()`/`dusk()`/`night()` windows already use). A post
+with none of `weather`/`season`/`flag` is a **default** — eligible whenever
+the hour matches, and every NPC's defaults alone must cover all 1440
+minutes with no gap and no overlap, which is what `schedule_check.js`'s
+coverage pass asserts directly rather than trusting the arithmetic. A post
+naming one of the three is an **override**, eligible only when that
+condition also holds, and checked ahead of the defaults in a fixed order —
+`activePost()`'s own `GROUPS`: festival first, then season, then weather,
+then a story flag, then whichever default the hour names. An override's own
+window is always a subset of the default window it stands in for; it
+replaces that window, it never opens a new one, which is the whole reason a
+default-only coverage check is sufficient to guarantee the schedule always
+resolves.
+
+**What varies a schedule, and why the order is what it is.** Weather moves
+an outdoor character in under their own roof — Astrid's `shop_rain` and
+Marit's `field_rain`, both the same tile as their own `home` post, both
+gated `weather: 'regn'`. Season can replace a whole day's routine rather
+than one window of it: Sigrid's `winter_shop`/`winter_home` are two posts,
+gated `season: 'vinter'`, that between them already cover the full day the
+same way her ordinary `dairy`/`home` posts do — "down in the valley in
+winter" is a place, not an hour, so both of her posts move together. A
+story flag can hand an NPC a post the story has not earned yet: Håkon's
+`pen` post (`flag: 'barn'`) only exists on the farm, standing in for his
+`work` post the moment `S.flag.barn` is set, and never before. Season sits
+ahead of weather in `GROUPS` on purpose — Sigrid carries no weather post of
+her own, but if she ever did, a rainy day in winter must not momentarily
+pull her back to the setra just because weather is checked first; season
+having already claimed the whole day for winter is what stops that.
+Festival sits ahead of everything: on the day `BEK_FESTIVALS` names, every
+NPC's `festival` post — eight distinct tiles down the town square's own
+plaza row — wins regardless of what weather, season or flag would otherwise
+have chosen, which is the operational meaning of "a festival is everyone
+converging".
+
+**Walking is real between two posts on the same map, and a snap between two
+that are not.** `positionFor()` looks at the post one minute before the
+current one's window opened (`prevPostOf()`, under the same day and `ctx` —
+weather and season never change mid-day, so this is stable) and, if that
+predecessor sits on the *same* map, walks a short BFS path between the two
+tiles (`BEK_SOLID`-aware, a door knocked on rather than walked through,
+memoised per post-pair since two posts never move) at a fixed pace, driving
+`actors.js`'s real `person()` walk cycle off `walkStep()` — a phase derived
+from the minute clock alone, never a frame timer, so the same instant always
+draws the same pose. A change of *map* — a festival, or a story flag opening
+one on a different map entirely — is never interpolated: it lands the
+instant its window opens, before the player is likely to be watching every
+one of the eight at once, the same way the player's own bed teleports them
+back to the farm at `newDay()` without a walk.
+
+**Nobody stands on anybody, and nobody stands in a wall.** Every post is
+checked exactly the way a tile the player can stand on is (`BEK_SOLID`, and
+`'D'` a door rather than a floor); `schedule_check.js`'s year walk samples
+every hour of a simulated year, every weather, both the flagged and
+unflagged story state, and asserts no two of the eight ever resolve to the
+same tile at the same instant — the two-characters-share-a-tile bug this
+layer replaced is the operational failure that check exists to catch again
+if it ever comes back.
 
 ## Crafting and the chest
 

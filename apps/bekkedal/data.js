@@ -614,28 +614,100 @@ export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJK ';
    highlight that is not their own material.
 
    Whatever is left out falls back to the rig's own middle, so a ninth
-   character costs a row here and nothing else. */
+   character costs a row here and nothing else.
+
+   `map`/`x`/`y` stay the tile each of the eight always used to stand on —
+   still real, still checked by world_check.js, and still what every save
+   before this layer, and every debug hook that just wants "an NPC to talk
+   to", can keep reading. It is one of that character's own `posts` now
+   rather than their only tile: schedule.js's positionFor() is what actually
+   places them, hour to hour, and `posts` is its own content, checked in
+   full by schedule_check.js. See schedule.js's own header for the shape of
+   a post and how the four things that can override an hour (weather,
+   season, a festival, a story flag) are declared. */
 export const BEK_NPCS = [
   { id: 'astrid', n: 'ASTRID', map: 'town',  x: 9,  y: 11, hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620,
-    face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 0 } },
+    face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 0 },
+    /* the store's counter, out front, is her post from 08:00 to 20:00; a
+       rainy day keeps her at her own door instead, and she is home the rest
+       of the night. BEK_TALK.astrid's own chat states the hours. */
+    posts: [
+      { id: 'shop',      map: 'town', x: 13, y: 11, from: 480,  to: 1200 },
+      { id: 'shop_rain', map: 'town', x: 9,  y: 11, from: 480,  to: 1200, weather: 'regn' },
+      { id: 'home',      map: 'town', x: 9,  y: 11, from: 1200, to: 480  },
+      { id: 'festival',  map: 'town', x: 8,  y: 14, from: 600,  to: 1320, festival: true }
+    ] },
   { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 32, y: 24, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360,
-    face: { skin: 'tan',  cut: 'crop',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 2, hat: 0 } },
+    face: { skin: 'tan',  cut: 'crop',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 2, hat: 0 },
+    /* his framing site by the house, 07:00 to 20:00, home the rest of the
+       night — and once the pen stands (S.flag.barn), that is the work
+       those same hours mean instead, on the farm rather than in the town. */
+    posts: [
+      { id: 'work',     map: 'town', x: 28, y: 24, from: 420,  to: 1200 },
+      { id: 'pen',      map: 'farm', x: 7,  y: 17, from: 420,  to: 1200, flag: 'barn' },
+      { id: 'home',     map: 'town', x: 32, y: 24, from: 1200, to: 420  },
+      { id: 'festival', map: 'town', x: 12, y: 14, from: 600,  to: 1320, festival: true }
+    ] },
   { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 11, y: 11, hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700,
-    face: { skin: 'fair', cut: 'long',   beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 0, hat: 0 } },
+    face: { skin: 'fair', cut: 'long',   beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 0, hat: 0 },
+    posts: [
+      { id: 'shore',    map: 'lake', x: 9,  y: 11, from: 420,  to: 1200 },
+      { id: 'home',     map: 'lake', x: 11, y: 11, from: 1200, to: 420  },
+      { id: 'festival', map: 'town', x: 16, y: 14, from: 600,  to: 1320, festival: true }
+    ] },
   { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 12, y: 7,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330,
-    face: { skin: 'tan',  cut: 'short',  beard: 'chin',    brow: 2, iris: WAT[2], jaw: 1,  age: 2, hat: 'cap' } },
+    face: { skin: 'tan',  cut: 'short',  beard: 'chin',    brow: 2, iris: WAT[2], jaw: 1,  age: 2, hat: 'cap' },
+    posts: [
+      { id: 'dock',     map: 'lake', x: 13, y: 8,  from: 420,  to: 1200 },
+      { id: 'home',     map: 'lake', x: 12, y: 7,  from: 1200, to: 420  },
+      { id: 'festival', map: 'town', x: 20, y: 14, from: 600,  to: 1320, festival: true }
+    ] },
   { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 15, y: 9,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660,
-    face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 2, hat: 0 } },
+    face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 2, hat: 0 },
+    /* out among the flowers 08:00 to 19:00; rain keeps her under her own
+       roof instead, same shape as Astrid's shop_rain */
+    posts: [
+      { id: 'field',      map: 'enga', x: 19, y: 9, from: 480,  to: 1140 },
+      { id: 'field_rain', map: 'enga', x: 15, y: 9, from: 480,  to: 1140, weather: 'regn' },
+      { id: 'home',        map: 'enga', x: 15, y: 9, from: 1140, to: 480  },
+      { id: 'festival',    map: 'town', x: 24, y: 14, from: 600, to: 1320, festival: true }
+    ] },
   { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 7,  y: 8,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560,
-    face: { skin: 'fair', cut: 'braids', beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 'kerchief' } },
+    face: { skin: 'fair', cut: 'braids', beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 'kerchief' },
+    /* the dairy at the setra, summer through autumn and into spring — but
+       "down in the valley" is what winter means for her, so `season`
+       replaces both her day and her night post at once rather than only
+       one of them, and the two winter posts between them still cover the
+       full day the way her setra ones do. BEK_TALK.sigrid's chat states
+       the setra hours. */
+    posts: [
+      { id: 'dairy',        map: 'setra', x: 9, y: 8, from: 480,  to: 1200 },
+      { id: 'home',         map: 'setra', x: 7, y: 8, from: 1200, to: 480  },
+      { id: 'winter_shop',  map: 'farm',  x: 5, y: 9, from: 480,  to: 1200, season: 'vinter' },
+      { id: 'winter_home',  map: 'farm',  x: 3, y: 9, from: 1200, to: 480,  season: 'vinter' },
+      { id: 'festival',     map: 'town',  x: 28, y: 14, from: 600, to: 1320, festival: true }
+    ] },
   { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 22, y: 18, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290,
-    face: { skin: 'tan',  cut: 'long',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 1, hat: 0 } },
+    face: { skin: 'tan',  cut: 'long',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 1, hat: 0 },
+    posts: [
+      { id: 'watch',    map: 'vidda', x: 20, y: 18, from: 420,  to: 1200 },
+      { id: 'home',     map: 'vidda', x: 22, y: 18, from: 1200, to: 420  },
+      { id: 'festival', map: 'town',  x: 32, y: 14, from: 600,  to: 1320, festival: true }
+    ] },
   /* Lars stands in the alcove cut beside the adit, never on a corridor. The
      levels driven off the main drift are one tile wide, and a man standing on
      one is a wall; the alcove at (2-3, 9-10) is cut wide enough that he is
      not, and the raise down to the adit runs past him rather than through. */
   { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 9,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420,
-    face: { skin: 'tan',  cut: 'crop',   beard: 'stubble', brow: 2, iris: TIM[1], jaw: 0,  age: 1, hat: 'helm' } },
+    face: { skin: 'tan',  cut: 'crop',   beard: 'stubble', brow: 2, iris: TIM[1], jaw: 0,  age: 1, hat: 'helm' },
+    /* both his posts are the same alcove the comment above is about — the
+       adit does not give him a second wide spot to stand in, so the shift
+       is a couple of tiles rather than a walk down the drift. */
+    posts: [
+      { id: 'shop',     map: 'gruva', x: 2, y: 9,  from: 480,  to: 1200 },
+      { id: 'home',     map: 'gruva', x: 3, y: 10, from: 1200, to: 480  },
+      { id: 'festival', map: 'town',  x: 36, y: 14, from: 600, to: 1320, festival: true }
+    ] },
   { id: 'bjorn',  n: '',       map: 'forest', x: 12, y: 10, bear: true, from: 6 }
 ];
 
@@ -689,6 +761,7 @@ export const BEK_TALK = {
       { t: ['The lantern is for the mine. Lars is down there.'] },
       { t: ['The road runs west to your gate and east to the water.'] },
       { t: ['Everything down here is a walk. Only the setra is a journey.'] },
+      { t: [{ no: 'Åtte til åtte er jeg ved disken. Regner det, finn meg ved døren i stedet.', en: 'Eight to eight I am at the counter. If it rains, find me by the door instead.' }] },
       { mood: 'warm', t: ['You came for the quiet. It is still here.'], if: S => S.flag.why === 'quiet' },
       { mood: 'troubled', t: ['Land is cheap. Company is not.'], if: S => S.flag.why === 'land' },
       { t: ['Sigrid has wool up at the seter, if the vidda calls you.'], if: S => S.disc && S.disc.setra },
@@ -924,6 +997,7 @@ export const BEK_TALK = {
          three hours of track and the walk is the point of it */
       { t: ['Three hours up that track. Nobody drops in by accident.'] },
       { t: ['You have walked it once. Now set a morning aside and go.'] },
+      { t: [{ no: 'Åtte til åtte, meieriet er åpent. Om vinteren finner du meg i dalen i stedet.', en: 'Eight to eight, the dairy is open. Come winter you will find me down in the valley instead.' }] },
       { mood: 'troubled', t: ['You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva },
       { t: [{ no: 'Håkon fences it, I stock it. Geit or høne, your pen.', en: 'Håkon fences it, I stock it. Goat or chicken, your pen.' }],
         if: S => S.flag.barn },
@@ -987,6 +1061,7 @@ export const BEK_TALK = {
     chat: [
       { t: ['Mm. Deeper is darker. Darker is richer.'] },
       { t: [{ no: 'Kobber sells well in town. Sølv sells better anywhere.', en: 'Copper sells well in town. Silver sells better anywhere.' }] },
+      { t: [{ no: 'Åtte til åtte jeg er ved gruveåpningen. Etter det er jeg lenger inne, og sover.', en: 'Eight to eight I am at the adit. After that I am further in, asleep.' }] },
       { t: [{ no: 'The rich veins glitter. You need steel for those.', en: 'The rich veins glitter. You need steel for those.' }], if: S => S.pickLv < 2 },
       { mood: 'warm', t: ['Steel in your hands now. The whole mountain is yours.'], if: S => S.pickLv >= 2 },
       { t: [{ no: 'De sier huset ditt står. Halve steinen bar du ut herfra selv.', en: 'They tell me your house stands. Half the stone you carried out of here yourself.' }],
