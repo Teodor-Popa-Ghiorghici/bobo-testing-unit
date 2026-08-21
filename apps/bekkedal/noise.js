@@ -183,7 +183,22 @@ const R_WATER = [
   F('sw', 0, 5),                                 /* how high the swell sits */
   F('ax', 1, JIT), F('ay', 2, JIT),              /* two ripple bands        */
   F('bx', 3, JIT), F('by', 4, JIT),
-  F('foam', 5, 5), F('glint', 6, 7)
+  F('foam', 5, 5), F('glint', 6, 7),
+  F('reflOn', 7, 3),                             /* whether this tile carries a broken reflection */
+  F('reflX', 8, JIT), F('reflW', 9, 5),          /* where along the shore it sits, how wide     */
+  F('feat', 10, 8),                              /* 0-4 nothing, 5 a rising fish, 6 weed, 7 a bird */
+  F('fx', 11, JIT), F('fy', 12, JIT)             /* where that feature sits in the tile          */
+];
+
+/* The wave's own axis, not a grid square: one crest height per step along
+   whichever direction the swell travels, so a lake's surface moves as one
+   continuous swell rather than as forty tiles each rolling on their own. `dir`
+   is only ever read at i=0 — it is a per-map constant, not a position — and it
+   is a declared channel of this same recipe rather than a second one so there
+   is exactly one place `tile_check.js` has to know about the wave. */
+const R_WAVE = [
+  F('h', 0, 9),                                  /* the crest's own irregularity  */
+  F('dir', 1, 2)                                 /* which axis the swell runs along */
 ];
 
 const R_EDGE = [
@@ -244,7 +259,7 @@ const R_OBJ = {
 };
 
 const GROUND_BASE = 0, ROCK_BASE = 16, PATH_BASE = 40, WATER_BASE = 56,
-      EDGE_BASE = 68, SOIL_BASE = 76, SEAM_BASE = 84, TREE_BASE = 96;
+      EDGE_BASE = 72, SOIL_BASE = 80, SEAM_BASE = 84, WAVE_BASE = 88, TREE_BASE = 96;
 
 /* ---- reading a recipe ---------------------------------------------------- */
 function roll(recipe, base, mapId, x, y) {
@@ -260,6 +275,7 @@ export const edgeVar = (mapId, x, y) => roll(R_EDGE, EDGE_BASE, mapId, x, y);
 export const soilVar = (mapId, x, y) => roll(R_SOIL, SOIL_BASE, mapId, x, y);
 export const objVar = (c, mapId, x, y) => (R_OBJ[c] ? roll(R_OBJ[c], objBase(c), mapId, x, y) : {});
 export const seamVar = (mapId, i) => roll(R_SEAM, SEAM_BASE, mapId, i, 0);
+export const waveVar = (mapId, i) => roll(R_WAVE, WAVE_BASE, mapId, i, 0);
 export const treeVar = (mapId, i, layer) => roll(R_TREE, TREE_BASE, mapId, i, layer);
 
 /* ---- the tuple the checks compare ----------------------------------------
@@ -294,6 +310,7 @@ export function channels() {
   add('edge', R_EDGE, EDGE_BASE);
   add('soil', R_SOIL, SOIL_BASE);
   add('seam', R_SEAM, SEAM_BASE);
+  add('wave', R_WAVE, WAVE_BASE);
   add('tree', R_TREE, TREE_BASE);
   Object.keys(R_OBJ).forEach(c => add('obj[' + c + ']', R_OBJ[c], objBase(c)));
   return out;

@@ -127,6 +127,17 @@ export const FEATURES = {
   PICKABLE:   { on: GRASS[2], cols: [WAT[4], WAR[4], WAR[2], SNO[1]] },
   WATER_SUN:  { on: WAT[1],   cols: [WAT[5], SNO[1]] },
   FOAM:       { on: WAT[3],   cols: [SNO[1], WAT[5]] },
+  /* Anything solid at the waterline throws a broken reflection down into the
+     shallows — dark, because it is a silhouette and not a second light
+     source, on the shelf just past the shore where the depth ramp is still
+     shallow enough for it to read (`WAT[2]`, not the darker open-water base). */
+  WATER_REFLECT: { on: WAT[2], cols: [STO[0], ATMO[0]] },
+  /* the rings a fish rising leaves behind, and the catch of light on the crest */
+  WATER_RING: { on: WAT[2],   cols: [SNO[1], WAT[4]] },
+  /* weed, drifting a little under the surface rather than lying on top of it */
+  WATER_WEED: { on: WAT[1],   cols: [CON[3], CON[2]] },
+  /* a bird that has landed on the water, riding the swell */
+  WATER_BIRD: { on: WAT[1],   cols: [SNO[1], STO[3]] },
   ORE_GLINT:  { on: STO[2],   cols: [ORE[0], ORE[1], SNO[1], SNO[0]] },
   /* The three metals, each as matrix-shadow / body / lit face / catch of
      light, on the darkened matrix a vein sits in. Declared here rather than
