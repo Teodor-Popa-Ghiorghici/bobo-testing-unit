@@ -35,6 +35,12 @@ const offerLabels = (() => {
 
 /* ---- chrome units -------------------------------------------------------- */
 export const BORDER  = BEK_ART_SCALE;               /* panel edge thickness     */
+/* the material panels' own frame — the board, the bag, the counter, the
+   workbench, the sign (menus_chrome.js) — three borders wide and chosen to
+   sit inside PAD_SM/PAD_LG, so none of those panels' interior text moved
+   when they stopped being panel()'s flat black rectangle. panel() itself
+   (the HUD, the tooltip, the fishing gauge, the dialogue box) keeps BORDER. */
+export const PANEL_FRAME = BORDER * 3;
 export const CELL_SM = FONT_ADV * FONT_SM;          /* one small character cell */
 export const CELL_LG = FONT_ADV * FONT_LG;          /* one large character cell */
 export const LINE_SM = FONT_LINE * FONT_SM;         /* one small text line      */
@@ -181,6 +187,15 @@ export const QUEST_X = Math.round((BEK_W - QUEST_W) / 2);
 export const QUEST_Y = Math.round((BEK_H - QUEST_H) / 2);
 export const QUEST_STATUS_DX = QUEST_W - PAD_SM * 2 - CELL_SM * 10;
 export const QUEST_TW = QUEST_STATUS_DX - CELL_SM;      /* room before the status column */
+/* one pinned notice per row (menus_chrome.js's `note()`), sized to sit inside
+   the board's own frame with room to spare either side of the text, and
+   short of QUEST_ENTRY by QUEST_NOTE_GAP so the timber shows between two
+   notices instead of them tiling edge to edge. */
+export const QUEST_NOTE_X = QUEST_X + PANEL_FRAME + BORDER;
+export const QUEST_NOTE_W = QUEST_W - (PANEL_FRAME + BORDER) * 2;
+export const QUEST_NOTE_GAP = BORDER * 4;
+export const QUEST_NOTE_H = QUEST_ENTRY - QUEST_NOTE_GAP;
+export const QUEST_NOTE_INSET = BORDER * 2;             /* how far above the row's own text the note (and its pin) starts */
 
 /* ---- the travel menu ----------------------------------------------------- */
 export const TRAVEL_W = CELL_SM * 34;

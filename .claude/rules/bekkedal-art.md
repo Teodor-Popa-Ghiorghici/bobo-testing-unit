@@ -73,6 +73,9 @@ This file carries the full art/rendering doctrine for the siblings above.
   of it draws after the LUT goes back to daylight.
 - `menus_talk.js` — the two panels a *conversation* puts up, split off for the
   300-line rule. See **The faces** below.
+- `menus_chrome.js` — the board, the bag, the shop/workshop counters, the
+  travel sign and the sleep card's own materials, split off `menus.js` the
+  same way. See **Where the palette does not reach** above.
 - `music.js` — five tunes and the crossfading scheduler that rotates them.
 - `ambience.js` — a bed per map, weather and the hour layered over it,
   positional hearth crackle, and material footsteps. See **Ambience** below.
@@ -413,10 +416,17 @@ not build something that assumes they do.
 
 `BEK_ITEMS[].col` and `drawIcon` are still VGA16 by choice. Item icons are
 menu chrome that happens to also appear in the world as a dropped pickup,
-and a pickup is supposed to pop. `panel`, `text` and `drawHud` are chrome
-too. Everything in the playfield — ground, tiles, buildings, furniture,
-crops, people, animals, weather and the ending painting — comes off the
-ramps.
+and a pickup is supposed to pop. `text` is chrome too, and so is `panel`
+itself — but `panel` now draws only the HUD, the crop tooltip, the fishing
+gauge and the dialogue/offer boxes (`menus_talk.js`). The board, the bag,
+the shop and workshop counters, the travel sign and the sleep card are
+furniture in the room the game is set in, not the room itself, and draw
+through the ramps via `menus_chrome.js`'s `board`/`note`/`cloth`/`counter`/
+`workbench`/`sign`/`card` instead — still chrome (they draw after
+`useLut(DAY_CSS, 'day')`, same as everything else in this section), just no
+longer flat VGA16. Everything in the playfield — ground, tiles, buildings,
+furniture, crops, people, animals, weather and the ending painting — comes
+off the ramps too, and always has.
 
 ## The shore
 

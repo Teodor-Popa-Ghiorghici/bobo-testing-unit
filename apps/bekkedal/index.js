@@ -43,7 +43,7 @@ import { BORDER, CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
          FISH_TRACK_W, FISH_TRACK_H, FISH_W, FISH_H, FISH_X, FISH_Y,
          FISH_TRACK_X, FISH_TRACK_Y, FISH_NEEDLE_W, FISH_NEEDLE_OVER,
          DLG_BODY_LINES, DLG_W, DLG_H, DLG_X, DLG_Y, DLG_TX, DLG_TW,
-         SLEEP_W, SLEEP_H, SLEEP_X, SLEEP_Y, OFFER_W, OFFER_H, OFFER_X, OFFER_Y,
+         OFFER_W, OFFER_H, OFFER_X, OFFER_Y,
          SHOP_ROWS, SHOP_ROW, SHOP_W, SHOP_H, SHOP_X, SHOP_Y, SHOP_COL_W, SHOP_NAME_DX, SHOP_PRICE_DX,
          BAG_COLS, BAG_ROWS, BAG_CAP, BAG_ROW, BAG_W, BAG_H, BAG_X, BAG_Y, BAG_CW, BAG_NAME_DX, BAG_QTY_DX,
          QUEST_ENTRY, QUEST_W, QUEST_H, QUEST_X, QUEST_Y, QUEST_STATUS_DX,
@@ -2628,11 +2628,7 @@ export default {
         if (mode === 'bag') drawBag();
         if (mode === 'quest') drawQuests();
         if (mode === 'travel') drawTravel();
-        if (mode === 'sleep') {
-          panel(SLEEP_X, SLEEP_Y, SLEEP_W, SLEEP_H, 15);
-          text(T(UI.sleep), SLEEP_X + PAD_LG, SLEEP_Y + PAD_LG, 15, FONT_LG);
-          text(T(UI.goodnight), SLEEP_X + PAD_LG, SLEEP_Y + PAD_LG + LINE_LG, 7, FONT_LG);
-        }
+        if (mode === 'sleep') drawSleep();
         if (mode === 'end') drawEnd(t);
       }
 
@@ -2644,7 +2640,7 @@ export default {
          the travel list and the ending painting. All chrome, so all of it
          draws after the LUT goes back to daylight. */
       const { drawFish, drawTalk, drawOffer, drawShop, drawCraft, drawBag, drawQuests, drawTravel,
-              drawEnd, toolName } = createMenus({
+              drawSleep, drawEnd, toolName } = createMenus({
         S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop, craft: () => craft,
         travel: () => travel, offer: () => offer, qScroll: () => qScroll,
         T: T, TX: TX, iname: iname, price: price, houseCost: () => houseCost(S),
