@@ -165,6 +165,7 @@ export function createMenus(A, GG, C) {
      on one page and you stop having to guess what fell off the bottom. */
   function drawBag() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
+      const bagCur = A.bagCur(), giftSel = A.giftSel();
     cloth(BAG_X, BAG_Y, BAG_W, BAG_H);
     const bx = BAG_X + PAD_SM;
     let y = BAG_Y + PAD_SM;
@@ -176,8 +177,14 @@ export function createMenus(A, GG, C) {
       const col = i % BAG_COLS, row = Math.floor(i / BAG_COLS);
       const cx = bx + col * BAG_CW, cy = y + row * BAG_ROW;
       const tyy = cy + Math.round((ICON_PX - GLYPH_SM) / 2);
+      /* GIFTING: the cursor is a highlight bar behind the row — the same
+         trick menus_talk.js's optRow() inverts an answer row with — never a
+         text prefix, since the name/qty columns are widths layout_check.js
+         measures without one. The held-out item keeps its own colour once
+         the cursor moves off it. */
+      if (i === bagCur) { GG().fillStyle = C(SAN[1]); GG().fillRect(cx - 1, cy - 1, BAG_CW - 2, BAG_ROW - 2); }
       icon(id, cx, cy);
-      text(iname(id), cx + BAG_NAME_DX, tyy, 15, FONT_SM);
+      text(iname(id), cx + BAG_NAME_DX, tyy, id === giftSel ? 14 : (i === bagCur ? 15 : 11), FONT_SM);
       text('x' + S.bag[id], cx + BAG_QTY_DX, tyy, 11, FONT_SM);
     });
     let fy = y + BAG_ROW * BAG_ROWS;

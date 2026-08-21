@@ -58,7 +58,7 @@ function permissiveS(act2) {
     flag: { why: 'quiet', build: 'skog', lot: 1, barn: 1, barn2: 0, plot2: 1, plot3: 1,
             rabatt: 1, rabatt2: 1, jordbar: 1, rabarbra: 1, boat: 1,
             mine: 'stein', dairy: 'melk', fell: 'jakt', fisk: 'ro', sea: 'hav', marit: 'ro' },
-    fr: { astrid: 5, hakon: 5, ingrid: 5, olav: 5, marit: 5, sigrid: 5, gunnar: 5, lars: 5 },
+    fr: { astrid: 10, hakon: 10, ingrid: 10, olav: 10, marit: 10, sigrid: 10, gunnar: 10, lars: 10 },
     q: { potet: 'done', sopp: 'done', blomst: 'done', tommer: 'done', multe: 'done', boat: 'done', jern: 'done' },
     disc: { farm: 1, town: 1, lake: 1, forest: 1, enga: 1, setra: 1, vidda: 1, gruva: 1, fjord: 1 },
     festival: null, bagTier: 2, kanneLv: 1, pickLv: 2, axeLv: 2,
@@ -125,7 +125,7 @@ const ACT2_TEMPLATES = BEK_QUEST_TEMPLATES.filter(t => t.act2).map(t => t.id);
 ok(ACT2_TEMPLATES.length >= 1, 'at least one act2 template exists', ACT2_TEMPLATES.join(', '));
 function rollMany(act2, trials) {
   const S = { tools: { spade: 1, kanne: 1, oks: 1, stang: 1, hakke: 1 }, animals: [{ id: 'a1', kind: 'goat' }],
-              fr: { astrid: 3, hakon: 3, ingrid: 3, olav: 3, marit: 3, sigrid: 3, gunnar: 3, lars: 3 },
+              fr: { astrid: 6, hakon: 6, ingrid: 6, olav: 6, marit: 6, sigrid: 6, gunnar: 6, lars: 6 },
               act2Unlocked: act2 };
   const seen = new Set();
   for (let t = 0; t < trials; t++) refreshBoard(S, 1000 + t).forEach(q => seen.add(q.tpl));

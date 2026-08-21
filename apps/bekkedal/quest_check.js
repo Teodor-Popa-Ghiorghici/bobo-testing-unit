@@ -22,7 +22,7 @@
  *
  * All of it reads quests.js/data.js directly — no DOM, no mounted app.
  */
-import { BEK_ITEMS, BEK_NPCS, BEK_TALK, BEK_QUEST_TEMPLATES,
+import { BEK_ITEMS, BEK_NPCS, BEK_TALK, BEK_QUEST_TEMPLATES, BEK_RECIPES,
          BEK_QUEST_BOARD_MIN, BEK_QUEST_REFRESH_DAYS } from './data.js';
 import { refreshBoard, isRefreshDay, questTitle, questDetail } from './quests.js';
 
@@ -135,6 +135,37 @@ STAGES.forEach(stage => {
   ok(seenBoardTooSmall === 0, stage.name + ': every batch reaches BEK_QUEST_BOARD_MIN', BEK_QUEST_BOARD_MIN + ' minimum');
 });
 pass('stress roll', STAGES.length + ' stages × ' + TRIALS + ' rolls, ' + BEK_QUEST_REFRESH_DAYS + '-day cadence');
+
+/* ---- 4. gift items are obtainable the same way quest items are ----------- */
+console.log('\n-- gift obtainability --');
+/* the fully-equipped end state — every tool, an animal, no friendship gate
+   of its own left to clear — same shape as the stress roll's own day-60
+   stage above. A gift preference only has to be obtainable *eventually*, not
+   on day one the way a rolled quest must be. */
+const EQUIPPED = { tools: { spade: 1, kanne: 1, oks: 1, stang: 1, hakke: 1 }, animals: [{ id: 'a1', kind: 'goat' }] };
+let badGiftItem = null;
+BEK_NPCS.forEach(npc => {
+  if (!npc.gift) return;
+  ['loved', 'liked', 'disliked'].forEach(tier => {
+    (npc.gift[tier] || []).forEach(id => {
+      if (!BEK_ITEMS[id]) { badGiftItem = badGiftItem || { npc: npc.id, tier, id }; return; }
+      if (!obtainableNow(id, EQUIPPED)) badGiftItem = badGiftItem || { npc: npc.id, tier, id };
+    });
+  });
+});
+ok(!badGiftItem, 'every gift preference is obtainable by a fully-equipped player',
+   badGiftItem ? JSON.stringify(badGiftItem) : 'all preferences checked');
+
+/* the bouquet specifically: BEK_RECIPES.craft must actually make it, from
+   ingredients that are themselves obtainable (the three meadow flowers carry
+   no tool/animal gate, so they are always obtainable — GATE has no entry for
+   them, same as any other unlisted item). */
+const bukettRecipe = BEK_RECIPES.craft.filter(r => r.out === 'bukett')[0];
+ok(!!bukettRecipe, 'BEK_RECIPES.craft makes a bukett');
+if (bukettRecipe) {
+  const badIngredient = Object.keys(bukettRecipe.need).filter(id => !obtainableNow(id, EQUIPPED));
+  ok(badIngredient.length === 0, 'every bukett ingredient is obtainable', badIngredient.join(', '));
+}
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' checks FAILED' : 'All ' + checks + ' quest checks pass.'));
 process.exit(fails ? 1 : 0);

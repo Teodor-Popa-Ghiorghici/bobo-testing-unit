@@ -4,7 +4,7 @@ import { CRT, Vol, musGain, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
-         BEK_BARN_PLOT2, BEK_ANIMAL_KINDS,
+         BEK_BARN_PLOT2, BEK_ANIMAL_KINDS, BEK_GIFT_CAP,
          BEK_RECIPES,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
@@ -185,10 +185,16 @@ export default {
       bFull.addEventListener('click', () => { toggleFullscreen(); cv.focus(); });
 
       /* ---- state -------------------------------------------------------- */
+      /* GIFTING: the friendship ceiling, raised from 5 to 10 so a season of
+         small kindnesses (gifts) has room to matter beside the bigger
+         dialogue-choice/quest steps — see heal()'s ver-12 migration below
+         for why an old save's own S.fr must be doubled, not just clamped
+         wider, to land on the same relative progress. */
+      const FR_MAX = 10;
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 11, lang: BEK_LANG, fullscreen: 0,
+        ver: 12, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -216,6 +222,16 @@ export default {
         xp: { farm: 0, mine: 0, forage: 0, fish: 0 },
         lvl: { farm: 0, mine: 0, forage: 0, fish: 0 },
         met: {}, seen: {}, flag: {}, q: {},
+        /* GIFTING: gifts given this NPC this week, cleared the same
+           BEK_QUEST_REFRESH_DAYS cadence the quest board itself turns over
+           on (newDay()'s isRefreshDay() branch) — see BEK_GIFT_CAP. */
+        giftWeek: {},
+        /* GIFTING: a save from before the friendship rescale must double
+           every S.fr counter exactly once (heal() below) — this marks that
+           it already has, since heal() never rewinds S.ver on an existing
+           save (see scripts/bekkedal_savetest.mjs's own ver-stays-put
+           assertion) and so cannot gate the migration on S.ver itself. */
+        frRescaled: true,
         chatIx: {}, disc: { farm: 1 }, weather: 'klar',
         /* the seasonal layer — always recomputed from `day` (seasons.js),
            never incremented on its own, so it cannot drift from it. See
@@ -242,11 +258,23 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
         });
         Object.keys(f.tools).forEach(k => { if (s.tools[k] == null) s.tools[k] = f.tools[k]; });
         Object.keys(f.fr).forEach(k => { if (s.fr[k] == null) s.fr[k] = 0; });
+        /* friendship rescale, 0-5 -> 0-10: a save from before this must
+           double every existing S.fr counter once, or it lands at half the
+           relative progress it had (old-3-of-5 sitting at new-3-of-10)
+           rather than the same unlocks it already had (new-6-of-10). Gated
+           on its own flag rather than S.ver: heal() never rewinds S.ver
+           forward on an existing save (see scripts/bekkedal_savetest.mjs's
+           own ver-stays-put assertion), so a save that keeps loading at its
+           original ver still only doubles once. */
+        if (!s.frRescaled) {
+          Object.keys(s.fr).forEach(k => { s.fr[k] = Math.min(FR_MAX, Math.round((s.fr[k] || 0) * 2)); });
+          s.frRescaled = true;
+        }
         Object.keys(f.xp).forEach(k => { if (s.xp[k] == null) s.xp[k] = 0; });
         Object.keys(f.lvl).forEach(k => { if (s.lvl[k] == null) s.lvl[k] = 0; });
         ['axeLv', 'pickLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
@@ -328,6 +356,12 @@ export default {
       /* the quest board's scroll offset — transient UI state, reset each time
          the board opens, never saved (see qScroll's use in menus.js) */
       let qScroll = 0;
+      /* GIFTING: the item currently held out, and the bag's own cursor over
+         it — both transient UI state, like qScroll above, never saved.
+         giftSel survives the bag closing (so picking an item, closing the
+         bag and walking up to someone still offers it), and is cleared once
+         it is actually given — see talkTo()'s gift branch below. */
+      let giftSel = null, bagCur = 0;
       /* ---- the swing ------------------------------------------------------
          Transient by definition — it must not survive a reload and it must
          not appear in a save, so it lives here beside `fish` and `note` and
@@ -644,8 +678,9 @@ export default {
         S.season = seasonIndexOf(S.day);
         S.festival = festivalOf(S.day) ? BEK_SEASONS[S.season].id : null;
         /* the repeatable quest board turns over as one batch on a fixed
-           in-game weekday — see isRefreshDay()/refreshBoard() in quests.js */
-        if (isRefreshDay(S.day)) S.rq = refreshBoard(S, S.day);
+           in-game weekday — see isRefreshDay()/refreshBoard() in quests.js.
+           GIFTING's own weekly cap (BEK_GIFT_CAP) clears on the same day. */
+        if (isRefreshDay(S.day)) { S.rq = refreshBoard(S, S.day); S.giftWeek = {}; }
         S.en = passedOut ? Math.round(S.enMax * 0.6) : S.enMax;
         S.water = S.waterMax; S.met = {};
         const rainy = S.weather === 'regn';
@@ -680,7 +715,7 @@ export default {
            as an NPC's friendship, keyed by the animal's own id. */
         S.animals.forEach(a => {
           if (a.fed) {
-            S.fr[a.id] = Math.min(5, (S.fr[a.id] || 0) + 1);
+            S.fr[a.id] = Math.min(FR_MAX, (S.fr[a.id] || 0) + 1);
             a.ready = S.fr[a.id] >= 1 ? 1 : 0;
           } else {
             S.fr[a.id] = Math.max(0, (S.fr[a.id] || 0) - 1);
@@ -911,8 +946,8 @@ export default {
          One button, same as everything else act() resolves, reading the
          animal's own state to decide what pressing it means right now:
          collect what is ready, else feed it for the day, else pet it once.
-         Affection is S.fr[a.id] — the same 0..5 counter and the same
-         Math.min(5, ...) clamp every NPC's friendship already uses, raised
+         Affection is S.fr[a.id] — the same 0..FR_MAX counter and the same
+         Math.min(FR_MAX, ...) clamp every NPC's friendship already uses, raised
          here and by newDay()'s daily tick, never a second table. */
       function tendAnimal(a) {
         const spec = BEK_ANIMAL_KINDS[a.kind];
@@ -927,12 +962,12 @@ export default {
         if (!a.fed) {
           if (!has('dyrefor')) { say(TX('INGEN FOR I SEKKEN.', 'NO FEED IN THE BAG.')); deny(); return; }
           add('dyrefor', -1); a.fed = 1;
-          S.fr[a.id] = Math.min(5, (S.fr[a.id] || 0) + 1);
+          S.fr[a.id] = Math.min(FR_MAX, (S.fr[a.id] || 0) + 1);
           sfx.pick(); say(TX('MATET ', 'FED ') + T(spec.name));
           return;
         }
         if (!a.pet) {
-          a.pet = 1; S.fr[a.id] = Math.min(5, (S.fr[a.id] || 0) + 1);
+          a.pet = 1; S.fr[a.id] = Math.min(FR_MAX, (S.fr[a.id] || 0) + 1);
           sfx.talk(); say(T(spec.name) + TX(' NYTER KLAPP.', ' ENJOYS THE PETTING.'));
           return;
         }
@@ -992,7 +1027,7 @@ export default {
           Object.keys(q.need).forEach(id => add(id, -q.need[id]));
           S.q[q.id] = 'done'; S.kr += q.kr;
           if (window.Economy) window.Economy.earn(Math.max(20, Math.round(q.kr * 0.15)), 'BEKKEDAL: ' + q.t.en);
-          S.fr[npc.id] = Math.min(5, S.fr[npc.id] + q.fr);
+          S.fr[npc.id] = Math.min(FR_MAX, S.fr[npc.id] + q.fr);
           if (q.tool) S.tools[q.tool] = 1;
           if (q.grant) {
             if (q.grant.flag) Object.assign(S.flag, q.grant.flag);
@@ -1022,7 +1057,36 @@ export default {
           dlg = { lines: [{ no: 'Takk. That is exactly it.', en: 'Thanks. That is exactly it.' }, '+' + rq.kr + ' KR'], i: 0, npc: npc, mood: 'warm' };
           mode = 'talk'; return;
         }
-        if (!S.met[npc.id]) { S.met[npc.id] = 1; S.fr[npc.id] = Math.min(5, S.fr[npc.id] + 1); }
+        /* GIFTING: an item held out (giftSel) to this NPC — checked third,
+           after both quest turn-ins above, so a gift and a turn-in never
+           race for the same conversation (same reasoning the repeatable
+           board's own turn-in already follows, running second after the
+           fixed list: talk again to settle the other one). Only fires when
+           an item is actually selected, so it never changes ordinary
+           chatter when nothing is held out. */
+        if (giftSel && npc.gift && has(giftSel, 1)) {
+          const given = S.giftWeek[npc.id] || 0;
+          if (given >= BEK_GIFT_CAP) {
+            say(TX('DU HAR GITT NOK DENNE UKEN.', 'YOU HAVE GIVEN ENOUGH THIS WEEK.'));
+            deny();
+          } else {
+            const g = npc.gift;
+            const tier = g.loved.indexOf(giftSel) >= 0 ? 'loved'
+                       : g.liked.indexOf(giftSel) >= 0 ? 'liked'
+                       : g.disliked.indexOf(giftSel) >= 0 ? 'disliked' : 'neutral';
+            const delta = { loved: 2, liked: 1, neutral: 0, disliked: -1 }[tier];
+            add(giftSel, -1);
+            S.giftWeek[npc.id] = given + 1;
+            S.fr[npc.id] = Math.max(0, Math.min(FR_MAX, S.fr[npc.id] + delta));
+            sfx.talk();
+            dlg = { lines: g.reactions[tier].slice(), i: 0, npc: npc,
+                     mood: tier === 'loved' ? 'warm' : tier === 'disliked' ? 'troubled' : undefined };
+            mode = 'talk';
+            giftSel = null;
+          }
+          return;
+        }
+        if (!S.met[npc.id]) { S.met[npc.id] = 1; S.fr[npc.id] = Math.min(FR_MAX, S.fr[npc.id] + 2); }
         const node = book.nodes.filter(n => !S.seen[npc.id + ':' + n.id] && (!n.when || n.when(S)))[0];
         if (node) {
           S.seen[npc.id + ':' + node.id] = 1;
@@ -1061,7 +1125,7 @@ export default {
       function dlgChoose() {
         const o = dlg.opts.opts[dlg.sel];
         if (o.set) Object.assign(S.flag, o.set);
-        if (o.fr && dlg.npc) S.fr[dlg.npc.id] = Math.min(5, S.fr[dlg.npc.id] + o.fr);
+        if (o.fr && dlg.npc) S.fr[dlg.npc.id] = Math.min(FR_MAX, S.fr[dlg.npc.id] + o.fr);
         if (o.give) Object.keys(o.give).forEach(id => add(id, o.give[id]));
         const q = BEK_QUESTS.filter(q2 => q2.who === dlg.npc.id)[0];
         if (q && !S.q[q.id]) S.q[q.id] = 'active';
@@ -1115,7 +1179,7 @@ export default {
                           'Come back.'], i: 0, npc: hak, mood: 'troubled' }; mode = 'talk'; return;
         }
         S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.built = 1;
-        S.fr.hakon = Math.min(5, S.fr.hakon + 1); sfx.done();
+        S.fr.hakon = Math.min(FR_MAX, S.fr.hakon + 2); sfx.done();
         dlg = { lines: ['Right. Two weeks. Or one, if you carry.', '...', 'It is done. Go down to the water and see.'], i: 0, npc: hak, mood: 'warm' };
         mode = 'talk';
       }
@@ -1139,7 +1203,7 @@ export default {
                           'Come back when you have it.'], i: 0, npc: hak2, mood: 'troubled' }; mode = 'talk'; return;
         }
         S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.houseTier = 1;
-        S.fr.hakon = Math.min(5, S.fr.hakon + 1); sfx.done(); terrDirty();
+        S.fr.hakon = Math.min(FR_MAX, S.fr.hakon + 2); sfx.done(); terrDirty();
         dlg = { lines: [{ no: 'Et rom til, mot vannet. Det er ferdig.', en: 'One more room, facing the water. It is finished.' }], i: 0, npc: hak2, mood: 'warm' };
         mode = 'talk';
       }
@@ -1296,7 +1360,28 @@ export default {
           if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') closeMenu();
           return;
         }
-        if (mode === 'bag') { if (k === 'i' || k === 'q' || k === 'Escape' || k === ' ') closeMenu(); return; }
+        if (mode === 'bag') {
+          /* GIFTING: the bag doubles as the item picker — a cursor over the
+             same grid drawBag() draws, moved the way the shop/craft panels
+             already move theirs, with SPACE toggling the hovered item as
+             the one held out (giftSel) rather than closing the panel, so
+             the close keys move to Escape/i/q alone, same as those panels. */
+          const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0);
+          if (ids.length) {
+            if (k === 'w' || k === 'ArrowUp') bagCur = (bagCur - BAG_COLS + ids.length) % ids.length;
+            if (k === 's' || k === 'ArrowDown') bagCur = (bagCur + BAG_COLS) % ids.length;
+            if (k === 'a' || k === 'ArrowLeft') bagCur = (bagCur - 1 + ids.length) % ids.length;
+            if (k === 'd' || k === 'ArrowRight') bagCur = (bagCur + 1) % ids.length;
+            if (k === ' ' || k === 'Enter') {
+              const id = ids[bagCur % ids.length];
+              giftSel = giftSel === id ? null : id;
+              sfx.sel();
+              say(giftSel ? TX('HOLDER FRAM: ', 'HOLDING OUT: ') + iname(giftSel) : TX('LA VEKK GAVEN.', 'PUT THE GIFT AWAY.'));
+            }
+          }
+          if (k === 'i' || k === 'q' || k === 'Escape') closeMenu();
+          return;
+        }
         if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(500, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else newDay(false); } if (k === 'Escape') closeMenu(); return; }
 
         /* walking */
@@ -1308,7 +1393,7 @@ export default {
         }
         if (k === 'f') { plant(); return; }
         if (k === 'c') { cycleSeed(); return; }
-        if (k === 'i') { mode = 'bag'; return; }
+        if (k === 'i') { mode = 'bag'; bagCur = 0; return; }
         if (k === 'q') { mode = 'quest'; qScroll = 0; return; }
         if (k === 'm') { openTravel(); return; }
         if (k === 'Tab' || k === 'e') { for (let i = 0; i < BEK_TOOLS.length; i++) { S.tool = (S.tool + 1) % BEK_TOOLS.length; if (S.tools[BEK_TOOLS[S.tool].id]) break; } sfx.talk(); return; }
@@ -2663,6 +2748,7 @@ export default {
               drawSleep, drawEnd, toolName } = createMenus({
         S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop, craft: () => craft,
         travel: () => travel, offer: () => offer, qScroll: () => qScroll,
+        bagCur: () => bagCur, giftSel: () => giftSel,
         T: T, TX: TX, iname: iname, price: price, houseCost: () => houseCost(S),
         recipeUnlocked: recipeUnlocked, craftCount: craftCount,
         panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,
