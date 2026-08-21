@@ -1,10 +1,10 @@
 /* Bekkedal — every panel the game puts over the picture.
  *
- * The fishing gauge, the shop, the chest, the bag, the quest board, the travel
- * list, the sleep card and the ending painting. Lifted out of `index.js` line
- * for line: a move, not a rewrite, and the diff that created it should read
- * as one. Sleep joined it later, moved out of index.js's own draw() so this
- * really is where every panel lives, per this header.
+ * The shop, the chest, the bag, the quest board, the travel list, the sleep
+ * card and the ending painting. Lifted out of `index.js` line for line: a
+ * move, not a rewrite, and the diff that created it should read as one.
+ * Sleep joined it later, moved out of index.js's own draw() so this really
+ * is where every panel lives, per this header.
  *
  * The board, the bag, the shop/workshop counters and the travel sign draw
  * their own material now instead of `panel()`'s flat black rectangle —
@@ -12,11 +12,10 @@
  * `card`. `panel()` itself is untouched: the HUD, the tooltip and the
  * fishing gauge stay the machine's own chrome, on purpose.
  *
- * The two panels a *conversation* puts up — the dialogue box and the buy
- * prompt that comes out of one of its lines — are the exception, and they are
- * in `menus_talk.js` next door. Same reason `decor_outdoor.js` sits beside
- * `decor.js`: this file was at the 300-line ceiling and the dialogue box grew
- * a portrait column.
+ * Two panels are the exception and live next door for the 300-line rule,
+ * same reason `decor_outdoor.js` sits beside `decor.js`: the dialogue box
+ * (with the buy prompt that comes out of one of its lines) in `menus_talk.js`,
+ * and the fishing gauge in `menus_fish.js`.
  *
  * All of it is *chrome*. It draws after `useLut(DAY_CSS, 'day')` in `draw()`,
  * so these panels and every glyph of text in them keep full contrast after
@@ -33,25 +32,16 @@
  *   transient mode objects `index.js` keeps beside it, replaced wholesale
  *   when a menu opens or closes, so they have to be read per call rather than
  *   captured once.
- *
- * The reel zone is the subtle one and worth reading before touching
- * `drawFish`: `tickFish` compares `fish.pos` against `z0`/`z1` in 0..1 and
- * knows nothing about pixels, so the drawn zone and the drawn needle are both
- * `FISH_TRACK_W` multiplied by those same figures, and both edges are rounded
- * the same way the needle is. Round the zone's *width* separately and the
- * drawn zone drifts a pixel off the real one, and the player misses a catch
- * that looked like a hit. `layout_check.js` asserts they agree.
  */
 import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_RECIPES, AXE_NAME, PICK_NAME, UI,
          BEK_W, BEK_H } from './data.js';
 import { boardRows } from './quests.js';
 import { createDialogue } from './menus_talk.js';
 import { createChrome } from './menus_chrome.js';
+import { createFish } from './menus_fish.js';
 import { WAT, TIM, CON, WAR, SAN, SNO, ATMO } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
-         FISH_TRACK_W, FISH_TRACK_H, FISH_W, FISH_H, FISH_X, FISH_Y,
-         FISH_TRACK_X, FISH_TRACK_Y, FISH_NEEDLE_W, FISH_NEEDLE_OVER,
          SHOP_ROWS, SHOP_ROW, SHOP_W, SHOP_H, SHOP_X, SHOP_Y, SHOP_COL_W, SHOP_NAME_DX, SHOP_PRICE_DX,
          BAG_COLS, BAG_ROWS, BAG_CAP, BAG_ROW, BAG_W, BAG_H, BAG_X, BAG_Y, BAG_CW, BAG_NAME_DX, BAG_QTY_DX,
          QUEST_VISIBLE_ROWS, QUEST_ENTRY, QUEST_W, QUEST_H, QUEST_X, QUEST_Y, QUEST_STATUS_DX,
@@ -75,29 +65,11 @@ export function createMenus(A, GG, C) {
      See menus_chrome.js. `panel()` itself is untouched: the HUD, the crop
      tooltip and the fishing gauge stay the machine's own chrome. */
   const { board, note, cloth, counter, workbench, sign, card } = createChrome(GG, C, stipple);
-
-  function drawFish() {
-      const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(FISH_X, FISH_Y, FISH_W, FISH_H, fish.rare ? 11 : 14);
-    const tx = FISH_TRACK_X, ty = FISH_Y + PAD_SM;
-    if (fish.phase === 'reel') {
-      GG().fillStyle = C(8); GG().fillRect(tx, FISH_TRACK_Y, FISH_TRACK_W, FISH_TRACK_H);
-      /* Both edges are rounded from the track width the same way the
-         needle is, so the zone the player sees spans exactly the 0..1
-         interval tickFish tests against — rounding the width separately
-         would let the drawn zone drift a pixel off the real one. */
-      const z0 = Math.round(FISH_TRACK_W * fish.z0);
-      const zw = Math.max(FISH_NEEDLE_W, Math.round(FISH_TRACK_W * fish.z1) - z0);
-      GG().fillStyle = C(fish.rare ? 11 : 10); GG().fillRect(tx + z0, FISH_TRACK_Y, zw, FISH_TRACK_H);
-      GG().fillStyle = C(15);
-      GG().fillRect(tx + Math.round(FISH_TRACK_W * fish.pos) - FISH_NEEDLE_W / 2,
-                 FISH_TRACK_Y - FISH_NEEDLE_OVER, FISH_NEEDLE_W, FISH_TRACK_H + FISH_NEEDLE_OVER * 2);
-      const left = Math.max(0, fish.need - fish.hits);
-      text(TX('DRA! SPACE x' + left, 'REEL! SPACE x' + left), tx, ty, fish.rare ? 11 : 14, FONT_SM);
-    } else if (fish.phase === 'bite') {
-      text(fish.rare ? TX('SJELDEN! NÅ!', 'RARE! NOW!') : TX('NÅ! SPACE', 'NOW! SPACE'), tx, ty, fish.rare ? 11 : 14, FONT_SM);
-    } else text(TX('VENTER...', 'WAITING...'), tx, ty, 7, FONT_SM);
-  }
+  /* the fishing gauge — the tension bar and its reel progress. See
+     menus_fish.js, split off for the same 300-line reason menus_talk.js and
+     menus_chrome.js already are. `panel()` itself is untouched: the fishing
+     gauge stays the machine's own chrome, same as the HUD and the tooltip. */
+  const { drawFish } = createFish(A, GG, C);
 
   function drawShop() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();

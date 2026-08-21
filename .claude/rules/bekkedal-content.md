@@ -447,6 +447,73 @@ goes to the bag through the usual soft cap, overflowing to the chest
 stockpiles ingredients ahead of a session and where a full bag's surplus
 ends up.
 
+## Fishing
+
+The reel used to be a needle bouncing between two walls, tap SPACE twice
+inside a zone that never moved. It is a hold-to-reel tension bar now:
+`fish.pos` is line tension, 0..1, and the fish's own pull
+(`BEK_ITEMS[id].pattern` — `tug`/`amp`/`period` a continuous sinusoidal pull,
+`jerk`/`kick` a per-second chance of a sudden, instant dart on top of it) is
+always trying to move it. Holding SPACE adds `FISH_REEL_RATE`, releasing
+subtracts `FISH_EASE_RATE` (both 0.85, index.js) — comfortably clear of
+every species' `tug + amp` (the highest, `havkonge`, is 0.46 + 0.12), which
+is load-bearing: holding must always win the tug of war and releasing must
+always lose it, on every fish, or the fight stops being hard and starts
+being unwinnable. What differs species to species is never "can you
+recover" but how often (`jerk`) and how hard (`amp`/`period`) you have to —
+a heavy, patient cod (`torsk`/`havkonge`, high `tug`, low `jerk`, long
+`period`) wants sustained holding; a darting trout or mackerel (low `tug`,
+high `jerk`) wants frequent quick reflex corrections.
+
+Tension has to stay inside `[fish.z0, fish.z1]` — the same drawn zone the
+old needle used, `layout_check.js`'s rounding contract untouched — to make
+`fish.prog` climb toward 1, which is what lands it. Too long above `z1`
+(`fish.overT` past `fish.grace`) breaks the line; too long below `z0`
+(`fish.underT`) lets it swim off. `fish.grace` starts at `FISH_BREAK_GRACE`
+and both fish lvl2 and a reinforced line (see Bait and tackle below) extend
+it; fish lvl3 and a reinforced line both widen `z0`/`z1`, the same widen
+`fishTap` already applied for a rare fish before this pass.
+
+Species is picked once, at the cast (`act()`'s `stang` branch), not at
+landing — the fight is known from the strike onward. `pickFishSpecies()`
+reads `BEK_FISH_WATERS[S.map]` (`data.js` — lake, fjord, vidda, the only
+three maps with a `W`/`~` tile): a weighted `pool`, `weather`/`season`
+tables that multiply one or more of that pool's own ids for the condition
+alone (a fish either lives in a water or it does not), a `rare` id (one
+bite in ten, same odds a rare bite always had) and a `legend` id that only
+ever bites inside its own `legendWhen` window — a season id, a weather id,
+and an `S.min` range in the 26-hour clock `dawn()`/`dusk()`/`night()`
+already use — and only once a year: `S.legend[id]` is the day it was last
+landed, and a year is four `BEK_SEASON_DAYS`. A rising ring on the water
+(`water.js`'s own `life()` feature 5 — "rings where a fish rises") is now a
+real fishing spot: it shortens the wait before a strike and nudges the odds
+toward rare.
+
+### Bait and tackle
+
+Two consumable slots, both spent on cast, both crafted through
+`BEK_RECIPES.craft` and gated on Ingrid the way the rod itself already is.
+Bait (`agn_mark`, `agn_reke`) shapes the bite: `.bite` shortens the wait,
+`.weight` multiplies chosen species' odds by id, same shape the water
+table's own weather/season multipliers use. Tackle (`snelle`) shapes the
+fight that follows: `.widen` and `.grace` add to the same two knobs fish
+lvl2/lvl3 already touch. `pickBait()`/`pickTackle()` take the first match
+in the bag, same "spend what you're carrying" rule the `r` (eat) key
+already uses — nothing stops both being held at once.
+
+### The rod's own tier
+
+`S.rodLv` (1 or 2) is the fourth tier field alongside `axeLv`/`pickLv`/the
+pen's, same shape, same convention: `ROD_NAME` (`data.js`) is the two
+display names, `toolDisplay()`/`toolName()` pick between them the way the
+axe and pick already do. Ingrid sells the carbon rod (`i4b`,
+`talk_water.js`) once she trusts you with a line at all (`S.fr.ingrid >=
+5`) and stops offering it the moment `S.rodLv` is 2 — same `buy` shape
+Håkon's `STÅLØKS` node uses. A carbon rod shortens the wait before a strike
+a little further and adds to `FISH_REEL_RATE`/`FISH_EASE_RATE` for the
+fight that follows, the same way fish lvl3 sharpens the reel without
+changing what a species' own pattern asks of it.
+
 ## The descent
 
 The gruva was one hand-authored 24-row room with sixteen ore tiles, and

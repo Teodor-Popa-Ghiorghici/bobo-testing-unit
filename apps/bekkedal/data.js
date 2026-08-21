@@ -164,16 +164,56 @@ export const BEK_ITEMS = {
   sprinkler:  { name: { no: 'SPREDER',    en: 'SPRINKLER'    }, buy: 250, sell: 60, icon: 'sprinkler', col: 7, place: true },
   /* not sold anywhere — only BEK_RECIPES.craft produces it, at the chest */
   gjerde:     { name: { no: 'GJERDE',     en: 'FENCE'        }, sell: 35, icon: 'wood', col: 6 },
-  /* fish */
-  orret:      { name: { no: 'ØRRET',      en: 'TROUT'        }, sell: 65,  icon: 'fish',  col: 13 },
-  laks:       { name: { no: 'LAKS',       en: 'SALMON'       }, sell: 130, icon: 'fish',  col: 6  },
-  roye:       { name: { no: 'RØYE',       en: 'CHAR'         }, sell: 100, icon: 'fish',  col: 12 },
-  torsk:      { name: { no: 'TORSK',      en: 'COD'          }, sell: 90,  icon: 'fish',  col: 7  },
-  makrell:    { name: { no: 'MAKRELL',    en: 'MACKEREL'     }, sell: 75,  icon: 'fish',  col: 11 },
-  /* the rare ones. One bite in ten is one of these, and the fight is a
-     different animal: a sliver of a zone, a faster needle, one more pull. */
-  kveite:     { name: { no: 'KVEITE',     en: 'HALIBUT'      }, sell: 900, icon: 'fish',  col: 3,  rare: 1 },
-  gullorret:  { name: { no: 'GULLØRRET',  en: 'GOLDEN TROUT' }, sell: 700, icon: 'fish',  col: 14, rare: 1 },
+  /* fish — each carries a `pattern` (index.js's tickFish reads it, never
+     writes it) that shapes its own fight in the hold-to-reel tension bar:
+     `tug`/`amp`/`period` are a sinusoidal pull on the line's own tension,
+     `jerk`/`kick` a per-second chance of a sudden dart on top of it. A heavy
+     fish (torsk) is high tug, low jerk; a darting one (orret, makrell) is
+     the opposite; kveite (rare) alternates a long, deep pull — a sounding
+     run — off its own wide amp/period. See index.js's "The reel" section. */
+  orret:      { name: { no: 'ØRRET',      en: 'TROUT'        }, sell: 65,  icon: 'fish',  col: 13,
+                pattern: { tug: 0.14, amp: 0.05, period: 1.4, jerk: 0.55, kick: 0.09 } },
+  laks:       { name: { no: 'LAKS',       en: 'SALMON'       }, sell: 130, icon: 'fish',  col: 6,
+                pattern: { tug: 0.26, amp: 0.07, period: 2.0, jerk: 0.15, kick: 0.08 } },
+  roye:       { name: { no: 'RØYE',       en: 'CHAR'         }, sell: 100, icon: 'fish',  col: 12,
+                pattern: { tug: 0.20, amp: 0.06, period: 1.6, jerk: 0.35, kick: 0.08 } },
+  torsk:      { name: { no: 'TORSK',      en: 'COD'          }, sell: 90,  icon: 'fish',  col: 7,
+                pattern: { tug: 0.38, amp: 0.05, period: 2.8, jerk: 0.05, kick: 0.06 } },
+  makrell:    { name: { no: 'MAKRELL',    en: 'MACKEREL'     }, sell: 75,  icon: 'fish',  col: 11,
+                pattern: { tug: 0.16, amp: 0.09, period: 0.9, jerk: 0.70, kick: 0.11 } },
+  /* the rare ones. One bite in ten leans this way, and the fight is a
+     different animal: a sliver of a zone and a much deeper, longer pull. */
+  kveite:     { name: { no: 'KVEITE',     en: 'HALIBUT'      }, sell: 900, icon: 'fish',  col: 3,  rare: 1,
+                pattern: { tug: 0.28, amp: 0.16, period: 3.2, jerk: 0.10, kick: 0.13 } },
+  gullorret:  { name: { no: 'GULLØRRET',  en: 'GOLDEN TROUT' }, sell: 700, icon: 'fish',  col: 14, rare: 1,
+                pattern: { tug: 0.22, amp: 0.08, period: 1.5, jerk: 0.45, kick: 0.10 } },
+  /* legendary — one per water, `legend: 1` rather than `rare: 1` so a catch
+     message and the sell price both read as a different order of thing.
+     BEK_FISH_WATERS' own `legendWhen` (season/weather/hour) is the only way
+     one can bite, and index.js's S.legend tracks the season-year it was last
+     landed so the same one cannot bite twice inside a year. Every pattern's
+     tug + amp stays well clear of FISH_REEL_RATE/FISH_EASE_RATE (index.js,
+     both 0.85) — holding must always win the tug of war and releasing must
+     always lose it, on every fish including these three, or the fight stops
+     being hard and starts being unwinnable. */
+  trollorret: { name: { no: 'TROLLØRRET', en: 'TROLL TROUT'  }, sell: 2200, icon: 'fish', col: 14, legend: 1,
+                pattern: { tug: 0.34, amp: 0.18, period: 2.6, jerk: 0.30, kick: 0.12 } },
+  havkonge:   { name: { no: 'HAVKONGE',   en: 'SEA KING'     }, sell: 2600, icon: 'fish', col: 3,  legend: 1,
+                pattern: { tug: 0.46, amp: 0.12, period: 3.6, jerk: 0.08, kick: 0.10 } },
+  sneulke:    { name: { no: 'SNEULKE',    en: 'SNOW CHAR'    }, sell: 2000, icon: 'fish', col: 12, legend: 1,
+                pattern: { tug: 0.30, amp: 0.20, period: 2.2, jerk: 0.40, kick: 0.13 } },
+  /* bait and tackle — craftable, consumable, spent on cast (act()'s stang
+     branch picks the best one held, same "first match in the bag" rule
+     BEK_RECIPES.cook's raw-ingredient reads already use). `bite` shortens
+     the wait before a strike; `weight` multiplies chosen species' odds by
+     id, same shape BEK_FISH_WATERS' own weather/season tables use; `widen`/
+     `grace` loosen the tension bar itself for the fight that follows. */
+  agn_mark:   { name: { no: 'AGN: MARK',   en: 'BAIT: WORMS'   }, icon: 'leaf',  col: 6,
+                bait: { bite: 0.15 } },
+  agn_reke:   { name: { no: 'AGN: REKE',   en: 'BAIT: SHRIMP'  }, icon: 'leaf',  col: 11,
+                bait: { bite: 0.2, weight: { torsk: 1.5, makrell: 1.4, kveite: 1.3 } } },
+  snelle:     { name: { no: 'SNELLE',      en: 'TACKLE' }, icon: 'rope', col: 8,
+                bait: { widen: 0.03, grace: 0.4 } },
   /* dairy & animal */
   melk:       { name: { no: 'MELK',       en: 'MILK'         }, sell: 22,  icon: 'milk',  col: 15 },
   brunost:    { name: { no: 'BRUNOST',    en: 'BROWN CHEESE' }, buy: 55, sell: 20, eat: 55, icon: 'cheese', col: 6 },
@@ -307,6 +347,10 @@ export const BEK_TOOLS = [
 ];
 export const AXE_NAME  = { no: ['ØKS', 'STÅLØKS'],  en: ['AXE', 'STEEL AXE'] };
 export const PICK_NAME = { no: ['HAKKE', 'STÅLHAKKE'], en: ['PICK', 'STEEL PICK'] };
+/* the rod's own tier, same shape as AXE_NAME/PICK_NAME and stored the same
+   way (S.rodLv, 1 or 2 — never a second belt slot). A carbon rod reels
+   faster and holds tension more gently: see FISH_ROD_TIER in index.js. */
+export const ROD_NAME = { no: ['FISKESTANG', 'KARBONSTANG'], en: ['ROD', 'CARBON ROD'] };
 
 /* ==========================================================================
    27.2 THE NINE PLACES  (+ two interiors)
@@ -896,6 +940,45 @@ export const BEK_QUEST_REFRESH_DAYS = 7;
    (isRefreshDay(), quests.js) — see S.giftWeek in index.js's newDay(). */
 export const BEK_GIFT_CAP = 2;
 
+/* ==========================================================================
+   27.4a THE WATER — species by map, weather, season and hour
+   --------------------------------------------------------------------------
+   Three of the eleven places carry a 'W'/'~' tile a rod can be cast at:
+   lake, fjord, vidda (its tarn). `pool` is the base weighted draw; `weather`
+   and `season` each multiply one or more of `pool`'s own ids for that
+   condition alone, never add a new one — a fish either lives in this water
+   or it does not. `rare` is the one-in-ten pull `pickFishSpecies` (index.js)
+   already made, now data-driven per water instead of a hardcoded
+   map === 'fjord' ? … check. `legend` only ever bites inside `legendWhen`
+   (a season id, a weather id, and an S.min window in the 26-hour clock
+   index.js's dawn()/dusk()/night() already use) and only once a year —
+   S.legend[fishId] (index.js) is the day it last bit, and a year is four
+   BEK_SEASON_DAYS.
+   ========================================================================== */
+export const BEK_FISH_WATERS = {
+  lake: {
+    pool: [{ id: 'orret', w: 5 }, { id: 'laks', w: 2 }],
+    weather: { regn: { laks: 1.6 }, take: { orret: 1.3 } },
+    season: { host: { laks: 1.4 }, vinter: { orret: 0.7 } },
+    rare: 'gullorret', legend: 'trollorret',
+    legendWhen: { season: 'sommer', weather: 'klar', h0: 4 * 60, h1: 5 * 60 }
+  },
+  fjord: {
+    pool: [{ id: 'torsk', w: 5 }, { id: 'makrell', w: 3 }],
+    weather: { regn: { torsk: 1.5 }, klar: { makrell: 1.2 } },
+    season: { vinter: { torsk: 1.3 }, sommer: { makrell: 1.3 } },
+    rare: 'kveite', legend: 'havkonge',
+    legendWhen: { season: 'vinter', weather: 'regn', h0: 18 * 60, h1: 19 * 60 }
+  },
+  vidda: {
+    pool: [{ id: 'roye', w: 4 }, { id: 'orret', w: 3 }],
+    weather: { take: { roye: 1.4 } },
+    season: { vinter: { roye: 1.5 } },
+    rare: 'gullorret', legend: 'sneulke',
+    legendWhen: { season: 'vinter', weather: 'take', h0: 23 * 60, h1: 25 * 60 }
+  }
+};
+
 export const BEK_QUEST_TEMPLATES = [
   { id: 'crops',  items: ['potet', 'nepe', 'gulrot', 'kal', 'jordbar', 'rabarbra'], qty: [3, 8] },
   { id: 'forage', items: ['sopp', 'kantarell', 'blabar', 'multe', 'tyttebar', 'tang', 'urt'], qty: [3, 10] },
@@ -953,7 +1036,15 @@ export const BEK_RECIPES = {
        lamp. `lvl.mine` 2 is the same tier that already makes a mined vein
        regrow a day sooner — by the time you have it you have been down there. */
     { id: 'krystallykt', out: 'krystallykt', qty: 1, need: { krystall: 1, jern: 2, tau: 1 },
-      fr: { npc: 'lars', min: 6 }, lvl: { kind: 'mine', min: 2 } }
+      fr: { npc: 'lars', min: 6 }, lvl: { kind: 'mine', min: 2 } },
+    /* bait and tackle — consumed on cast (act()'s stang branch), never a
+       tool of their own. Gated on Ingrid, who already gives out the rod. */
+    { id: 'agn_mark', out: 'agn_mark', qty: 3, need: { blomst_gul: 1 },
+      fr: { npc: 'ingrid', min: 1 }, lvl: { kind: 'fish', min: 1 } },
+    { id: 'agn_reke',  out: 'agn_reke',  qty: 2, need: { tang: 2 },
+      fr: { npc: 'ingrid', min: 3 }, lvl: { kind: 'fish', min: 1 } },
+    { id: 'snelle',    out: 'snelle',    qty: 1, need: { tau: 1, spiker: 2 },
+      fr: { npc: 'ingrid', min: 5 }, lvl: { kind: 'fish', min: 2 } }
   ],
   /* one raw crop plus one animal product each, and every dish restores more
      than the best shop food does (multekrem's 110) — see BEK_ITEMS */
