@@ -49,7 +49,7 @@
  * reads `BEK_SOLID` against the glyph, no glyph moved, and every square answers
  * exactly as it did before.
  */
-import { MARKS, SHADOWS, FEATURES } from './palette.js';
+import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
 import { mask4, AT_E, AT_W } from './autotile.js';
 import { createRoof, TURF, TILE } from './roof.js';
 import { rustic } from './surface.js';

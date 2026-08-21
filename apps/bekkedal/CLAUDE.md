@@ -38,7 +38,8 @@ coordinates") lives in `bekkedal-art.md`.
 - `text.js` — glyph atlas / text layout helpers. See `.claude/rules/bekkedal-art.md`.
 - `layout.js` — panel rectangles, padding, column offsets. See `.claude/rules/bekkedal-art.md`.
 - `noise.js` — terrain variation field. See `.claude/rules/bekkedal-art.md`.
-- `palette.js` — the sixty-four colours and the `MARKS`/`SHADOWS`/`FEATURES` contrast tables. See `.claude/rules/bekkedal-art.md`.
+- `palette.js` — the sixty-four colours, the luminance ordering they are stated in, and `rampStep`. See `.claude/rules/bekkedal-art.md`.
+- `palette_marks.js` — the `MARKS`/`SHADOWS`/`FEATURES` contrast tables: what may be drawn on what. Split off `palette.js` for the 300-line rule; the dependency runs one way, so import a colour from `palette.js` and a table from here. See `.claude/rules/bekkedal-art.md`.
 - `light.js` — hour-of-day palette transform, the lamp state a pool resolves toward, and the falloff. See `.claude/rules/bekkedal-art.md`.
 - `lamp.js` — the local-light pass: an ordered dither between the picture at this hour and the picture in daylight. See `.claude/rules/bekkedal-art.md`.
 - `surface.js` — glyph-to-palette-entry table per map. See `.claude/rules/bekkedal-art.md`.
@@ -57,7 +58,14 @@ coordinates") lives in `bekkedal-art.md`.
 - `fx.js` — the tool swing and its particles. See `.claude/rules/bekkedal-art.md`.
 - `crops.js` — the ploughed plot; the one live (uncached) tile. See `.claude/rules/bekkedal-art.md`.
 - `actors.js` — people, animals, item icons. See `.claude/rules/bekkedal-art.md`.
+- `portrait.js` — the eight faces. One head-and-shoulders rig with parameters
+  per character out of `BEK_NPCS[].face`, three expressions each. See **The
+  faces**, `.claude/rules/bekkedal-art.md`.
 - `menus.js` — every panel drawn over the picture. See `.claude/rules/bekkedal-art.md`.
+- `menus_talk.js` — the two panels a *conversation* puts up: the dialogue box
+  with its portrait column and name plate, and the buy prompt that comes out
+  of one of its lines. A sibling of `menus.js` for the 300-line rule, the same
+  way `decor_outdoor.js` is one of `decor.js`. See **The faces**.
 - `music.js` — five tunes and the crossfading scheduler. See `.claude/rules/bekkedal-art.md`.
 - `ambience.js` — a bed per map, weather and the hour layered over it, positional hearth crackle, and material footsteps. See `.claude/rules/bekkedal-art.md`.
 - `decor.js` — room prop kinds; placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.
@@ -67,7 +75,8 @@ coordinates") lives in `bekkedal-art.md`.
 - `quests.js` — the repeatable quest board. See `.claude/rules/bekkedal-content.md`.
 - `seasons.js` — the seasonal layer (season/day-of-season/festival/weather). See `.claude/rules/bekkedal-content.md`.
 - `progression.js` — money-sink formulas (`houseCost`, `houseTierCost`, `houseTierAvailable`, `barnSlots`). See `.claude/rules/bekkedal-content.md`.
-- `layout_check.js` — `node apps/bekkedal/layout_check.js`. See `.claude/rules/bekkedal-art.md`.
+- `layout_check.js` — `node apps/bekkedal/layout_check.js`. Also the dialogue
+  box's two columns. See `.claude/rules/bekkedal-art.md`.
 - `tile_check.js` — `node apps/bekkedal/tile_check.js`. See `.claude/rules/bekkedal-art.md`.
 - `palette_check.js` — `node apps/bekkedal/palette_check.js`. See `.claude/rules/bekkedal-art.md`.
 - `quest_check.js` — `node apps/bekkedal/quest_check.js`. See `.claude/rules/bekkedal-content.md`.
@@ -79,7 +88,10 @@ coordinates") lives in `bekkedal-art.md`.
 
 - Colour only via `C(RAMP[i])` — "Never a literal `rgb()`/hex string in a
   draw call, and never a bare index either: the art says `C(GRASS[2])`, not
-  `C(21)`." (full doctrine: **Palette**, `.claude/rules/bekkedal-art.md`)
+  `C(21)`." Art that is handed a colour rather than naming one shades it with
+  `rampStep` (`palette.js`), which returns the surface's own ramp neighbour
+  and is therefore inside the band by construction. (full doctrine:
+  **Palette**, `.claude/rules/bekkedal-art.md`)
 - No alpha, ever: "There is no alpha compositing anywhere in this app and
   there must not be — no `globalAlpha`, no `rgba()`, no `ctx.filter`. A
   blend you cannot express as a stipple is a blend you may not use." (full
@@ -105,7 +117,7 @@ still load without throwing.
 
 ## Checks
 
-Run all eight before claiming anything is done:
+Run all nine before claiming anything is done:
 
 - `node apps/bekkedal/tile_check.js` — terrain variation field is
   deterministic, uniform and aperiodic. Full paragraph: `.claude/rules/bekkedal-art.md`.
@@ -130,6 +142,11 @@ Run all eight before claiming anything is done:
   This is the check that a map edit is most likely to break.
 - `node scripts/smoke.mjs` — headless 30-day run, save migration, and a
   full simulated year run idle. Full paragraph: `.claude/rules/bekkedal-engine.md`.
+- `node scripts/lint-content.mjs` — the static content conventions: real item
+  ids, sane friendship gates, real travel destinations, and — since the
+  dialogue box grew a name plate — that no spoken line repeats the speaker's
+  name and that every mood a line asks for is a face `portrait.js` has. Full
+  paragraph: `.claude/rules/content.md`.
 
 Also see `node scripts/bekkedal_shots.mjs <dir>` (the screenshot matrix),
 `node scripts/bekkedal_pairs.mjs <before> <after> <out>` (before/after

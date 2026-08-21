@@ -26,8 +26,9 @@
  *                between the player and the ground under them. A pretty
  *                night you cannot navigate is a bug however good it looks.
  */
-import { PAL, PAL_N, VGA16, RAMPS, MARKS, SHADOWS, FEATURES, lum, sameRampNeighbour,
-         RAMP_STEP_MAX, RAMP_STEP_MAX_WAR, MARK_BAND, SHADOW_MAX } from './palette.js';
+import { PAL, PAL_N, VGA16, RAMPS, lum, sameRampNeighbour, RAMP_STEP_MAX,
+         RAMP_STEP_MAX_WAR, MARK_BAND, SHADOW_MAX } from './palette.js';
+import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
 import { lightAt, lutAt, lutOf, LIGHT_ANCHORS, lightKey, CAVE_LIGHT, DAY_LUT, lumOf,
          shelter } from './light.js';
 import { lampState, relightCoef } from './lamp.js';

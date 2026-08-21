@@ -25,9 +25,14 @@ This file carries the full art/rendering doctrine for the siblings above.
   decision the terrain art makes. Pure functions of `(mapId, x, y)`; no state,
   nothing seeded, nothing saved. See **Terrain variation** below.
 - `palette.js` — the sixty-four colours, as twelve material ramps, plus the
-  declared decorative tables (`MARKS` / `SHADOWS` / `FEATURES`) that say what
-  may be drawn on what. No functions that draw, no state. See **Palette**
-  below.
+  luminance ordering and the band constants the contrast rule is stated in,
+  and `rampStep`. No functions that draw, no state. See **Palette** below.
+- `palette_marks.js` — the declared decorative tables (`MARKS` / `SHADOWS` /
+  `FEATURES`) that say what may be drawn on what, split off `palette.js` for
+  the 300-line rule when the portraits added a seventh kind of surface to
+  them. It imports the ramps; nothing in `palette.js` imports it back, because
+  a re-export would put the two in a cycle and import bindings hoist. See
+  **Palette** below.
 - `light.js` — the hour of the day as a transform of the palette, the
   anchors it is interpolated between, the state a local light resolves what
   it lights *toward* (`lampState`), the closed-form inverse that lets it be
@@ -62,8 +67,12 @@ This file carries the full art/rendering doctrine for the siblings above.
 - `crops.js` — the ploughed plot and what grows in it. The one tile that
   reads `S.soil` rather than the map, which is why it is live and not cached.
 - `actors.js` — the people, the animals, and the item icons.
+- `portrait.js` — the eight faces: one head-and-shoulders rig, parameters per
+  character, three expressions. See **The faces** below.
 - `menus.js` — every panel the game puts over the picture. All chrome, so all
   of it draws after the LUT goes back to daylight.
+- `menus_talk.js` — the two panels a *conversation* puts up, split off for the
+  300-line rule. See **The faces** below.
 - `music.js` — five tunes and the crossfading scheduler that rotates them.
 - `ambience.js` — a bed per map, weather and the hour layered over it,
   positional hearth crackle, and material footsteps. See **Ambience** below.
@@ -227,8 +236,16 @@ spend 20-60 rects on looking like something.
   24×15, and a camera clamp range matching its own dimensions), the
   fishing reel zone's agreement with its hit test, and text fitting for every
   box in both languages, including the repeatable board's own worst-case
-  generated title/detail strings. Run it after touching `data.js` geometry,
-  `font.js`, `layout.js`, or any content table with user-visible strings.
+  generated title/detail strings. Also the dialogue box's own two columns —
+  that the portrait column and the text body are flush, that the portrait is a
+  whole number of art pixels, that the two columns and their gutter fill the
+  box exactly, and that the name plate holds the longest speaker. Run it after
+  touching `data.js` geometry, `font.js`, `layout.js`, or any content table
+  with user-visible strings. The two guards that go *with* the box are
+  conventions rather than geometry and live in `node scripts/lint-content.mjs`
+  instead: **no spoken string in `BEK_TALK` begins with a speaker's name and a
+  colon** (the plate already says who is talking), and every mood a line asks
+  for is one `portrait.js` can actually draw.
 - The reel zone is the subtle one. `tickFish` compares `fish.pos` against
   `z0`/`z1` in 0..1 and knows nothing about pixels; the drawn zone and the drawn
   needle are both `FISH_TRACK_W` multiplied by those same figures, and both
@@ -326,9 +343,12 @@ Two rules the ramps are built to, both asserted:
 
 ### The contrast rule
 
-The tables the art draws its decoration from are declared in `palette.js`,
-not scattered through `index.js`, because the check has to read the same
-tables the art does. Three groups:
+The tables the art draws its decoration from are declared in
+`palette_marks.js`, not scattered through `index.js`, because the check has to
+read the same tables the art does. (They were in `palette.js` until the
+portraits added a seventh kind of surface and took that file over the
+300-line ceiling; what they are *stated in* — the ramps, the luminance
+ordering, `MARK_BAND`, `SHADOW_MAX` — stayed there.) Three groups:
 
 - `MARKS` — decoration on a surface: a blade of grass, a scuff of grit, a
   course in a plank. A mark stays within `MARK_BAND` (±0.12 relative
@@ -925,6 +945,112 @@ measures back-to-back rebuilds while the light key is turning over ten times in
 four seconds. It is a comparison, not an absolute; measure a settled hour if
 you want an absolute.
 
+
+## The faces
+
+The dialogue box was a black rectangle with one line of text in it, no
+portrait, and the speaker's name printed **twice** — once as a yellow header
+the panel drew, and once inside the line itself, because two hundred and
+eighteen of the strings in `BEK_TALK` opened with `'ASTRID: '`. Eight people
+live in this valley and you could finish the game without seeing any of their
+faces.
+
+### One rig, not eight drawings
+
+`portrait.js` is built the way `actors.js` builds the walking sprites, and for
+the same reason. Eight hand-drawn busts is eight things to keep in step every
+time a ramp moves, eight chances to get one wrong, and nothing at all to say
+what a ninth character looks like. A rig says it once — a face is a skull, a
+jaw, a brow, two eyes, a nose and a mouth — and Håkon differs from Ingrid by
+the numbers in `BEK_NPCS[].face` rather than by being drawn again. It is also
+the only thing that makes the *expressions* affordable: three faces each is
+twenty-four drawings, or three parameters.
+
+`face` sits beside the `hair`/`shirt`/`pants`/`voice` the sprite already used:
+`skin` (one of two declared bases), `cut`, `beard`, `brow`, `iris`, `jaw`,
+`age`, `hat`. Anything left out falls back to the rig's own middle, so a ninth
+character costs one row of `data.js` and no code.
+
+Four rules, and all four are the app's existing ones rather than new ones:
+
+- **Whole art pixels.** The rig authors in `PORT_SRC_W`x`PORT_SRC_H` art
+  pixels and stamps each as an exact `BEK_ART_SCALE` block. Feature positions
+  are rounded fractions of those, so resizing the panel moves a feature by a
+  whole art pixel and never lands anything on a fraction of one.
+- **Ramps only, and mostly derived.** What a character is not handed out of
+  `BEK_NPCS` — the lit and the shaded step of their own hair, shirt and skin —
+  comes from `rampStep` (`palette.js`), which is the contrast rule's own
+  same-ramp-neighbour exemption turned into a function. A shade the rig
+  invents is therefore inside the band *by construction*, whatever colour it
+  was handed. `near()` is the one wrinkle: `rampStep` clamps at either end, so
+  a colour that is already the top step comes back unchanged and Sigrid's
+  kerchief would be one flat block; `near` takes the neighbour on the other
+  side instead.
+- **The marks that break the band are declared, and thin.** The eyes, the
+  brows, the lashes and the line of the mouth are `FEATURES.PORT_EYE` /
+  `PORT_LINE` in `palette.js` (one pair per skin base); the skin's own planes
+  and the backdrop's vignette are `MARKS.PORT_SKIN`/`PORT_SKIN_TAN`/
+  `PORT_BACK`; the shadow under the jaw is `SHADOWS.PORT_JAW`. Same discipline
+  as the trim that makes a house findable in one bit, and `palette_check.js`
+  walks them with everything else.
+- **A face is modelled in ramp steps, not in stipple.** This is the one place
+  the usual answer is the wrong one. A head is twenty-eight art pixels across
+  and the dither cell is four of them, so a stippled seam down a cheek reads
+  as a dashed line rather than as a turn. Three planes — lit, base, turned
+  away — is what a ramp is *for*. The ordered dither is kept for the things
+  big enough to carry it: the backdrop vignette, the shoulder cloth, and
+  stubble. The light is the same key everything else uses, from above and a
+  little to the left, so the shade plane is always the right of the face.
+
+One consequence worth writing down: **ink first over a whole shape, material
+after it.** The head, the shoulders and the hair cap are all drawn as runs of
+rows, and the first version interleaved an outline row with a material row —
+so every row's ink painted out the row above it and the whole bust came out a
+silhouette. Two passes, always.
+
+### The box
+
+`menus_talk.js` holds the dialogue box and the buy prompt that comes out of
+one of its lines. It is a sibling of `menus.js` for the 300-line rule, the
+same way `decor_outdoor.js` is one of `decor.js`, and not a second organising
+principle — but the two panels do belong together, because both of them now
+name their speaker on the same plate.
+
+The geometry is derived from the text outward and the portrait is what is left
+beside it (`layout.js`): the body is `DLG_BODY_LINES` rows of large text plus
+the SPACE hint, and the portrait column is that same height less its name
+plate. Raise `DLG_BODY_LINES` and the portrait grows with the box and the two
+edges stay flush, with nothing re-measured — which is what the four assertions
+in `layout_check.js` hold it to. The plate's width comes from the longest
+name in `BEK_NPCS` plus two cells of quiet either side, rounded to whole
+character cells. `DLG_BODY_LINES` went four → five with this pass: nothing
+spoken needs more than three rows, but a question and its options are one
+block now and the widest spends four.
+
+An answer is a **row**, not a caret: the whole row inverts. Narration, the lot
+sign and Bjørn have no speaker, so they get the full width rather than an
+empty column to sit beside — and the wrapping the check proves is the narrow
+case, so the wide one cannot burst.
+
+### Which face, and who is speaking
+
+A line's mood is its own if it has one (`m` on the object form of a line),
+else the mood of the node or chat entry it came out of (`mood`), else
+`neutral`. A bare string has nowhere to hang a mood, which is why the three
+lines in `data.js` whose tone turns mid-entry are written out as objects.
+`PORT_MOODS` is exported from `portrait.js` so the check reads the same list
+the rig draws from.
+
+The half of this that is easy to get wrong is the **speaker**, not the face.
+Once the name lives only on the plate, a line that arrives with no `dlg.npc`
+loses its speaker outright — and several lines are built in code rather than
+read out of `BEK_TALK`: an offer's accept/refuse reply, Håkon's build and
+annex lines (reached through the menu funnel, not `talkTo`), and the quest
+turn-in. Every one of those now carries its `npc`, and an `offer` carries a
+copy of the speaker it came from (a copy — `BEK_TALK` is a static table and
+nothing may write to it). `__bekDebug.talk(id, steps)` drives the real
+`talkTo`/`dlgAdvance` from the harness so that can be checked on a running
+game rather than by reading the code.
 
 ## Ambience
 

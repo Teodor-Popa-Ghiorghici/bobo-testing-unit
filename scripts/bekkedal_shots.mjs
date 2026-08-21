@@ -147,7 +147,7 @@ for (const [id, ix, mp, x, y, dir] of SWING) {
 /* Every panel, opened through the same code the keyboard opens it with. A
    menu is the one part of the picture a screenshot of the world never covers,
    and a panel that throws only throws when somebody opens it. */
-for (const m of ['bag', 'quest', 'travel', 'shop', 'talk', 'offer', 'fish', 'sleep', 'end']) {
+for (const m of ['bag', 'quest', 'travel', 'shop', 'talk', 'ask', 'talk2', 'offer', 'fish', 'sleep', 'end']) {
   shot('menu_' + m, { map: 'town', px: 23, py: 13, min: 12 * 60, disc: { farm: 1, town: 1, lake: 1, setra: 1, vidda: 1 },
                       q: { fisk: 'active' }, bag: { potet: 3, jern: 2, tommer: 9, blabar: 5 } },
        { menu: m });

@@ -35,7 +35,8 @@
  * wall around a vein carries mineral traces that thicken as you get closer,
  * in that vein's own colour. The rock tells you where to look.
  */
-import { STO, SNO, WAT, CON, ATMO, MARKS, SHADOWS, FEATURES } from './palette.js';
+import { STO, SNO, WAT, CON, ATMO } from './palette.js';
+import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
 import { distanceField } from './autotile.js';
 import { BEK_T } from './data.js';
 

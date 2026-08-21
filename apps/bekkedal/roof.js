@@ -19,7 +19,7 @@
  * the night curve and the 1-bit threshold alike, where a hue difference would
  * not.
  */
-import { MARKS, SHADOWS, FEATURES } from './palette.js';
+import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
 import { BEK_T } from './data.js';
 
 /* A torvtak is a metre of sod on birch bark, held at the eave by one log, and

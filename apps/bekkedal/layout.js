@@ -12,7 +12,8 @@
  * raising the resolution again moves the whole UI together instead of leaving
  * a menu behind at the old scale.
  */
-import { BEK_W, BEK_H, BEK_ART_SCALE, BEK_HUD_H, BEK_VIEW_Y, BEK_VIEW_H, UI, BEK_TALK } from './data.js';
+import { BEK_W, BEK_H, BEK_ART_SCALE, BEK_HUD_H, BEK_VIEW_Y, BEK_VIEW_H, UI, BEK_TALK,
+         BEK_NPCS } from './data.js';
 import { FONT_GLYPH_H, FONT_ADV, FONT_LINE, FONT_SM, FONT_LG } from './font.js';
 
 /* A box that shows one fixed string should be measured from that string, not
@@ -76,14 +77,57 @@ export const FISH_TRACK_Y = FISH_Y + PAD_SM + LINE_SM;
 export const FISH_NEEDLE_W = BEK_ART_SCALE * 2;
 export const FISH_NEEDLE_OVER = BEK_ART_SCALE * 2;
 
-/* ---- dialogue ------------------------------------------------------------ */
-export const DLG_BODY_LINES = 4;
+/* ---- dialogue ------------------------------------------------------------
+   Two columns. On the left a portrait with the speaker's name on a plate
+   under it; on the right the line, and — when the line is a question — the
+   answers as rows the selection actually moves between. The name used to be
+   printed twice, once as a yellow header here and once inside the line
+   itself, which is why nearly every string in BEK_TALK began 'ASTRID: '. The
+   plate is now the only place a speaker is named and the prefixes are gone
+   from the content tables.
+
+   The box is derived from the text column outward and then the portrait is
+   whatever height is left beside it, rather than the portrait being a size
+   somebody picked: the body is DLG_BODY_LINES rows of large text plus the
+   SPACE hint, and the portrait column is that same height less its plate. So
+   raising DLG_BODY_LINES grows the portrait with the box and the two edges
+   stay flush without anything being re-measured.
+
+   DLG_BODY_LINES went from four to five with this pass. Nothing spoken needs
+   more than three rows, but a question and its options are one block now (the
+   options no longer scroll off the bottom silently) and the widest of those
+   spends four — the fifth is the headroom layout_check.js measures. */
+export const DLG_BODY_LINES = 5;
+export const DLG_HINT_H = LINE_SM;                  /* the SPACE prompt row     */
+export const DLG_GAP = BEK_ART_SCALE * 2;           /* seam between the parts   */
+export const DLG_BODY_H = LINE_LG * DLG_BODY_LINES + DLG_HINT_H;
+/* The plate is as wide as the longest speaker's name with two cells of quiet
+   either side, rounded to whole character cells — content, not a guess — and
+   the portrait above it is that same width, so the two read as one column. */
+export const DLG_NAME_CELLS = Math.max(...BEK_NPCS.map(n => String(n.n).length)) + 4;
+export const DLG_PLATE_H = LINE_SM + DLG_GAP;
+export const DLG_PORT_W = CELL_SM * DLG_NAME_CELLS;
+export const DLG_PORT_H = DLG_BODY_H - DLG_PLATE_H - DLG_GAP;
+/* what portrait.js authors in: whole art pixels, each drawn as an exact
+   BEK_ART_SCALE block, so the rig never lands on a fractional pixel */
+export const PORT_SRC_W = DLG_PORT_W / BEK_ART_SCALE;
+export const PORT_SRC_H = DLG_PORT_H / BEK_ART_SCALE;
 export const DLG_W = BEK_W - CELL_SM * 4;
-export const DLG_H = PAD_LG * 2 + LINE_SM + LINE_LG * DLG_BODY_LINES + LINE_SM;
+export const DLG_H = PAD_LG * 2 + DLG_BODY_H;
 export const DLG_X = Math.round((BEK_W - DLG_W) / 2);
 export const DLG_Y = HUD_BOT_Y - DLG_H - PAD_SM;
-export const DLG_TX = DLG_X + PAD_LG;
-export const DLG_TW = DLG_W - PAD_LG * 2;
+export const DLG_PORT_X = DLG_X + PAD_LG;
+export const DLG_PORT_Y = DLG_Y + PAD_LG;
+export const DLG_PLATE_Y = DLG_PORT_Y + DLG_PORT_H + DLG_GAP;
+export const DLG_TX = DLG_PORT_X + DLG_PORT_W + PAD_LG;
+export const DLG_TW = DLG_X + DLG_W - PAD_LG - DLG_TX;
+/* Narration and the lot sign have no speaker and so no portrait: the text
+   runs the whole box instead of leaving an empty column. Wrapping is checked
+   against the narrow column, which is the worst case of the two. */
+export const DLG_TX_FULL = DLG_X + PAD_LG;
+export const DLG_TW_FULL = DLG_W - PAD_LG * 2;
+/* a chosen option is a row, not a caret: the highlight spans the column */
+export const DLG_ROW_PAD = BEK_ART_SCALE;
 
 /* ---- small modal boxes --------------------------------------------------- */
 export const SLEEP_W = inkW(both(UI.sleep).concat(both(UI.goodnight)), FONT_LG) + PAD_LG * 2;
@@ -93,7 +137,10 @@ export const SLEEP_Y = BEK_VIEW_Y + Math.round((BEK_VIEW_H - SLEEP_H) / 2);
 export const SLEEP_TW = SLEEP_W - PAD_LG * 2;
 
 export const OFFER_W = inkW(offerLabels.concat(['SPACE — KJØP    ESC — NEI', 'SPACE — BUY    ESC — NO', '999999 kr']), FONT_LG) + PAD_LG * 2;
-export const OFFER_H = PAD_LG * 2 + LINE_LG * 3;
+/* the seller's name, on the same plate the dialogue box names them with —
+   an offer arrives out of one of their lines and has to say whose */
+export const OFFER_NAME_H = DLG_PLATE_H;
+export const OFFER_H = PAD_LG * 2 + OFFER_NAME_H + DLG_GAP + LINE_LG * 3;
 export const OFFER_X = Math.round((BEK_W - OFFER_W) / 2);
 export const OFFER_Y = BEK_VIEW_Y + Math.round((BEK_VIEW_H - OFFER_H) / 2);
 export const OFFER_TW = OFFER_W - PAD_LG * 2;

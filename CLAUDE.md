@@ -56,6 +56,14 @@ The machine's base rule is that all colour comes from `VGA16` (`kernel/god.js`) 
   the seam between two wall rows and a window is taller than either of them.
   Chimney smoke is the one part of a building that is not in the terrain cache.
   **The valley is walked, not chosen from a menu:** the nine outdoor maps are three to four times the size they were and join along whole runs of their own edges — walk west off the farm and you are in the wood. The seams are declared once each, as pairings, in `apps/bekkedal/maps.js`; the rows themselves are in `maps_valley.js` and `maps_wild.js`. The travel menu survives only for the setra and the vidda, which are up the mountain and have to be climbed on foot before they are ever offered (`BEK_HOME`, `index.js`). `node apps/bekkedal/world_check.js` is what holds all of that together.
+  **The people have faces:** the conversation box is a portrait, a name plate
+  and the line, with answers as rows the selection moves between
+  (`apps/bekkedal/menus_talk.js`). The eight portraits are one head-and-
+  shoulders rig with parameters per character out of `BEK_NPCS[].face` and
+  three expressions each (`apps/bekkedal/portrait.js`), never eight drawings —
+  and because the plate is the only place a speaker is named, no line in
+  `BEK_TALK` carries an `ASTRID: ` prefix any more. `layout_check.js` holds the
+  box's geometry and `scripts/lint-content.mjs` holds the prefix rule.
   **Palette:** this app is the second explicit, user-requested exception to the machine's base 16-colour rule above — see `apps/bekkedal/CLAUDE.md` and `.claude/rules/bekkedal-art.md` for the full doctrine.
 - `standbattle`: `apps/standbattle/index.js` - Stand Battle Arena, a JoJo's Bizarre Adventure roguelike combat prototype (see `docs/stand-battle-arena-spec.md`), ported in full from the jojo-roguelike repo's current, far more developed build (replacing this repo's earlier prototype port). Playable Jotaro Kujo/Star Platinum vs. Morioh enemies and boss Yoshikage Kira/Killer Queen, across a 6-node Act 1 (Morioh) map. Zero meta-progression by design; internal 480×270 canvas on a 720×260 belt plane (x, z) with a tracking camera, integer-only upscale.
   **Combat engine:** dodge (Step) is edge-triggered and gated by a 2-charge meter (`fighter.js`, GDD §3.7) with a HUD pip readout. All action inputs are queued in a 9-frame input buffer (`combat.js`) and fire the instant the player returns to idle. Arena world bounds are centralized in `arena_bounds.js`, shared by the sim (`combat.js`) and camera (`render.js`).

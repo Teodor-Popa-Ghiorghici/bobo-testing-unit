@@ -601,19 +601,41 @@ export const BEK_SOLID = 'TYGWHRS=^MOQvcBobnuJK ';
 /* hair / shirt / pants are palette indices. They come off the ramps rather
    than out of VGA16 now, so a person standing in a field is a person and not
    a colour swatch — and everyone keeps the silhouette and the read they had. */
+/* `hair`/`shirt`/`pants` are what actors.js draws the walking sprite from and
+   `voice` is the pitch their speech blips are played at. `face` is the
+   portrait's own parameter set (portrait.js) — the same idea one step
+   further in: a face is one rig with numbers per person, not eight drawings.
+   `skin` picks one of the two declared skin bases (a fair one, and a
+   weathered one for whoever works outdoors all day); `cut` is the hair
+   silhouette, which at this size is most of what tells two people apart;
+   `beard`, `brow`, `iris`, `jaw`, `age` and `hat` are the rest of it. Every
+   colour named here is a ramp entry, and the lit and shadowed steps of each
+   are derived from it rather than declared, so a character cannot be given a
+   highlight that is not their own material.
+
+   Whatever is left out falls back to the rig's own middle, so a ninth
+   character costs a row here and nothing else. */
 export const BEK_NPCS = [
-  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 9,  y: 11, hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620 },
-  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 32, y: 24, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360 },
-  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 11, y: 11, hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700 },
-  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 12, y: 7,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330 },
-  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 15, y: 9,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660 },
-  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 7,  y: 8,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560 },
-  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 22, y: 18, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290 },
+  { id: 'astrid', n: 'ASTRID', map: 'town',  x: 9,  y: 11, hair: TIM[1], shirt: WAR[2], pants: ATMO[2], voice: 620,
+    face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 0 } },
+  { id: 'hakon',  n: 'HÅKON',  map: 'town',  x: 32, y: 24, hair: STO[3], shirt: CON[3], pants: STO[2],  voice: 360,
+    face: { skin: 'tan',  cut: 'crop',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 2, hat: 0 } },
+  { id: 'ingrid', n: 'INGRID', map: 'lake',  x: 11, y: 11, hair: DRY[2], shirt: WAT[4], pants: ATMO[2], voice: 700,
+    face: { skin: 'fair', cut: 'long',   beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 0, hat: 0 } },
+  { id: 'olav',   n: 'OLAV',   map: 'lake',  x: 12, y: 7,  hair: STO[4], shirt: WAT[2], pants: STO[2],  voice: 330,
+    face: { skin: 'tan',  cut: 'short',  beard: 'chin',    brow: 2, iris: WAT[2], jaw: 1,  age: 2, hat: 'cap' } },
+  { id: 'marit',  n: 'MARIT',  map: 'enga',  x: 15, y: 9,  hair: SNO[0], shirt: WAR[3], pants: STO[2],  voice: 660,
+    face: { skin: 'fair', cut: 'bun',    beard: 0,         brow: 1, iris: WAT[2], jaw: -1, age: 2, hat: 0 } },
+  { id: 'sigrid', n: 'SIGRID', map: 'setra', x: 7,  y: 8,  hair: DRY[2], shirt: WAR[4], pants: STO[4],  voice: 560,
+    face: { skin: 'fair', cut: 'braids', beard: 0,         brow: 1, iris: TIM[1], jaw: 0,  age: 1, hat: 'kerchief' } },
+  { id: 'gunnar', n: 'GUNNAR', map: 'vidda', x: 22, y: 18, hair: TIM[1], shirt: CON[3], pants: STO[2],  voice: 290,
+    face: { skin: 'tan',  cut: 'long',   beard: 'full',    brow: 2, iris: TIM[1], jaw: 1,  age: 1, hat: 0 } },
   /* Lars stands in the alcove cut beside the adit, never on a corridor. The
      levels driven off the main drift are one tile wide, and a man standing on
      one is a wall; the alcove at (2-3, 9-10) is cut wide enough that he is
      not, and the raise down to the adit runs past him rather than through. */
-  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 9,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420 },
+  { id: 'lars',   n: 'LARS',   map: 'gruva', x: 2,  y: 9,  hair: STO[3], shirt: WAR[1], pants: STO[2],  voice: 420,
+    face: { skin: 'tan',  cut: 'crop',   beard: 'stubble', brow: 2, iris: TIM[1], jaw: 0,  age: 1, hat: 'helm' } },
   { id: 'bjorn',  n: '',       map: 'forest', x: 12, y: 10, bear: true, from: 6 }
 ];
 
@@ -632,80 +654,80 @@ export const BEK_GOATS = [
 export const BEK_TALK = {
   astrid: {
     nodes: [
-      { id: 'a1',
-        lines: [{ no: 'ASTRID: Hei! You are the one who took the old plot.', en: 'ASTRID: Hi! You are the one who took the old plot.' },
-                'ASTRID: Nobody has turned that soil in six years.'],
+      { id: 'a1', mood: 'warm',
+        lines: [{ no: 'Hei! You are the one who took the old plot.', en: 'Hi! You are the one who took the old plot.' },
+                { no: 'Nobody has turned that soil in six years.', en: 'Nobody has turned that soil in six years.', m: 'troubled' }],
         ask: { q: { no: 'Why did you come to Bekkedal?', en: 'Why did you come to Bekkedal?' }, opts: [
           { t: { no: 'For the quiet.', en: 'For the quiet.' }, set: { why: 'quiet' }, fr: 1,
-            reply: ['ASTRID: Then you came to the right valley.',
-                    { no: 'ASTRID: Take these. Potatoes forgive a beginner.', en: 'ASTRID: Take these. Potatoes forgive a beginner.' }],
+            reply: ['Then you came to the right valley.',
+                    { no: 'Take these. Potatoes forgive a beginner.', en: 'Take these. Potatoes forgive a beginner.' }],
             give: { potetfro: 6 } },
           { t: { no: 'Land was cheap.', en: 'Land was cheap.' }, set: { why: 'land' }, fr: 0,
-            reply: ['ASTRID: Honest, at least. Ha!',
-                    'ASTRID: Cheap land, cheap seed. Here.'],
+            reply: ['Honest, at least. Ha!',
+                    'Cheap land, cheap seed. Here.'],
             give: { potetfro: 8 } }
         ] } },
       { id: 'a2', when: S => S.q.potet === 'active',
-        lines: [{ no: 'ASTRID: Five poteter and the board is happy.', en: 'ASTRID: Five potatoes and the board is happy.' }] },
-      { id: 'a3', when: S => S.fr.astrid >= 3 && S.flag.why === 'quiet',
-        lines: ['ASTRID: You still have not complained about the rain.',
-                { no: 'ASTRID: That is how I know you meant it. Kaffe, on me.', en: 'ASTRID: That is how I know you meant it. Coffee, on me.' }],
+        lines: [{ no: 'Five poteter and the board is happy.', en: 'Five potatoes and the board is happy.' }] },
+      { id: 'a3', mood: 'warm', when: S => S.fr.astrid >= 3 && S.flag.why === 'quiet',
+        lines: ['You still have not complained about the rain.',
+                { no: 'That is how I know you meant it. Kaffe, on me.', en: 'That is how I know you meant it. Coffee, on me.' }],
         give: { kaffe: 2 } },
       { id: 'a4', when: S => S.fr.astrid >= 3 && S.flag.why === 'land',
-        lines: ['ASTRID: You drive a hard bargain, so I will match it.',
-                'ASTRID: Ten percent off, permanently. Do not tell Håkon.'],
+        lines: ['You drive a hard bargain, so I will match it.',
+                'Ten percent off, permanently. Do not tell Håkon.'],
         set: { rabatt: 1 } },
-      { id: 'a5', when: S => S.fr.astrid >= 4,
-        lines: [{ no: 'ASTRID: Jordbær seed came in. Slow, but it pays.', en: 'ASTRID: Strawberry seed came in. Slow, but it pays.' }],
+      { id: 'a5', mood: 'warm', when: S => S.fr.astrid >= 4,
+        lines: [{ no: 'Jordbær seed came in. Slow, but it pays.', en: 'Strawberry seed came in. Slow, but it pays.' }],
         set: { jordbar: 1 } },
-      { id: 'a6', when: S => S.fr.astrid >= 5,
-        lines: ['ASTRID: You have made this a real farm. I am glad you stayed.'] }
+      { id: 'a6', mood: 'warm', when: S => S.fr.astrid >= 5,
+        lines: ['You have made this a real farm. I am glad you stayed.'] }
     ],
     chat: [
-      { t: [{ no: 'ASTRID: God morgen. The kettle is on.', en: 'ASTRID: Good morning. The kettle is on.' }] },
-      { t: ['ASTRID: Rain on Tuesday, my knee says so.'] },
-      { t: ['ASTRID: The lantern is for the mine. Lars is down there.'] },
-      { t: ['ASTRID: The road runs west to your gate and east to the water.'] },
-      { t: ['ASTRID: Everything down here is a walk. Only the setra is a journey.'] },
-      { t: ['ASTRID: You came for the quiet. It is still here.'], if: S => S.flag.why === 'quiet' },
-      { t: ['ASTRID: Land is cheap. Company is not.'], if: S => S.flag.why === 'land' },
-      { t: ['ASTRID: Sigrid has wool up at the seter, if the vidda calls you.'], if: S => S.disc && S.disc.setra },
-      { t: ['ASTRID: Håkon says you have been felling. Good.'], if: S => S.q.tommer === 'done' },
+      { mood: 'warm', t: [{ no: 'God morgen. The kettle is on.', en: 'Good morning. The kettle is on.' }] },
+      { mood: 'troubled', t: ['Rain on Tuesday, my knee says so.'] },
+      { t: ['The lantern is for the mine. Lars is down there.'] },
+      { t: ['The road runs west to your gate and east to the water.'] },
+      { t: ['Everything down here is a walk. Only the setra is a journey.'] },
+      { mood: 'warm', t: ['You came for the quiet. It is still here.'], if: S => S.flag.why === 'quiet' },
+      { mood: 'troubled', t: ['Land is cheap. Company is not.'], if: S => S.flag.why === 'land' },
+      { t: ['Sigrid has wool up at the seter, if the vidda calls you.'], if: S => S.disc && S.disc.setra },
+      { mood: 'warm', t: ['Håkon says you have been felling. Good.'], if: S => S.q.tommer === 'done' },
       /* the tau/spiker Astrid used to carry are Lars's stock too — freeing
          one shop row is what makes room for the sprinkler on this list
          without the shop panel growing past SHOP_ROWS */
-      { t: [{ no: 'ASTRID: A bigger sekk carries more before your back complains.', en: 'ASTRID: A bigger bag carries more before your back complains.' }],
+      { t: [{ no: 'A bigger sekk carries more before your back complains.', en: 'A bigger bag carries more before your back complains.' }],
         if: S => !S.bagTier && S.fr.astrid >= 1,
         buy: { label: { no: 'STØRRE SEKK — 400 kr', en: 'BIGGER BAG — 400 kr' }, kr: 400, bagCapAdd: 40, bagTier: 1,
-               ok: ['ASTRID: There. Room to breathe.'],
-               no: ['ASTRID: 400 kr. Ask me again later.'] } },
-      { t: [{ no: 'ASTRID: There is a bigger sekk still, if the first was not enough.', en: 'ASTRID: There is a bigger bag still, if the first was not enough.' }],
+               ok: ['There. Room to breathe.'],
+               no: ['400 kr. Ask me again later.'] } },
+      { t: [{ no: 'There is a bigger sekk still, if the first was not enough.', en: 'There is a bigger bag still, if the first was not enough.' }],
         if: S => S.bagTier === 1 && S.fr.astrid >= 3,
         buy: { label: { no: 'STOR SEKK — 900 kr', en: 'BIG BAG — 900 kr' }, kr: 900, bagCapAdd: 60, bagTier: 2,
-               ok: ['ASTRID: Now you can carry half the valley.'],
-               no: ['ASTRID: 900 kr. When you have it.'] } },
-      { t: [{ no: 'ASTRID: A bigger kanne holds more, and waters three furrows at once.', en: 'ASTRID: A bigger can holds more, and waters three furrows at once.' }],
+               ok: ['Now you can carry half the valley.'],
+               no: ['900 kr. When you have it.'] } },
+      { t: [{ no: 'A bigger kanne holds more, and waters three furrows at once.', en: 'A bigger can holds more, and waters three furrows at once.' }],
         if: S => !S.kanneLv && S.fr.astrid >= 2,
         buy: { label: { no: 'STOR VANNKANNE — 700 kr', en: 'BIG WATERING CAN — 700 kr' }, kr: 700, kanneLv: 1, waterMaxAdd: 15,
-               ok: ['ASTRID: Mind your wrist. It is heavier full.'],
-               no: ['ASTRID: 700 kr. Come back when you have it.'] } },
+               ok: ['Mind your wrist. It is heavier full.'],
+               no: ['700 kr. Come back when you have it.'] } },
       /* the four festival beats — one per season, gated on S.festival the
          same way every other chat line here gates on S.flag/S.fr. See
          BEK_FESTIVALS above for the day and the map dressing that goes with
          each. */
-      { t: [{ no: 'ASTRID: Vårblot i dag! Se — noen har satt blomster på torget.', en: 'ASTRID: Spring Festival today! Look — someone has put flowers up in the square.' }],
+      { mood: 'warm', t: [{ no: 'Vårblot i dag! Se — noen har satt blomster på torget.', en: 'Spring Festival today! Look — someone has put flowers up in the square.' }],
         if: S => S.festival === 'var' },
-      { t: [{ no: 'ASTRID: Solsnu i dag. Torget er pyntet for den lyseste natten.', en: 'ASTRID: Midsummer Fair today. The square is dressed for the lightest night.' }],
+      { mood: 'warm', t: [{ no: 'Solsnu i dag. Torget er pyntet for den lyseste natten.', en: 'Midsummer Fair today. The square is dressed for the lightest night.' }],
         if: S => S.festival === 'sommer' },
-      { t: [{ no: 'ASTRID: Haustgilde i dag — takk for avlingen, før frosten tar den.', en: 'ASTRID: Harvest Fair today — thanks for the crop, before the frost takes it.' }],
+      { mood: 'warm', t: [{ no: 'Haustgilde i dag — takk for avlingen, før frosten tar den.', en: 'Harvest Fair today — thanks for the crop, before the frost takes it.' }],
         if: S => S.festival === 'host' },
-      { t: [{ no: 'ASTRID: Juleblot i dag. Kaldt ute, men torget er pyntet likevel.', en: 'ASTRID: Midwinter Feast today. Cold out, but the square is dressed all the same.' }],
+      { mood: 'warm', t: [{ no: 'Juleblot i dag. Kaldt ute, men torget er pyntet likevel.', en: 'Midwinter Feast today. Cold out, but the square is dressed all the same.' }],
         if: S => S.festival === 'vinter' },
       /* Act II: one late beat per character acknowledging the finished
          house, gated on S.act2Unlocked exactly like the festival lines
          above gate on S.festival — a chat entry, not a node, so it keeps
          resurfacing rather than firing once and being spent. */
-      { t: [{ no: 'ASTRID: Huset ved vannet står nå. Bra. Dalen trengte en skorstein til.', en: 'ASTRID: The house by the water is standing now. Good. This valley needed one more chimney.' }],
+      { mood: 'warm', t: [{ no: 'Huset ved vannet står nå. Bra. Dalen trengte en skorstein til.', en: 'The house by the water is standing now. Good. This valley needed one more chimney.' }],
         if: S => S.act2Unlocked }
     ],
     shop: ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro', 'kaffe', 'vaffel', 'lefse', 'lykt', 'sprinkler']
@@ -714,63 +736,63 @@ export const BEK_TALK = {
   hakon: {
     nodes: [
       { id: 'h1',
-        lines: ['HÅKON: Snekkeriet. I build what people can pay for.',
-                'HÅKON: You will want a house eventually. They all do.'],
+        lines: ['Snekkeriet. I build what people can pay for.',
+                { no: 'You will want a house eventually. They all do.', en: 'You will want a house eventually. They all do.', m: 'warm' }],
         ask: { q: { no: 'How should it be built?', en: 'How should it be built?' }, opts: [
           { t: { no: 'From the forest. I will fell it myself.', en: 'From the forest. I will fell it myself.' }, set: { build: 'skog' }, fr: 1,
-            reply: ['HÅKON: Good. Timber you carry is timber you respect.',
-                    { no: 'HÅKON: Thirty tømmer, twenty stein, and 5000 kr.', en: 'HÅKON: Thirty timber, twenty stone, and 5000 kr.' }] },
+            reply: ['Good. Timber you carry is timber you respect.',
+                    { no: 'Thirty tømmer, twenty stein, and 5000 kr.', en: 'Thirty timber, twenty stone, and 5000 kr.' }] },
           { t: { no: 'Order the planks. I will pay.', en: 'Order the planks. I will pay.' }, set: { build: 'kjop' }, fr: 0,
-            reply: ['HÅKON: City answer. Fine. It costs what it costs.',
-                    { no: 'HÅKON: Twelve tømmer, ten stein, and 6500 kr.', en: 'HÅKON: Twelve timber, ten stone, and 6500 kr.' }] }
+            reply: ['City answer. Fine. It costs what it costs.',
+                    { no: 'Twelve tømmer, ten stein, and 6500 kr.', en: 'Twelve timber, ten stone, and 6500 kr.' }] }
         ] } },
       { id: 'h2', when: S => S.q.tommer === 'active',
-        lines: [{ no: 'HÅKON: Ten tømmer. The øks is by the stump, as always.', en: 'HÅKON: Ten timber. The axe is by the stump, as always.' }] },
+        lines: [{ no: 'Ten tømmer. The øks is by the stump, as always.', en: 'Ten timber. The axe is by the stump, as always.' }] },
       { id: 'h3', when: S => S.q.tommer === 'done' && !S.flag.lot,
-        lines: [{ no: 'HÅKON: The lot by the water is for sale. 1200 kr.', en: 'HÅKON: The lot by the water is for sale. 1200 kr.' },
-                'HÅKON: Trees on three sides, water on the fourth.',
-                'HÅKON: Sign is down there. I will know when you have.'] },
+        lines: [{ no: 'The lot by the water is for sale. 1200 kr.', en: 'The lot by the water is for sale. 1200 kr.' },
+                'Trees on three sides, water on the fourth.',
+                'Sign is down there. I will know when you have.'] },
       { id: 'h4', when: S => S.q.tommer === 'done' && S.axeLv < 2,
-        lines: [{ no: 'HÅKON: The big gran need a STÅLØKS. I sell one for 900 kr.', en: 'HÅKON: The big firs need a STEEL AXE. I sell one for 900 kr.' }],
+        lines: [{ no: 'The big gran need a STÅLØKS. I sell one for 900 kr.', en: 'The big firs need a STEEL AXE. I sell one for 900 kr.' }],
         buy: { label: { no: 'STÅLØKS — 900 kr', en: 'STEEL AXE — 900 kr' }, kr: 900, axeLv: 2,
-               ok: ['HÅKON: Mind the swing. It bites deeper.'],
-               no: ['HÅKON: 900 kr. Come back when you have it.'] } },
-      { id: 'h5', when: S => S.fr.hakon >= 4 && S.flag.build === 'skog',
-        lines: ['HÅKON: Five hundred off the house. You did the felling, not me.'],
+               ok: ['Mind the swing. It bites deeper.'],
+               no: ['900 kr. Come back when you have it.'] } },
+      { id: 'h5', mood: 'warm', when: S => S.fr.hakon >= 4 && S.flag.build === 'skog',
+        lines: ['Five hundred off the house. You did the felling, not me.'],
         set: { rabatt2: 1 } }
     ],
     chat: [
-      { t: ['HÅKON: Mm.'] },
-      { t: ['HÅKON: Wood moves in autumn. Build in summer.'] },
-      { t: [{ no: 'HÅKON: Stein comes out of the gruva with the ore. Bring both.', en: 'HÅKON: Stone comes out of the mine with the ore. Bring both.' }] },
-      { t: ['HÅKON: Timber you carry is timber you respect.'], if: S => S.flag.build === 'skog' },
-      { t: ['HÅKON: The planks are ordered. They come when they come.'], if: S => S.flag.build === 'kjop' },
-      { t: [{ no: 'HÅKON: The ground south of your plot would till clean, if you wanted it broken.', en: 'HÅKON: The ground south of your plot would till clean, if you wanted it broken.' }],
+      { t: ['Mm.'] },
+      { t: ['Wood moves in autumn. Build in summer.'] },
+      { t: [{ no: 'Stein comes out of the gruva with the ore. Bring both.', en: 'Stone comes out of the mine with the ore. Bring both.' }] },
+      { mood: 'warm', t: ['Timber you carry is timber you respect.'], if: S => S.flag.build === 'skog' },
+      { mood: 'troubled', t: ['The planks are ordered. They come when they come.'], if: S => S.flag.build === 'kjop' },
+      { t: [{ no: 'The ground south of your plot would till clean, if you wanted it broken.', en: 'The ground south of your plot would till clean, if you wanted it broken.' }],
         if: S => !S.flag.plot2 && S.q.tommer === 'done',
         buy: { label: { no: 'NYTT JORDE — 800 kr', en: 'NEW FIELD — 800 kr' }, kr: 800, flag: { plot2: 1 },
-               ok: ['HÅKON: I will have it cleared by morning.'],
-               no: ['HÅKON: 800 kr. The ground will keep.'] } },
-      { t: [{ no: 'HÅKON: Further out still, if the first field filled up fast.', en: 'HÅKON: Further out still, if the first field filled up fast.' }],
+               ok: ['I will have it cleared by morning.'],
+               no: ['800 kr. The ground will keep.'] } },
+      { t: [{ no: 'Further out still, if the first field filled up fast.', en: 'Further out still, if the first field filled up fast.' }],
         if: S => S.flag.plot2 && !S.flag.plot3,
         buy: { label: { no: 'STØRRE JORDE — 1500 kr', en: 'BIGGER FIELD — 1500 kr' }, kr: 1500, flag: { plot3: 1 },
-               ok: ['HÅKON: That is most of the flat ground gone now.'],
-               no: ['HÅKON: 1500 kr. No rush.'] } },
-      { t: [{ no: 'HÅKON: A pen in the corner would keep animals off what you just cleared.', en: 'HÅKON: A pen in the corner would keep animals off what you just cleared.' }],
+               ok: ['That is most of the flat ground gone now.'],
+               no: ['1500 kr. No rush.'] } },
+      { t: [{ no: 'A pen in the corner would keep animals off what you just cleared.', en: 'A pen in the corner would keep animals off what you just cleared.' }],
         if: S => S.flag.plot3 && !S.flag.barn,
         buy: { label: { no: 'DYREINNHEGNING — 1100 kr', en: 'ANIMAL PEN — 1100 kr' }, kr: 1100, flag: { barn: 1 },
-               ok: ['HÅKON: Fenced and strawed. Sigrid will sell you what goes in it.'],
-               no: ['HÅKON: 1100 kr. The fence will keep.'] } },
+               ok: ['Fenced and strawed. Sigrid will sell you what goes in it.'],
+               no: ['1100 kr. The fence will keep.'] } },
       /* Act II: the pen's second tier — kr-only, so the generic `buy` offer
          fits (unlike the house tier itself, which spends tømmer/stein too
          and stays in hakonBuild()). Gated on S.flag.barn so it only ever
          follows the first pen, and S.act2Unlocked so it cannot outrun the
          house. See BEK_BARN_PLOT2/BEK_BARN_SLOTS2 above. */
-      { t: [{ no: 'HÅKON: Nå som du har eget tak, kunne innhegningen godt vokse også.', en: 'HÅKON: Now that you have a roof of your own, the pen could stand to grow too.' }],
+      { t: [{ no: 'Nå som du har eget tak, kunne innhegningen godt vokse også.', en: 'Now that you have a roof of your own, the pen could stand to grow too.' }],
         if: S => S.act2Unlocked && S.flag.barn && !S.flag.barn2,
         buy: { label: { no: 'DYREINNHEGNING II — 1400 kr', en: 'ANIMAL PEN II — 1400 kr' }, kr: 1400, flag: { barn2: 1 },
-               ok: ['HÅKON: Doubled it. Sigrid will be glad to hear it.'],
-               no: ['HÅKON: 1400 kr. It will keep.'] } },
-      { t: [{ no: 'HÅKON: Huset står i vinkel. Jeg sjekket, da du ikke så på.', en: 'HÅKON: The house stands square. I checked, when you weren’t looking.' }],
+               ok: ['Doubled it. Sigrid will be glad to hear it.'],
+               no: ['1400 kr. It will keep.'] } },
+      { mood: 'warm', t: [{ no: 'Huset står i vinkel. Jeg sjekket, da du ikke så på.', en: 'The house stands square. I checked, when you weren’t looking.' }],
         if: S => S.act2Unlocked }
     ]
   },
@@ -778,94 +800,94 @@ export const BEK_TALK = {
   ingrid: {
     nodes: [
       { id: 'i1',
-        lines: [{ no: 'INGRID: God kveld. Or morning. Out here it is the same.', en: 'INGRID: Good evening. Or morning. Out here it is the same.' }],
+        lines: [{ no: 'God kveld. Or morning. Out here it is the same.', en: 'Good evening. Or morning. Out here it is the same.' }],
         ask: { q: { no: 'Why do you fish?', en: 'Why do you fish?' }, opts: [
           { t: { no: 'For the calm.', en: 'For the calm.' }, set: { fisk: 'ro' }, fr: 1,
-            reply: ['INGRID: Then stand at the end of the pier, not the middle.',
-                    { no: 'INGRID: The laks lie deep out there. Bring me three sopp', en: 'INGRID: The salmon lie deep out there. Bring me three mushrooms' },
-                    { no: 'INGRID: and the old stang is yours.', en: 'INGRID: and the old rod is yours.' }] },
+            reply: ['Then stand at the end of the pier, not the middle.',
+                    { no: 'The laks lie deep out there. Bring me three sopp', en: 'The salmon lie deep out there. Bring me three mushrooms' },
+                    { no: 'and the old stang is yours.', en: 'and the old rod is yours.' }] },
           { t: { no: 'For the food.', en: 'For the food.' }, set: { fisk: 'mat' }, fr: 0,
-            reply: ['INGRID: Sensible. I will keep you fed while you learn.',
-                    { no: 'INGRID: Three sopp from the forest, and you get the stang.', en: 'INGRID: Three mushrooms from the forest, and you get the rod.' }] }
+            reply: ['Sensible. I will keep you fed while you learn.',
+                    { no: 'Three sopp from the forest, and you get the stang.', en: 'Three mushrooms from the forest, and you get the rod.' }] }
         ] } },
       { id: 'i2', when: S => S.q.sopp === 'active',
-        lines: [{ no: 'INGRID: Three sopp. The skogen is full of them at dawn.', en: 'INGRID: Three mushrooms. The forest is full of them at dawn.' }] },
-      { id: 'i3', when: S => S.fr.ingrid >= 3 && S.flag.fisk === 'ro',
-        lines: ['INGRID: You have learned to wait. That is all fishing is.'] },
-      { id: 'i4', when: S => S.fr.ingrid >= 3 && S.flag.fisk === 'mat',
-        lines: ['INGRID: Here. You still eat like a man who forgets to.'],
+        lines: [{ no: 'Three sopp. The skogen is full of them at dawn.', en: 'Three mushrooms. The forest is full of them at dawn.' }] },
+      { id: 'i3', mood: 'warm', when: S => S.fr.ingrid >= 3 && S.flag.fisk === 'ro',
+        lines: ['You have learned to wait. That is all fishing is.'] },
+      { id: 'i4', mood: 'warm', when: S => S.fr.ingrid >= 3 && S.flag.fisk === 'mat',
+        lines: ['Here. You still eat like a man who forgets to.'],
         give: { vaffel: 2 } },
       { id: 'i5', when: S => S.fr.ingrid >= 4,
-        lines: [{ no: 'INGRID: Røye run in the cold tarn up on the vidda. Colder, sweeter.', en: 'INGRID: Char run in the cold tarn up on the plateau. Colder, sweeter.' }] }
+        lines: [{ no: 'Røye run in the cold tarn up on the vidda. Colder, sweeter.', en: 'Char run in the cold tarn up on the plateau. Colder, sweeter.' }] }
     ],
     chat: [
-      { t: ['INGRID: Still biting. Slowly.'] },
-      { t: ['INGRID: The lot behind you has been empty a long time.'] },
-      { t: ['INGRID: Deep water, deep fish. Patience.'], if: S => S.flag.fisk === 'ro' },
-      { t: [{ no: 'INGRID: Eat something that is not a potet.', en: 'INGRID: Eat something that is not a potato.' }], if: S => S.flag.fisk === 'mat' },
-      { t: ['INGRID: Olav could take you to the fjord, if his boat floated.'] },
-      { t: [{ no: 'INGRID: Du bygde nært nok til at jeg ser lykten din fra brygga.', en: 'INGRID: You built close enough that I can see your lamp from the pier.' }],
+      { t: ['Still biting. Slowly.'] },
+      { mood: 'troubled', t: ['The lot behind you has been empty a long time.'] },
+      { t: ['Deep water, deep fish. Patience.'], if: S => S.flag.fisk === 'ro' },
+      { mood: 'troubled', t: [{ no: 'Eat something that is not a potet.', en: 'Eat something that is not a potato.' }], if: S => S.flag.fisk === 'mat' },
+      { t: ['Olav could take you to the fjord, if his boat floated.'] },
+      { t: [{ no: 'Du bygde nært nok til at jeg ser lykten din fra brygga.', en: 'You built close enough that I can see your lamp from the pier.' }],
         if: S => S.act2Unlocked }
     ]
   },
 
   olav: {
     nodes: [
-      { id: 'o1',
-        lines: ['OLAV: The boat leaks. Everything out here leaks, eventually.'],
+      { id: 'o1', mood: 'troubled',
+        lines: ['The boat leaks. Everything out here leaks, eventually.'],
         ask: { q: { no: 'The fjord, or the open sea?', en: 'The fjord, or the open sea?' }, opts: [
           { t: { no: 'The open sea. I want the big ones.', en: 'The open sea. I want the big ones.' }, set: { sea: 'hav' }, fr: 1,
-            reply: [{ no: 'OLAV: A bold answer. Makrell run in shoals out past the mouth.', en: 'OLAV: A bold answer. Mackerel run in shoals out past the mouth.' },
-                    { no: 'OLAV: Fix my boat and I will point you at them. Four tømmer, two tau.', en: 'OLAV: Fix my boat and I will point you at them. Four timber, two rope.' }] },
+            reply: [{ no: 'A bold answer. Makrell run in shoals out past the mouth.', en: 'A bold answer. Mackerel run in shoals out past the mouth.' },
+                    { no: 'Fix my boat and I will point you at them. Four tømmer, two tau.', en: 'Fix my boat and I will point you at them. Four timber, two rope.' }] },
           { t: { no: 'The fjord. Calm water suits me.', en: 'The fjord. Calm water suits me.' }, set: { sea: 'fjord' }, fr: 0,
-            reply: [{ no: 'OLAV: Sensible. Torsk sit still and wait, like you.', en: 'OLAV: Sensible. Cod sit still and wait, like you.' },
-                    { no: 'OLAV: Patch the boat — four tømmer, two tau — and it is yours to borrow.', en: 'OLAV: Patch the boat — four timber, two rope — and it is yours to borrow.' }] }
+            reply: [{ no: 'Sensible. Torsk sit still and wait, like you.', en: 'Sensible. Cod sit still and wait, like you.' },
+                    { no: 'Patch the boat — four tømmer, two tau — and it is yours to borrow.', en: 'Patch the boat — four timber, two rope — and it is yours to borrow.' }] }
         ] } },
       { id: 'o2', when: S => S.q.boat === 'active',
-        lines: [{ no: 'OLAV: Four tømmer, two tau. Astrid sells the tau.', en: 'OLAV: Four timber, two rope. Astrid sells the rope.' }] },
+        lines: [{ no: 'Four tømmer, two tau. Astrid sells the tau.', en: 'Four timber, two rope. Astrid sells the rope.' }] },
       { id: 'o3', when: S => S.flag.boat && S.fr.olav >= 3 && S.flag.sea === 'hav',
-        lines: [{ no: 'OLAV: Cast off the end of the dock. The makrell will find you.', en: 'OLAV: Cast off the end of the dock. The mackerel will find you.' }] },
-      { id: 'o4', when: S => S.flag.boat && S.fr.olav >= 3 && S.flag.sea === 'fjord',
-        lines: ['OLAV: Warm soup, for the crossings. You will thank me.'],
+        lines: [{ no: 'Cast off the end of the dock. The makrell will find you.', en: 'Cast off the end of the dock. The mackerel will find you.' }] },
+      { id: 'o4', mood: 'warm', when: S => S.flag.boat && S.fr.olav >= 3 && S.flag.sea === 'fjord',
+        lines: ['Warm soup, for the crossings. You will thank me.'],
         give: { fiskesuppe: 1 } }
     ],
     chat: [
-      { t: ['OLAV: Water finds every gap you leave it.'] },
-      { t: ['OLAV: The pier is Ingrid\u2019s. The dock at the fjord is mine.'] },
-      { t: [{ no: 'OLAV: Boat floats now. Take it whenever. Pier\u2019s end, press act.', en: 'OLAV: Boat floats now. Take it whenever. Pier\u2019s end, press act.' }], if: S => S.flag.boat },
-      { t: [{ no: 'OLAV: Et hus ved vannet finner sine egne lekkasjer ogs\u00e5, med tiden. Sjekk taket.', en: 'OLAV: A house by the water finds its own leaks eventually too. Mind the roof.' }],
+      { mood: 'troubled', t: ['Water finds every gap you leave it.'] },
+      { t: ['The pier is Ingrid\u2019s. The dock at the fjord is mine.'] },
+      { mood: 'warm', t: [{ no: 'Boat floats now. Take it whenever. Pier\u2019s end, press act.', en: 'Boat floats now. Take it whenever. Pier\u2019s end, press act.' }], if: S => S.flag.boat },
+      { t: [{ no: 'Et hus ved vannet finner sine egne lekkasjer ogs\u00e5, med tiden. Sjekk taket.', en: 'A house by the water finds its own leaks eventually too. Mind the roof.' }],
         if: S => S.act2Unlocked }
     ]
   },
 
   marit: {
     nodes: [
-      { id: 'm1',
-        lines: ['MARIT: You found the old church. Most only find the meadow.',
-                'MARIT: The stave has stood eight hundred winters. It leans, but it stands.'],
+      { id: 'm1', mood: 'warm',
+        lines: ['You found the old church. Most only find the meadow.',
+                'The stave has stood eight hundred winters. It leans, but it stands.'],
         ask: { q: { no: 'Why did you climb all the way up here?', en: 'Why did you climb all the way up here?' }, opts: [
           { t: { no: 'Someone I remember.', en: 'Someone I remember.' }, set: { marit: 'minne' }, fr: 1,
-            reply: ['MARIT: Then pick them a bouquet. One blåklokke, one soleie, one revebjelle.',
-                    'MARIT: Bring the three, and I will know the flowers found the right hands.'] },
+            reply: ['Then pick them a bouquet. One blåklokke, one soleie, one revebjelle.',
+                    'Bring the three, and I will know the flowers found the right hands.'] },
           { t: { no: 'Just the quiet up here.', en: 'Just the quiet up here.' }, set: { marit: 'ro' }, fr: 0,
-            reply: ['MARIT: The quiet keeps. Still — pick me three: blåklokke, soleie, revebjelle.',
-                    'MARIT: An old woman likes colour on the sill.'] }
+            reply: ['The quiet keeps. Still — pick me three: blåklokke, soleie, revebjelle.',
+                    'An old woman likes colour on the sill.'] }
         ] } },
       { id: 'm2', when: S => S.q.blomst === 'active',
-        lines: [{ no: 'MARIT: One of each. They open at first light, all over the enga.', en: 'MARIT: One of each. They open at first light, all over the meadow.' }] },
-      { id: 'm3', when: S => S.fr.marit >= 3 && S.flag.marit === 'minne',
-        lines: ['MARIT: You carry it well. Grief and gardening are the same craft.',
-                'MARIT: Here — herbs for the pot. They grow where I planted her favourites.'],
+        lines: [{ no: 'One of each. They open at first light, all over the enga.', en: 'One of each. They open at first light, all over the meadow.' }] },
+      { id: 'm3', mood: 'troubled', when: S => S.fr.marit >= 3 && S.flag.marit === 'minne',
+        lines: ['You carry it well. Grief and gardening are the same craft.',
+                { no: 'Her — urter til gryta. De vokser der jeg plantet hennes favoritter.', en: 'Here — herbs for the pot. They grow where I planted her favourites.', m: 'warm' }],
         give: { urt: 3 } },
-      { id: 'm4', when: S => S.fr.marit >= 3 && S.flag.marit === 'ro',
-        lines: ['MARIT: You have found the quiet, then. It suits the valley on you.'] }
+      { id: 'm4', mood: 'warm', when: S => S.fr.marit >= 3 && S.flag.marit === 'ro',
+        lines: ['You have found the quiet, then. It suits the valley on you.'] }
     ],
     chat: [
-      { t: ['MARIT: The bells only ring at midsummer now. Nobody minds.'] },
-      { t: [{ no: 'MARIT: Blåklokke, soleie, revebjelle. The meadow keeps them all.', en: 'MARIT: Harebell, buttercup, foxglove. The meadow keeps them all.' }] },
-      { t: ['MARIT: Flowers picked at dawn last longest. An old trick.'] },
-      { t: ['MARIT: Colour on the sill. That is all an old house needs.'], if: S => S.q.blomst === 'done' },
-      { t: [{ no: 'MARIT: Blomster på karmen og et tak over dem begge. Mer trenger ikke et hus.', en: 'MARIT: Flowers on the sill and a roof over them both. That is all any house needs.' }],
+      { mood: 'troubled', t: ['The bells only ring at midsummer now. Nobody minds.'] },
+      { t: [{ no: 'Blåklokke, soleie, revebjelle. The meadow keeps them all.', en: 'Harebell, buttercup, foxglove. The meadow keeps them all.' }] },
+      { t: ['Flowers picked at dawn last longest. An old trick.'] },
+      { mood: 'warm', t: ['Colour on the sill. That is all an old house needs.'], if: S => S.q.blomst === 'done' },
+      { t: [{ no: 'Blomster på karmen og et tak over dem begge. Mer trenger ikke et hus.', en: 'Flowers on the sill and a roof over them both. That is all any house needs.' }],
         if: S => S.act2Unlocked }
     ]
   },
@@ -873,39 +895,39 @@ export const BEK_TALK = {
   sigrid: {
     nodes: [
       { id: 's1',
-        lines: ['SIGRID: Up here it is goats, brown cheese and weather. In that order.'],
+        lines: ['Up here it is goats, brown cheese and weather. In that order.'],
         ask: { q: { no: 'Milk or wool — what do you keep them for?', en: 'Milk or wool — what do you keep them for?' }, opts: [
           { t: { no: 'Milk. The brunost is worth the climb.', en: 'Milk. The brown cheese is worth the climb.' }, set: { dairy: 'melk' }, fr: 1,
-            reply: [{ no: 'SIGRID: A cheese answer. Bring me five multe and I will feed you well.', en: 'SIGRID: A cheese answer. Bring me five cloudberries and I will feed you well.' },
-                    { no: 'SIGRID: The multe grow right here on the setra, gold in the grass.', en: 'SIGRID: The cloudberries grow right here on the dairy meadow, gold in the grass.' }] },
+            reply: [{ no: 'A cheese answer. Bring me five multe and I will feed you well.', en: 'A cheese answer. Bring me five cloudberries and I will feed you well.' },
+                    { no: 'The multe grow right here on the setra, gold in the grass.', en: 'The cloudberries grow right here on the dairy meadow, gold in the grass.' }] },
           { t: { no: 'Wool. The winters are long.', en: 'Wool. The winters are long.' }, set: { dairy: 'ull' }, fr: 0,
-            reply: [{ no: 'SIGRID: A sensible answer. Five multe, and the vidda stops frightening you.', en: 'SIGRID: A sensible answer. Five cloudberries, and the plateau stops frightening you.' }] }
+            reply: [{ no: 'A sensible answer. Five multe, and the vidda stops frightening you.', en: 'A sensible answer. Five cloudberries, and the plateau stops frightening you.' }] }
         ] } },
       { id: 's2', when: S => S.q.multe === 'active',
-        lines: [{ no: 'SIGRID: Five multe. They ripen on the setra by morning.', en: 'SIGRID: Five cloudberries. They ripen on the dairy meadow by morning.' }] },
+        lines: [{ no: 'Five multe. They ripen on the setra by morning.', en: 'Five cloudberries. They ripen on the dairy meadow by morning.' }] },
       { id: 's3', when: S => S.q.multe === 'done' && !S.flag.rabarbra,
-        lines: [{ no: 'SIGRID: Astrid has rabarbra seed now, on my word. Slow, but rich.', en: 'SIGRID: Astrid has rhubarb seed now, on my word. Slow, but rich.' }],
+        lines: [{ no: 'Astrid has rabarbra seed now, on my word. Slow, but rich.', en: 'Astrid has rhubarb seed now, on my word. Slow, but rich.' }],
         set: { rabarbra: 1 } },
-      { id: 's4', when: S => S.fr.sigrid >= 3 && S.flag.dairy === 'melk',
-        lines: ['SIGRID: Cloudberry cream. Eat it slow.'],
+      { id: 's4', mood: 'warm', when: S => S.fr.sigrid >= 3 && S.flag.dairy === 'melk',
+        lines: ['Cloudberry cream. Eat it slow.'],
         give: { multekrem: 1 } },
-      { id: 's5', when: S => S.fr.sigrid >= 3 && S.flag.dairy === 'ull',
-        lines: [{ no: 'SIGRID: A genser, knitted this winter. Now the wind up top is only wind.', en: 'SIGRID: A sweater, knitted this winter. Now the wind up top is only wind.' }],
+      { id: 's5', mood: 'warm', when: S => S.fr.sigrid >= 3 && S.flag.dairy === 'ull',
+        lines: [{ no: 'A genser, knitted this winter. Now the wind up top is only wind.', en: 'A sweater, knitted this winter. Now the wind up top is only wind.' }],
         give: { ullgenser: 1 } }
     ],
     chat: [
-      { t: ['SIGRID: Mind the goats. They will eat your bootlaces.'] },
-      { t: [{ no: 'SIGRID: Multe first, then the vidda. In that order, or you freeze.', en: 'SIGRID: Cloudberries first, then the plateau. In that order, or you freeze.' }] },
-      { t: ['SIGRID: A wool genser is all that stands between you and the wind.'] },
+      { mood: 'warm', t: ['Mind the goats. They will eat your bootlaces.'] },
+      { mood: 'troubled', t: [{ no: 'Multe first, then the vidda. In that order, or you freeze.', en: 'Cloudberries first, then the plateau. In that order, or you freeze.' }] },
+      { t: ['A wool genser is all that stands between you and the wind.'] },
       /* why the map is still a menu for this one place: the valley floor you
          walk field to field (see the seams in maps.js), but the setra is
          three hours of track and the walk is the point of it */
-      { t: ['SIGRID: Three hours up that track. Nobody drops in by accident.'] },
-      { t: ['SIGRID: You have walked it once. Now set a morning aside and go.'] },
-      { t: ['SIGRID: You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva },
-      { t: [{ no: 'SIGRID: Håkon fences it, I stock it. Geit or høne, your pen.', en: 'SIGRID: Håkon fences it, I stock it. Goat or chicken, your pen.' }],
+      { t: ['Three hours up that track. Nobody drops in by accident.'] },
+      { t: ['You have walked it once. Now set a morning aside and go.'] },
+      { mood: 'troubled', t: ['You smell of the mine. Say hello to Lars for me.'], if: S => S.disc && S.disc.gruva },
+      { t: [{ no: 'Håkon fences it, I stock it. Geit or høne, your pen.', en: 'Håkon fences it, I stock it. Goat or chicken, your pen.' }],
         if: S => S.flag.barn },
-      { t: [{ no: 'SIGRID: De sier huset ved vannet er ferdig. På tide. En bonde trenger vegger som ikke er sine egne armer.', en: 'SIGRID: They tell me the house by the water is finished. About time. A farmer needs walls that are not their own two arms.' }],
+      { t: [{ no: 'De sier huset ved vannet er ferdig. På tide. En bonde trenger vegger som ikke er sine egne armer.', en: 'They tell me the house by the water is finished. About time. A farmer needs walls that are not their own two arms.' }],
         if: S => S.act2Unlocked }
     ],
     shop: ['brunost', 'ullgenser', 'multekrem', 'lefse', 'dyrefor', 'geit', 'hone']
@@ -913,61 +935,61 @@ export const BEK_TALK = {
 
   gunnar: {
     nodes: [
-      { id: 'g1',
-        lines: ['GUNNAR: Few come up onto the vidda on purpose. Fewer twice.'],
+      { id: 'g1', mood: 'troubled',
+        lines: ['Few come up onto the vidda on purpose. Fewer twice.'],
         ask: { q: { no: 'Do you trap up here, or watch?', en: 'Do you trap up here, or watch?' }, opts: [
           { t: { no: 'Trap. A living is a living.', en: 'Trap. A living is a living.' }, set: { fell: 'jakt' }, fr: 1,
-            reply: [{ no: 'GUNNAR: Honest. Tyttebær grow thick past the tarn. Sell them low, sell them often.', en: 'GUNNAR: Honest. Lingonberries grow thick past the tarn. Sell them low, sell them often.' }] },
+            reply: [{ no: 'Honest. Tyttebær grow thick past the tarn. Sell them low, sell them often.', en: 'Honest. Lingonberries grow thick past the tarn. Sell them low, sell them often.' }] },
           { t: { no: 'Watch. It is enough to be here.', en: 'Watch. It is enough to be here.' }, set: { fell: 'sjaa' }, fr: 0,
-            reply: ['GUNNAR: Then you already understand the plateau. Reindeer at dusk, if you are still.'] }
+            reply: ['Then you already understand the plateau. Reindeer at dusk, if you are still.'] }
         ] } },
-      { id: 'g2', when: S => S.fr.gunnar >= 3 && S.flag.fell === 'jakt',
-        lines: [{ no: 'GUNNAR: Take the wool. The tyttebær are worth more when your hands still work.', en: 'GUNNAR: Take the wool. The lingonberries are worth more when your hands still work.' }],
+      { id: 'g2', mood: 'warm', when: S => S.fr.gunnar >= 3 && S.flag.fell === 'jakt',
+        lines: [{ no: 'Take the wool. The tyttebær are worth more when your hands still work.', en: 'Take the wool. The lingonberries are worth more when your hands still work.' }],
         give: { ull: 2 } },
-      { id: 'g3', when: S => S.fr.gunnar >= 3 && S.flag.fell === 'sjaa',
-        lines: ['GUNNAR: Stand at the tarn at dusk. You will see what I stay up here for.'] }
+      { id: 'g3', mood: 'warm', when: S => S.fr.gunnar >= 3 && S.flag.fell === 'sjaa',
+        lines: ['Stand at the tarn at dusk. You will see what I stay up here for.'] }
     ],
     chat: [
-      { t: ['GUNNAR: Wind from the north. There is always wind from the north.'] },
-      { t: [{ no: 'GUNNAR: Røye in the tarn. Tyttebær in the heather. The vidda provides.', en: 'GUNNAR: Char in the tarn. Lingonberries in the heather. The plateau provides.' }] },
-      { t: ['GUNNAR: You wore the wool. Good. I have buried men who did not.'] },
+      { mood: 'troubled', t: ['Wind from the north. There is always wind from the north.'] },
+      { t: [{ no: 'Røye in the tarn. Tyttebær in the heather. The vidda provides.', en: 'Char in the tarn. Lingonberries in the heather. The plateau provides.' }] },
+      { mood: 'troubled', t: ['You wore the wool. Good. I have buried men who did not.'] },
       /* the other half of the same argument Sigrid makes below the treeline */
-      { t: ['GUNNAR: Down the valley you walk field to field. Up here you set out.'] },
-      { t: ['GUNNAR: Half a day is the climb. That half is why it stays empty.'] },
-      { t: [{ no: 'GUNNAR: Hørte huset ditt er ferdig. Bra. Nå har du noe å komme tilbake til.', en: 'GUNNAR: Heard your house is finished. Good. Now you have somewhere to come back to.' }],
+      { t: ['Down the valley you walk field to field. Up here you set out.'] },
+      { t: ['Half a day is the climb. That half is why it stays empty.'] },
+      { t: [{ no: 'Hørte huset ditt er ferdig. Bra. Nå har du noe å komme tilbake til.', en: 'Heard your house is finished. Good. Now you have somewhere to come back to.' }],
         if: S => S.act2Unlocked }
     ]
   },
 
   lars: {
     nodes: [
-      { id: 'l1',
-        lines: ['LARS: Watch your head. The good copper is where the ceiling is lowest.'],
+      { id: 'l1', mood: 'troubled',
+        lines: ['Watch your head. The good copper is where the ceiling is lowest.'],
         ask: { q: { no: 'Silver, or stone?', en: 'Silver, or stone?' }, opts: [
           { t: { no: 'Silver. I came for the sølv.', en: 'Silver. I came for the silver.' }, set: { mine: 'solv' }, fr: 1,
-            reply: [{ no: 'LARS: A greedy answer. I like it. Rich veins glitter — you will know them.', en: 'LARS: A greedy answer. I like it. Rich veins glitter — you will know them.' }] },
+            reply: [{ no: 'A greedy answer. I like it. Rich veins glitter — you will know them.', en: 'A greedy answer. I like it. Rich veins glitter — you will know them.' }] },
           { t: { no: 'Stone. A house needs walls.', en: 'Stone. A house needs walls.' }, set: { mine: 'stein' }, fr: 0,
-            reply: [{ no: 'LARS: A builder. Good. Every swing gives stein along with the ore.', en: 'LARS: A builder. Good. Every swing gives stone along with the ore.' }] }
+            reply: [{ no: 'A builder. Good. Every swing gives stein along with the ore.', en: 'A builder. Good. Every swing gives stone along with the ore.' }] }
         ] } },
       { id: 'l2', when: S => !S.tools.hakke,
-        lines: [{ no: 'LARS: You will need a HAKKE. I sell one for 400 kr.', en: 'LARS: You will need a PICK. I sell one for 400 kr.' }],
+        lines: [{ no: 'You will need a HAKKE. I sell one for 400 kr.', en: 'You will need a PICK. I sell one for 400 kr.' }],
         buy: { label: { no: 'HAKKE — 400 kr', en: 'PICK — 400 kr' }, kr: 400, tool: 'hakke', pickLv: 1,
-               ok: ['LARS: Swing at the veins, not the walls.'],
-               no: ['LARS: 400 kr. The ore is not going anywhere.'] } },
+               ok: ['Swing at the veins, not the walls.'],
+               no: ['400 kr. The ore is not going anywhere.'] } },
       { id: 'l3', when: S => S.tools.hakke && !S.q.jern && S.pickLv < 2,
-        lines: [{ no: 'LARS: Bring me six jern and I will forge you a STÅLHAKKE.', en: 'LARS: Bring me six iron and I will forge you a STEEL PICK.' },
-                { no: 'LARS: The rich veins — the sølv — need steel to crack.', en: 'LARS: The rich veins — the silver — need steel to crack.' }],
+        lines: [{ no: 'Bring me six jern and I will forge you a STÅLHAKKE.', en: 'Bring me six iron and I will forge you a STEEL PICK.' },
+                { no: 'The rich veins — the sølv — need steel to crack.', en: 'The rich veins — the silver — need steel to crack.' }],
         open: 'jern' },
-      { id: 'l4', when: S => S.fr.lars >= 3 && S.flag.mine === 'stein' && S.pickLv < 2,
-        lines: [{ no: 'LARS: For a builder, the steel is cheaper. Four jern, not six.', en: 'LARS: For a builder, the steel is cheaper. Four iron, not six.' }],
+      { id: 'l4', mood: 'warm', when: S => S.fr.lars >= 3 && S.flag.mine === 'stein' && S.pickLv < 2,
+        lines: [{ no: 'For a builder, the steel is cheaper. Four jern, not six.', en: 'For a builder, the steel is cheaper. Four iron, not six.' }],
         set: { steelcut: 1 } }
     ],
     chat: [
-      { t: ['LARS: Mm. Deeper is darker. Darker is richer.'] },
-      { t: [{ no: 'LARS: Kobber sells well in town. Sølv sells better anywhere.', en: 'LARS: Copper sells well in town. Silver sells better anywhere.' }] },
-      { t: [{ no: 'LARS: The rich veins glitter. You need steel for those.', en: 'LARS: The rich veins glitter. You need steel for those.' }], if: S => S.pickLv < 2 },
-      { t: ['LARS: Steel in your hands now. The whole mountain is yours.'], if: S => S.pickLv >= 2 },
-      { t: [{ no: 'LARS: De sier huset ditt står. Halve steinen bar du ut herfra selv.', en: 'LARS: They tell me your house stands. Half the stone you carried out of here yourself.' }],
+      { t: ['Mm. Deeper is darker. Darker is richer.'] },
+      { t: [{ no: 'Kobber sells well in town. Sølv sells better anywhere.', en: 'Copper sells well in town. Silver sells better anywhere.' }] },
+      { t: [{ no: 'The rich veins glitter. You need steel for those.', en: 'The rich veins glitter. You need steel for those.' }], if: S => S.pickLv < 2 },
+      { mood: 'warm', t: ['Steel in your hands now. The whole mountain is yours.'], if: S => S.pickLv >= 2 },
+      { t: [{ no: 'De sier huset ditt står. Halve steinen bar du ut herfra selv.', en: 'They tell me your house stands. Half the stone you carried out of here yourself.' }],
         if: S => S.act2Unlocked }
     ],
     shop: ['spiker', 'tau']
