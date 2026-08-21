@@ -30,7 +30,8 @@
  * from the room's own layout — nobody consciously notices that and everybody
  * feels it.
  */
-import { TIM, STO, SAN, WAR, WAT, ATMO, MARKS, SHADOWS } from './palette.js';
+import { TIM, STO, SAN, WAR, WAT, ATMO } from './palette.js';
+import { MARKS, SHADOWS } from './palette_marks.js';
 import { hash, hv } from './noise.js';
 import { BEK_T } from './data.js';
 

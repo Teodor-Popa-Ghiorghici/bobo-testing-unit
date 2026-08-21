@@ -11,6 +11,11 @@
    4. every map a door/exit/boat travels to exists in BEK_MAPS
    5. every repeatable quest template (BEK_QUEST_TEMPLATES) references real,
       non-seed item ids and a sane quantity range
+   6. no spoken line repeats the speaker's name — the dialogue panel prints it
+      on the plate under their portrait, and it used to be printed a second
+      time inside the line itself ("ASTRID" then "ASTRID: Good morning.")
+   7. every mood a line asks for is a face portrait.js can actually draw, and
+      both opt-in faces are reached by some line
 
    Run: node scripts/lint-content.mjs
 */
@@ -20,7 +25,8 @@ import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const data = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/data.js')));
-const { BEK_ITEMS, BEK_MAPS, BEK_TALK, BEK_QUESTS, BEK_QUEST_TEMPLATES } = data;
+const { BEK_ITEMS, BEK_MAPS, BEK_TALK, BEK_NPCS, BEK_QUESTS, BEK_QUEST_TEMPLATES } = data;
+const { PORT_MOODS } = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/portrait.js')));
 
 const failures = [];
 function fail(check, id, where) { failures.push({ check, id, where }); }
@@ -94,14 +100,52 @@ function checkQuestTemplateItems() {
   });
 }
 
+/* ---- 6/7: the speaker's name, and the face they wear ---------------------
+   Both walk BEK_TALK once. A spoken string may still mention somebody by
+   name; it may not be *addressed* by one, because the plate already says who
+   is talking. `neutral` is the resting face and is what an entry with no
+   mood gets, so it is never written down — what has to be reached is the two
+   faces that are opt-in. */
+function checkSpeakersAndMoods() {
+  const names = BEK_NPCS.map(n => n.n).filter(Boolean);
+  const both = l => l == null ? [] : typeof l === 'string' ? [l] : [l.no, l.en].filter(Boolean);
+  const moods = [];
+  const walk = (o, where) => {
+    if (!o || typeof o !== 'object') return;
+    if (Array.isArray(o)) return o.forEach(x => walk(x, where));
+    if (o.mood) moods.push(o.mood);
+    if (o.m) moods.push(o.m);
+    /* Only the arrays an NPC actually *speaks* out of. An option's own `t` is
+       the player's answer and is a {no,en} rather than an array, so it falls
+       out of this on its own — which is right: nobody's plate names them. */
+    for (const key of ['lines', 't', 'ok', 'no', 'reply']) {
+      if (!Array.isArray(o[key])) continue;
+      o[key].forEach(l => both(l).forEach(str => {
+        if (names.some(n => str.startsWith(n + ': ')))
+          fail('speaker prefix', JSON.stringify(str.slice(0, 46)), where + '.' + key);
+      }));
+    }
+    Object.entries(o).forEach(([k, v]) => walk(v, where + '.' + k));
+  };
+  Object.entries(BEK_TALK).forEach(([id, book]) => walk(book, 'BEK_TALK.' + id));
+  [...new Set(moods)].forEach(m => {
+    if (!PORT_MOODS.includes(m)) fail('dialogue mood', m, 'not one of ' + PORT_MOODS.join('/'));
+  });
+  PORT_MOODS.filter(m => m !== 'neutral').forEach(m => {
+    if (!moods.includes(m)) fail('dialogue mood', m, 'no line ever selects this face');
+  });
+}
+
 checkQuestItems();
 checkShopItems();
 checkFriendshipGates();
 checkFastTravelMaps();
 checkQuestTemplateItems();
+checkSpeakersAndMoods();
 
 const byCheck = failures.reduce((acc, f) => { (acc[f.check] = acc[f.check] || []).push(f); return acc; }, {});
-const ALL_CHECKS = ['quest requirement', 'shop entry', 'friendship gate', 'fast travel map', 'quest template item'];
+const ALL_CHECKS = ['quest requirement', 'shop entry', 'friendship gate', 'fast travel map', 'quest template item',
+                    'speaker prefix', 'dialogue mood'];
 ALL_CHECKS.forEach(check => {
   const fs = byCheck[check] || [];
   if (!fs.length) { console.log('PASS - ' + check); return; }

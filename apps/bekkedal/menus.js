@@ -1,9 +1,14 @@
 /* Bekkedal — every panel the game puts over the picture.
  *
- * The fishing gauge, the dialogue box, the buy prompt, the shop, the bag, the
- * quest board, the travel list and the ending painting. Lifted out of
- * `index.js` line for line: a move, not a rewrite, and the diff that created
- * it should read as one.
+ * The fishing gauge, the shop, the chest, the bag, the quest board, the travel
+ * list and the ending painting. Lifted out of `index.js` line for line: a
+ * move, not a rewrite, and the diff that created it should read as one.
+ *
+ * The two panels a *conversation* puts up — the dialogue box and the buy
+ * prompt that comes out of one of its lines — are the exception, and they are
+ * in `menus_talk.js` next door. Same reason `decor_outdoor.js` sits beside
+ * `decor.js`: this file was at the 300-line ceiling and the dialogue box grew
+ * a portrait column.
  *
  * All of it is *chrome*. It draws after `useLut(DAY_CSS, 'day')` in `draw()`,
  * so these panels and every glyph of text in them keep full contrast after
@@ -32,13 +37,12 @@
 import { BEK_ITEMS, BEK_CROPS, BEK_TOOLS, BEK_MAPS, BEK_RECIPES, AXE_NAME, PICK_NAME, UI,
          BEK_W, BEK_H } from './data.js';
 import { boardRows } from './quests.js';
+import { createDialogue } from './menus_talk.js';
 import { WAT, TIM, CON, WAR, SAN, SNO, ATMO } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
          FISH_TRACK_W, FISH_TRACK_H, FISH_W, FISH_H, FISH_X, FISH_Y,
          FISH_TRACK_X, FISH_TRACK_Y, FISH_NEEDLE_W, FISH_NEEDLE_OVER,
-         DLG_BODY_LINES, DLG_W, DLG_H, DLG_X, DLG_Y, DLG_TX, DLG_TW,
-         OFFER_W, OFFER_H, OFFER_X, OFFER_Y,
          SHOP_ROWS, SHOP_ROW, SHOP_W, SHOP_H, SHOP_X, SHOP_Y, SHOP_COL_W, SHOP_NAME_DX, SHOP_PRICE_DX,
          BAG_COLS, BAG_ROWS, BAG_CAP, BAG_ROW, BAG_W, BAG_H, BAG_X, BAG_Y, BAG_CW, BAG_NAME_DX, BAG_QTY_DX,
          QUEST_VISIBLE_ROWS, QUEST_ENTRY, QUEST_W, QUEST_H, QUEST_X, QUEST_Y, QUEST_STATUS_DX,
@@ -47,8 +51,14 @@ import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
          END_TEXT_X, END_TEXT_Y } from './layout.js';
 
 export function createMenus(A, GG, C) {
-  const { T, TX, iname, price, houseCost, recipeUnlocked, craftCount, panel, icon, text, textW, wrapText, dither, bear } = A;
+  const { T, TX, iname, price, houseCost, recipeUnlocked, craftCount, panel, icon, text, textW, dither, bear } = A;
   const BEK_ART_SCALE = A.artScale;
+  /* The two panels a *conversation* puts on screen — the dialogue box with
+     its portrait and the buy prompt that comes out of one of its lines —
+     live in menus_talk.js. Same reason decor_outdoor.js sits beside
+     decor.js: this file was at the 300-line ceiling and the dialogue box is
+     now the largest panel in the game, not a second organising principle. */
+  const { drawTalk, drawOffer } = createDialogue(A, GG, C);
 
   function drawFish() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
@@ -73,41 +83,6 @@ export function createMenus(A, GG, C) {
     } else text(TX('VENTER...', 'WAITING...'), tx, ty, 7, FONT_SM);
   }
 
-  function drawTalk() {
-      const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(DLG_X, DLG_Y, DLG_W, DLG_H, 15);
-    const who = dlg.npc ? (dlg.npc.bear ? '' : dlg.npc.n) : '';
-    const top = DLG_Y + PAD_LG;
-    if (who) text(who, DLG_TX, top, 14, FONT_SM);
-    let y = top + LINE_SM;
-    if (dlg.opts) {
-      wrapText(T(dlg.opts.q), DLG_TW, FONT_LG).forEach(l => { text(l, DLG_TX, y, 11, FONT_LG); y += LINE_LG; });
-      dlg.opts.opts.forEach((o, i) => {
-        const on = dlg.sel === i;
-        wrapText((on ? '> ' : '  ') + T(o.t), DLG_TW, FONT_LG).forEach(l => {
-          text(l, DLG_TX, y, on ? 15 : 7, FONT_LG); y += LINE_LG;
-        });
-      });
-      return;
-    }
-    /* The current line wraps to as many rows as it needs; the next line
-       follows only while there is room left in the box. */
-    const cur = wrapText(T(dlg.lines[dlg.i]) || '', DLG_TW, FONT_LG);
-    const nxt = dlg.lines[dlg.i + 1] ? wrapText(T(dlg.lines[dlg.i + 1]), DLG_TW, FONT_LG) : [];
-    let used = 0;
-    for (const l of cur) { if (used >= DLG_BODY_LINES) break; text(l, DLG_TX, y, 15, FONT_LG); y += LINE_LG; used++; }
-    for (const l of nxt) { if (used >= DLG_BODY_LINES) break; text(l, DLG_TX, y, 8, FONT_LG); y += LINE_LG; used++; }
-    text('SPACE', DLG_X + DLG_W - PAD_LG - textW('SPACE', FONT_SM), DLG_Y + DLG_H - PAD_LG - GLYPH_SM, 8, FONT_SM);
-  }
-  function drawOffer() {
-      const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
-    panel(OFFER_X, OFFER_Y, OFFER_W, OFFER_H, 14);
-    const tx = OFFER_X + PAD_LG;
-    let y = OFFER_Y + PAD_LG;
-    text(T(offer.label), tx, y, 15, FONT_LG); y += LINE_LG;
-    text(S.kr + ' kr', tx, y, S.kr >= offer.kr ? 14 : 12, FONT_LG); y += LINE_LG;
-    text(TX('SPACE — KJØP    ESC — NEI', 'SPACE — BUY    ESC — NO'), tx, y, 7, FONT_LG);
-  }
   function drawShop() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
     panel(SHOP_X, SHOP_Y, SHOP_W, SHOP_H, 14);

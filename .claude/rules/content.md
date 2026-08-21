@@ -37,3 +37,27 @@ relationship grows rather than being skipped. `chat[]` entries are the
 fallback pool once no ungated node is available; an `if` predicate on a chat
 entry follows the same `S => ...` convention reading `S.flag`/`S.fr`/`S.disc`,
 never state that a chat line itself would need to mutate.
+
+## Who is speaking, and what face they are wearing
+
+The dialogue panel names the speaker on a plate under their portrait, and that
+plate is the **only** place a speaker is named. Every string in `BEK_TALK`
+used to open with the speaker's own name and a colon as well, so the box read
+"ASTRID" and then "ASTRID: Good morning." — a new line must not bring the
+prefix back. `scripts/lint-content.mjs` fails on any spoken string that starts
+with a `BEK_NPCS` name and a colon; a line may still *mention* somebody by
+name, it just may not be addressed by one.
+
+A `nodes[]` or `chat[]` entry may carry `mood: 'warm' | 'troubled'`, which
+picks the expression `portrait.js` draws for every line in it. `neutral` is
+the resting face and is what an entry with no `mood` gets, so it is never
+written down. Where the tone turns *inside* an entry, the individual line
+carries `m` instead — which only works on the object form of a line
+(`{ no, en, m }`), a bare string having nowhere to hang one. The valid values
+are `PORT_MOODS` (`portrait.js`), and the same lint asserts both that every
+mood asked for is one the rig has and that both opt-in faces are actually
+reached by some line.
+
+A line built in code rather than read out of a table has to be given its
+speaker explicitly — see **Which face, and who is speaking**,
+`.claude/rules/bekkedal-art.md`.

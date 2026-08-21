@@ -30,8 +30,8 @@ import { createCrops } from './crops.js';
 import { refreshBoard, isRefreshDay, activeRepeatable, questTitle } from './quests.js';
 import { houseCost, houseTierCost, houseTierAvailable, barnSlots } from './progression.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
-import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE,
-         MARKS, SHADOWS, FEATURES } from './palette.js';
+import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE } from './palette.js';
+import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
 import { lightAt, shelter, keyOf, cssFor, DAY_CSS, CAVE_LIGHT } from './light.js';
 import { glow, GLOW_CELL, lampState, createLamp } from './lamp.js';
 import { inside as insideMap, isCave, snowy, groundOf, solidOf, defaultGround } from './surface.js';
@@ -446,6 +446,14 @@ export default {
       const dusk  = () => S.min >= 18 * 60 && S.min < 20 * 60;
       const night = () => S.min >= 20 * 60 || S.min < 5 * 60;
       const npcsHere = () => BEK_NPCS.filter(n => n.map === S.map && (!n.from || S.day >= n.from));
+      /* Håkon's build and annex lines are spoken by him but reached through
+         the lot sign and the menu funnel rather than through talkTo(), so
+         they have no `npc` to hand. The dialogue panel names its speaker on
+         a plate under their portrait now, which means a line that arrives
+         without one loses its speaker outright — this is where they get it
+         back, and it is why those lines no longer carry a 'HÅKON: ' of
+         their own either. */
+      const npcById = id => BEK_NPCS.filter(n => n.id === id)[0];
       const price = id => {
         let p = BEK_ITEMS[id].buy || 0;
         if (S.flag.rabatt) p = Math.round(p * 0.9);
@@ -987,7 +995,7 @@ export default {
                      : q.grant && q.grant.pickLv ? '+' + TX('STÅLHAKKE', 'STEEL PICK')
                      : q.grant && q.grant.flag && q.grant.flag.boat ? '+' + TX('BÅT', 'BOAT')
                      : TX('+GAVE', '+GIFT');
-          dlg = { lines: [{ no: npc.n + ': Takk. That is exactly it.', en: npc.n + ': Thanks. That is exactly it.' }, rew], i: 0, npc: npc };
+          dlg = { lines: [{ no: 'Takk. That is exactly it.', en: 'Thanks. That is exactly it.' }, rew], i: 0, npc: npc, mood: 'warm' };
           mode = 'talk'; return;
         }
         /* the repeatable board's own turn-in — same NPC-must-fulfill-it
@@ -1000,7 +1008,7 @@ export default {
           rq.state = 'done'; S.kr += rq.kr;
           if (window.Economy) window.Economy.earn(Math.max(20, Math.round(rq.kr * 0.15)), 'BEKKEDAL: ' + questTitle(rq).en);
           sfx.coin();
-          dlg = { lines: [{ no: npc.n + ': Takk. That is exactly it.', en: npc.n + ': Thanks. That is exactly it.' }, '+' + rq.kr + ' KR'], i: 0, npc: npc };
+          dlg = { lines: [{ no: 'Takk. That is exactly it.', en: 'Thanks. That is exactly it.' }, '+' + rq.kr + ' KR'], i: 0, npc: npc, mood: 'warm' };
           mode = 'talk'; return;
         }
         if (!S.met[npc.id]) { S.met[npc.id] = 1; S.fr[npc.id] = Math.min(5, S.fr[npc.id] + 1); }
@@ -1010,7 +1018,7 @@ export default {
           if (node.set) Object.assign(S.flag, node.set);
           if (node.give) Object.keys(node.give).forEach(id => add(id, node.give[id]));
           if (node.open && !S.q[node.open]) S.q[node.open] = 'active';
-          dlg = { lines: node.lines.slice(), i: 0, npc: npc, ask: node.ask || null, buy: node.buy || null, node: node };
+          dlg = { lines: node.lines.slice(), i: 0, npc: npc, mood: node.mood, ask: node.ask || null, buy: node.buy || null, node: node };
         } else {
           const pool = book.chat.filter(c => !c.if || c.if(S));
           const ix = (S.chatIx[npc.id] = (S.chatIx[npc.id] || 0) + 1);
@@ -1021,7 +1029,7 @@ export default {
              is filtered on `if` every visit, unlike a `nodes` entry (one-shot
              via S.seen), which is what lets the offer keep resurfacing until
              it is actually bought. */
-          dlg = { lines: pick.t.slice(), i: 0, npc: npc, menu: 1, buy: pick.buy || null };
+          dlg = { lines: pick.t.slice(), i: 0, npc: npc, mood: pick.mood, menu: 1, buy: pick.buy || null };
         }
         sfx.talk(); mode = 'talk';
       }
@@ -1031,7 +1039,11 @@ export default {
         dlg.i++;                       /* speechTick() voices the new line */
         if (dlg.i < dlg.lines.length) return;
         if (dlg.ask) { dlg.opts = dlg.ask; dlg.sel = 0; return; }
-        if (dlg.buy) { offer = dlg.buy; mode = 'offer'; dlg = null; return; }
+        /* The offer panel names its seller and the reply that follows draws
+           their portrait, so the offer has to carry the speaker the line it
+           came out of had. A copy rather than the content object itself:
+           BEK_TALK is a static table and nothing may write to it. */
+        if (dlg.buy) { offer = Object.assign({}, dlg.buy, { npc: dlg.npc }); mode = 'offer'; dlg = null; return; }
         if (dlg.menu && dlg.npc && !dlg.npc.bear) { openMenu(dlg.npc); return; }
         dlg = null; mode = '';
       }
@@ -1042,7 +1054,7 @@ export default {
         if (o.give) Object.keys(o.give).forEach(id => add(id, o.give[id]));
         const q = BEK_QUESTS.filter(q2 => q2.who === dlg.npc.id)[0];
         if (q && !S.q[q.id]) S.q[q.id] = 'active';
-        dlg = { lines: o.reply.slice(), i: 0, npc: dlg.npc, menu: 0 };
+        dlg = { lines: o.reply.slice(), i: 0, npc: dlg.npc, mood: o.mood || dlg.mood, menu: 0 };
         sfx.choose();
       }
       function openMenu(npc) {
@@ -1053,7 +1065,7 @@ export default {
       }
       function doOffer() {
         const o = offer;
-        if (S.kr < o.kr) { dlg = { lines: o.no.slice(), i: 0, npc: null }; mode = 'talk'; offer = null; deny(); return; }
+        if (S.kr < o.kr) { dlg = { lines: o.no.slice(), i: 0, npc: o.npc || null, mood: 'troubled' }; mode = 'talk'; offer = null; deny(); return; }
         S.kr -= o.kr;
         if (o.tool) S.tools[o.tool] = 1;
         if (o.axeLv) S.axeLv = Math.max(S.axeLv, o.axeLv);
@@ -1066,7 +1078,7 @@ export default {
            tileAt() reads for the farm map, so the terrain cache must rebuild */
         if (o.flag) { Object.assign(S.flag, o.flag); terrDirty(); }
         sfx.coin();
-        dlg = { lines: o.ok.slice(), i: 0, npc: null }; mode = 'talk'; offer = null;
+        dlg = { lines: o.ok.slice(), i: 0, npc: o.npc || null, mood: 'warm' }; mode = 'talk'; offer = null;
       }
 
       /* ---- the lot, the house ------------------------------------------- */
@@ -1084,15 +1096,16 @@ export default {
       function hakonBuild() {
         if (S.built) { hakonTilbygg(); return; }
         const c = houseCost(S);
-        if (!S.flag.lot) { dlg = { lines: ['HÅKON: Buy the lot first. Sign is by the water.'], i: 0 }; mode = 'talk'; return; }
+        const hak = npcById('hakon');
+        if (!S.flag.lot) { dlg = { lines: ['Buy the lot first. Sign is by the water.'], i: 0, npc: hak, mood: 'troubled' }; mode = 'talk'; return; }
         if (S.kr < c.kr || !has('tommer', c.tommer) || !has('stein', c.stein)) {
-          dlg = { lines: [{ no: 'HÅKON: ' + c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: 'HÅKON: ' + c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
-                          { no: 'HÅKON: Du har ' + S.kr + ' kr, ' + (S.bag.tommer||0) + ' tømmer, ' + (S.bag.stein||0) + ' stein.', en: 'HÅKON: You have ' + S.kr + ' kr, ' + (S.bag.tommer||0) + ' timber, ' + (S.bag.stein||0) + ' stone.' },
-                          'HÅKON: Come back.'], i: 0 }; mode = 'talk'; return;
+          dlg = { lines: [{ no: c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
+                          { no: 'Du har ' + S.kr + ' kr, ' + (S.bag.tommer||0) + ' tømmer, ' + (S.bag.stein||0) + ' stein.', en: 'You have ' + S.kr + ' kr, ' + (S.bag.tommer||0) + ' timber, ' + (S.bag.stein||0) + ' stone.' },
+                          'Come back.'], i: 0, npc: hak, mood: 'troubled' }; mode = 'talk'; return;
         }
         S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.built = 1;
         S.fr.hakon = Math.min(5, S.fr.hakon + 1); sfx.done();
-        dlg = { lines: ['HÅKON: Right. Two weeks. Or one, if you carry.', '...', 'HÅKON: It is done. Go down to the water and see.'], i: 0 };
+        dlg = { lines: ['Right. Two weeks. Or one, if you carry.', '...', 'It is done. Go down to the water and see.'], i: 0, npc: hak, mood: 'warm' };
         mode = 'talk';
       }
       /* Act II: the one purchasable house upgrade tier — split out of
@@ -1103,19 +1116,20 @@ export default {
          (S.built) the moment hakonBuild() finishes above, but the milestone
          — and the content that reads it — waits for the ending to be seen. */
       function hakonTilbygg() {
+        const hak2 = npcById('hakon');
         if (!houseTierAvailable(S)) {
-          dlg = { lines: [S.houseTier ? { no: 'HÅKON: Tilbygget står. Ikke mer å legge til.', en: 'HÅKON: The annex stands. Nothing more to add.' }
-                                       : 'HÅKON: It is standing. Go and live in it.'], i: 0 };
+          dlg = { lines: [S.houseTier ? { no: 'Tilbygget står. Ikke mer å legge til.', en: 'The annex stands. Nothing more to add.' }
+                                       : 'It is standing. Go and live in it.'], i: 0, npc: hak2, mood: 'warm' };
           mode = 'talk'; return;
         }
         const c = houseTierCost();
         if (S.kr < c.kr || !has('tommer', c.tommer) || !has('stein', c.stein)) {
-          dlg = { lines: [{ no: 'HÅKON: Et tilbygg? ' + c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: 'HÅKON: An annex? ' + c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
-                          'HÅKON: Come back when you have it.'], i: 0 }; mode = 'talk'; return;
+          dlg = { lines: [{ no: 'Et tilbygg? ' + c.kr + ' KR, ' + c.tommer + ' TØMMER, ' + c.stein + ' STEIN.', en: 'An annex? ' + c.kr + ' KR, ' + c.tommer + ' TIMBER, ' + c.stein + ' STONE.' },
+                          'Come back when you have it.'], i: 0, npc: hak2, mood: 'troubled' }; mode = 'talk'; return;
         }
         S.kr -= c.kr; add('tommer', -c.tommer); add('stein', -c.stein); S.houseTier = 1;
         S.fr.hakon = Math.min(5, S.fr.hakon + 1); sfx.done(); terrDirty();
-        dlg = { lines: [{ no: 'HÅKON: Et rom til, mot vannet. Det er ferdig.', en: 'HÅKON: One more room, facing the water. It is finished.' }], i: 0 };
+        dlg = { lines: [{ no: 'Et rom til, mot vannet. Det er ferdig.', en: 'One more room, facing the water. It is finished.' }], i: 0, npc: hak2, mood: 'warm' };
         mode = 'talk';
       }
 
@@ -1458,6 +1472,14 @@ export default {
         }
       }
       function dither(col, strength) { const n = Math.max(0, Math.min(16, Math.round(strength))); if (n <= 0) return; g.fillStyle = ditherPat(col, n); g.fillRect(0, 0, BEK_W, BEK_H); }
+      /* The same ordered stipple over a rect of *chrome*, which is device
+         space: `wash()` below opens a native() and so cancels the art
+         transform, and a panel is not drawn inside one. The portraits in the
+         dialogue box are the only caller. */
+      function stipple(px, py, w, h, col, str) {
+        if (str <= 0 || w <= 0 || h <= 0) return;
+        g.fillStyle = ditherPat(col, str > 16 ? 16 : str); g.fillRect(px, py, w, h);
+      }
 
       /* ---- native-resolution terrain (art uplift, batch 1) ---------------
          The grass, cave, path and water-edge tiles and drawSoil's tilled
@@ -2630,7 +2652,7 @@ export default {
         T: T, TX: TX, iname: iname, price: price, houseCost: () => houseCost(S),
         recipeUnlocked: recipeUnlocked, craftCount: craftCount,
         panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,
-        dither: dither, bear: bear, artScale: BEK_ART_SCALE
+        dither: dither, stipple: stipple, bear: bear, artScale: BEK_ART_SCALE
       }, () => g, C);
 
       /* ---- the loop ----------------------------------------------------- */
@@ -2683,14 +2705,49 @@ export default {
           mode = name || '';
           if (name === 'shop') shop = { list: BEK_TALK.astrid.shop, sel: 0, side: 0, npc: BEK_NPCS[0] };
           if (name === 'craft') craft = { side: 0, sel: 0 };
-          if (name === 'talk') dlg = { lines: [BEK_TALK.astrid.chat[0].t[0]], i: 0, npc: BEK_NPCS[0] };
-          if (name === 'offer') offer = { label: { no: 'BÅT', en: 'BOAT' }, kr: 400 };
+          if (name === 'talk') dlg = { lines: [BEK_TALK.astrid.chat[0].t[0]], i: 0, npc: BEK_NPCS[0], mood: BEK_TALK.astrid.chat[0].mood };
+          /* The dialogue box has three shapes and the plain one above is only
+             the first: a question with its answers as selectable rows, and a
+             body of more than one row on a face that is not the resting one.
+             Neither is reachable from the shot matrix's own spine, so each
+             gets a shot rather than the spine being moved. */
+          if (name === 'ask') {
+            const nd = BEK_TALK.hakon.nodes[0];
+            dlg = { lines: nd.lines.slice(), i: nd.lines.length, npc: BEK_NPCS[1], mood: nd.mood,
+                    ask: nd.ask, opts: nd.ask, sel: 1 };
+            mode = 'talk';
+          }
+          if (name === 'talk2') {
+            const nd = BEK_TALK.gunnar.nodes[0];
+            dlg = { lines: nd.lines.concat(BEK_TALK.gunnar.chat[2].t), i: 0, npc: BEK_NPCS[6], mood: nd.mood };
+            mode = 'talk';
+          }
+          if (name === 'offer') offer = { label: { no: 'BÅT', en: 'BOAT' }, kr: 400, npc: BEK_NPCS[3] };
           /* the same list openTravel() would build — BEK_HOME is what decides
              which places the menu still offers, not S.disc on its own */
           if (name === 'travel') travel = { list: Object.keys(S.disc).filter(m => BEK_HOME[m]), sel: 0 };
           if (name === 'end') S.ending = 4.2;
           if (name === 'fish') fish = { phase: 'reel', t: 4, pos: 0.42, dir: 1, spd: 0.7,
                                         z0: 0.3, z1: 0.5, hits: 1, need: 3, miss: 0, maxMiss: 3, rare: 0 };
+        },
+        /* Drive a real conversation from the harness: the same `talkTo` the
+           act key calls and the same `dlgAdvance` SPACE calls, so what comes
+           back is what a player would be shown rather than a mock-up of it.
+           This is what verifies that no line repeats the name on the plate
+           and that no line arrives with its speaker dropped — on the paths
+           that build a line in code (an offer's reply, Håkon's build lines,
+           a quest turn-in) as well as the ones that read it out of a table. */
+        talk: (id, steps) => {
+          const n = BEK_NPCS.filter(q => q.id === id)[0];
+          if (!n) return null;
+          if (steps == null) { mode = ''; dlg = null; offer = null; talkTo(n); }
+          else for (let i = 0; i < steps; i++) { if (mode === 'talk' && dlg && !dlg.opts) dlgAdvance(); }
+          if (!dlg) return { mode: mode, who: '', line: '' };
+          const l = dlg.lines[dlg.i];
+          return { mode: mode, who: dlg.npc && !dlg.npc.bear ? dlg.npc.n : '',
+                   bear: !!(dlg.npc && dlg.npc.bear), line: T(l) || '',
+                   lineMood: (l && l.m) || '', entryMood: dlg.mood || '',
+                   opts: dlg.opts ? dlg.opts.opts.map(o => T(o.t)) : null };
         },
         /* Hold a swing at one of its three phases for a frame so the harness
            can photograph it. Nothing in the game calls this; it drives the

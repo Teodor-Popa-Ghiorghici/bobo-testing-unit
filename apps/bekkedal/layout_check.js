@@ -111,6 +111,34 @@ for (const [name, x, y, bw, bh] of boxes)
      '(' + x + ',' + y + ' ' + bw + 'x' + bh + ')');
 ok(L.DLG_Y + L.DLG_H <= L.HUD_BOT_Y, 'dialogue clears the bottom HUD band');
 
+/* ---- the dialogue box's two columns --------------------------------------
+   The portrait is not a size somebody picked: it is what is left beside the
+   text once the body's rows and the name plate under it are accounted for.
+   These assertions are what make that a fact rather than a coincidence —
+   change DLG_BODY_LINES and every one of them still has to hold. The two
+   *content* guards that go with the box (that no spoken line repeats the
+   name on the plate, and that every mood a line asks for is a face the rig
+   has) are conventions rather than geometry, so they live in
+   scripts/lint-content.mjs beside the rest of them. */
+console.log('\n-- the dialogue box --');
+ok(L.DLG_PORT_H + L.DLG_GAP + L.DLG_PLATE_H === L.DLG_BODY_H,
+   'the portrait column and the text body are flush',
+   'portrait ' + L.DLG_PORT_H + ' + gap ' + L.DLG_GAP + ' + plate ' + L.DLG_PLATE_H + ' = body ' + L.DLG_BODY_H);
+ok(L.DLG_PORT_W % D.BEK_ART_SCALE === 0 && L.DLG_PORT_H % D.BEK_ART_SCALE === 0,
+   'the portrait is a whole number of art pixels',
+   L.PORT_SRC_W + 'x' + L.PORT_SRC_H + ' art px at x' + D.BEK_ART_SCALE);
+ok(L.DLG_TX + L.DLG_TW === L.DLG_X + L.DLG_W - L.PAD_LG &&
+   L.DLG_PORT_X + L.DLG_PORT_W + L.PAD_LG === L.DLG_TX,
+   'portrait column, gutter and text column fill the box exactly',
+   L.DLG_PORT_W + ' + ' + L.PAD_LG + ' + ' + L.DLG_TW + ' = ' + (L.DLG_W - L.PAD_LG * 2));
+const speaker = widest(D.BEK_NPCS.map(n => n.n));
+ok(w(speaker, F.FONT_SM) + L.CELL_SM * 2 <= L.DLG_PORT_W, 'the name plate holds the longest speaker',
+   JSON.stringify(speaker) + ' = ' + w(speaker, F.FONT_SM) + 'px of ' + L.DLG_PORT_W);
+ok(w(speaker, F.FONT_SM) + L.CELL_SM * 2 <= L.OFFER_W - L.PAD_LG * 2, 'and so does the offer box');
+
+pass('portrait column and name plate', L.PORT_SRC_W + 'x' + L.PORT_SRC_H + ' art px, plate ' +
+     L.DLG_NAME_CELLS + ' cells, text column ' + cols(L.DLG_TW, F.FONT_LG) + ' chars/row');
+
 /* ---- 2. the fishing reel zone -------------------------------------------- */
 console.log('\n-- fishing reel zone --');
 /* the two difficulty bands tickFish actually uses */
