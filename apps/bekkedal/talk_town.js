@@ -14,6 +14,11 @@ const VAR = 0, SOMMER = 1, HOST = 2, VINTER = 3;
 const fish = S => (S.bag.orret || 0) + (S.bag.laks || 0) + (S.bag.torsk || 0) +
                   (S.bag.makrell || 0) + (S.bag.roye || 0) + (S.bag.kveite || 0);
 const idle = S => !S.yst.farm && !S.yst.mine && !S.yst.fish && !S.yst.forage;
+/* THE LOFT: how much has been carried into the storehouse on the square. Read
+   defensively, like every other gate in this file — the state a check hands a
+   predicate is not always the state a running game holds. See BEK_LOFT
+   (data.js) and spine.js; nothing in BEK_TALK ever writes to it. */
+const loft = S => (S.spine && S.spine.d) ? Object.keys(S.spine.d).length : 0;
 
 export const TOWN_TALK = {
   astrid: {
@@ -64,7 +69,18 @@ export const TOWN_TALK = {
       { id: 'aa5', mood: 'warm', when: S => S.fr.astrid >= 10,
         lines: [{ no: 'Den nye bestillingen kom. Ingenting til overs, ingenting for lite.', en: 'The new order came. Nothing left over, nothing short.' },
                 'And one line at the bottom that is only yours.'],
-        give: { lefse: 3 }, set: { astridBok: 1 } }
+        give: { lefse: 3 }, set: { astridBok: 1 } },
+      /* THE LOFT. Act II has to have closed — the house is the thing that
+         should own the early game — and she has to trust you with it, because
+         it was her grandmother's. The 6 is BEK_LOFT_FR (data.js), which
+         spine.js's spineOpen() reads for the door's own lock; the two are
+         stated apart because this file may not import data.js (data.js
+         imports this one), and spine_check.js asserts they agree. */
+      { id: 'aloft', mood: 'warm', when: S => S.act2Unlocked && S.fr.astrid >= 6,
+        lines: [{ no: 'Du har bygget ferdig. Så da spør jeg om noe.', en: 'You have finished building. So now I ask you something.' },
+                { no: 'Bygdeloftet ved veien er mormors. Det har stått låst i seks år.', en: 'The loft down the road was my grandmother\u2019s. It has stood locked six years.' },
+                { no: 'Hun samlet dalen i det. Alt som vokste, alt som ble fisket, alt som ble hentet ut av fjellet.', en: 'She gathered the valley into it. Everything that grew, everything caught, everything the mountain gave up.' },
+                { no: 'Nøkkelen ligger her. Fyll det opp igjen. Trykk L, så husker du hva som mangler.', en: 'Here is the key. Fill it up again. Press L and you will remember what is missing.' }] }
     ],
     chat: [
       { mood: 'warm', t: [{ no: 'God morgen. The kettle is on.', en: 'Good morning. The kettle is on.' }] },
@@ -77,6 +93,9 @@ export const TOWN_TALK = {
       { mood: 'troubled', t: ['Land is cheap. Company is not.'], if: S => S.flag.why === 'land' },
       { t: ['Sigrid has wool up at the seter, if the vidda calls you.'], if: S => S.disc && S.disc.setra },
       { mood: 'warm', t: ['Håkon says you have been felling. Good.'], if: S => S.q.tommer === 'done' },
+      /* THE LOFT */
+      { mood: 'warm', t: [{ no: 'Loftet har tak igjen. Mormor ville ikke trodd det.', en: 'The loft has a roof again. My grandmother would not have believed it.' }],
+        if: S => loft(S) >= 8 },
       /* ---- weather ---------------------------------------------------- */
       { mood: 'troubled', t: [{ no: 'Regn. Kneet mitt tok ikke feil. Det gjør det aldri.', en: 'Rain. My knee was not wrong. It never is.' }],
         if: S => S.weather === 'regn' },
@@ -229,6 +248,9 @@ export const TOWN_TALK = {
       { t: [{ no: 'Stein comes out of the gruva with the ore. Bring both.', en: 'Stone comes out of the mine with the ore. Bring both.' }] },
       { mood: 'warm', t: ['Timber you carry is timber you respect.'], if: S => S.flag.build === 'skog' },
       { mood: 'troubled', t: ['The planks are ordered. They come when they come.'], if: S => S.flag.build === 'kjop' },
+      /* THE LOFT */
+      { t: [{ no: 'Jeg gikk inn i loftet og så på laftet. Den som hogg det, kunne det.', en: 'I went into the loft and looked at the joints. Whoever cut them knew how.' }],
+        if: S => loft(S) >= 1 },
       /* ---- weather ---------------------------------------------------- */
       { mood: 'troubled', t: [{ no: 'Regn. Da høvler jeg innendørs og sier ingenting.', en: 'Rain. Then I plane indoors and say nothing.' }],
         if: S => S.weather === 'regn' },

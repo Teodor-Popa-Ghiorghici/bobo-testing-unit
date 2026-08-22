@@ -254,6 +254,12 @@ export const BEK_ITEMS = {
                 bait: { bite: 0.2, weight: { torsk: 1.5, makrell: 1.4, kveite: 1.3 } } },
   snelle:     { name: { no: 'SNELLE',      en: 'TACKLE' }, icon: 'rope', col: 8,
                 bait: { widen: 0.03, grace: 0.4 } },
+  /* THE LOFT: what finishing the water wing pays out (BEK_LOFT below). Same
+     two knobs `snelle` already turns and nothing new — pickTackle() (index.js)
+     takes this one first when it is in the bag, exactly the way pickBait()
+     already prefers agn_reke over agn_mark. */
+  snelle_stal:{ name: { no: 'STÅLSNELLE',  en: 'STEEL TACKLE' }, icon: 'rope', col: 15,
+                bait: { widen: 0.05, grace: 0.9 } },
   /* dairy & animal */
   melk:       { name: { no: 'MELK',       en: 'MILK'         }, sell: 22,  icon: 'milk',  col: 15 },
   brunost:    { name: { no: 'BRUNOST',    en: 'BROWN CHEESE' }, buy: 55, sell: 20, eat: 55, icon: 'cheese', col: 6 },
@@ -277,6 +283,10 @@ export const BEK_ITEMS = {
   potetstuing:  { name: { no: 'POTETSTUING',  en: 'POTATO STEW'      }, sell: 40, eat: 130, icon: 'bowl', col: 14 },
   gulrotkake:   { name: { no: 'GULROTKAKE',   en: 'CARROT CAKE'      }, sell: 55, eat: 140, icon: 'bowl', col: 6  },
   rabarbragrot: { name: { no: 'RABARBRAGRØT', en: 'RHUBARB PORR.'    }, sell: 65, eat: 150, icon: 'bowl', col: 10 },
+  /* THE LOFT: what finishing the field wing pays out — the one dish that
+     wants the autumn-only crop, so the recipe lands about when a player who
+     has filled that wing has a gresskar plot to spend on it. */
+  gresskarsuppe:{ name: { no: 'GRESSKARSUPPE', en: 'PUMPKIN SOUP'   }, sell: 80, eat: 170, icon: 'bowl', col: 14 },
   /* worn / carried gear (no sell) */
   lykt:       { name: { no: 'LYKT',       en: 'LANTERN'      }, icon: 'lamp', col: 14 },
   /* The other end of the loop the crystal opens: a lamp that reaches further,
@@ -732,6 +742,23 @@ export const BEK_DECOR = {
     { x: 15, y: 3,  kind: 'herbs' },
     { x: 2,  y: 4,  kind: 'jars' },
     { x: 4,  y: 9,  kind: 'coat' }
+  ],
+  /* THE LOFT (see BEK_LOFT below): what is in there on the day you first get
+     the key — two crates and nothing else, which is what six shut years look
+     like. Everything that arrives after this is in BEK_LOFT/BEK_LOFT_STAGES
+     and layers over it, never instead of it. */
+  loftet: [
+    { x: 2,  y: 11, kind: 'crate' },
+    { x: 21, y: 2,  kind: 'crate' }
+  ],
+  /* and the same building from outside, once the roof is back on it: the
+     square's own corner picks up a lamp and a stall. Named `_t1` for the
+     same reason `lakehouse_t2` is — it is a tier layered over `town`, and
+     world_check.js reads the room out of the key by stripping that suffix. */
+  town_t1: [
+    { x: 38, y: 14, kind: 'lamppost' },
+    { x: 42, y: 14, kind: 'stall' },
+    { x: 43, y: 13, kind: 'flowers' }
   ]
 };
 
@@ -1036,7 +1063,13 @@ export const BEK_FISH_WATERS = {
     weather: { regn: { laks: 1.6 }, take: { orret: 1.3 } },
     season: { host: { laks: 1.4 }, vinter: { orret: 0.7 } },
     rare: 'gullorret', legend: 'trollorret',
-    legendWhen: { season: 'sommer', weather: 'klar', h0: 4 * 60, h1: 5 * 60 }
+    /* The white night, not the small hours. This window used to be 04:00-05:00,
+       which the clock cannot reach: S.min runs 06:00 to 02:00 (360..1560) and
+       never passes through 240..300, so the troll trout could not be hooked at
+       all. 20:00-21:00 on a clear midsummer evening is the same idea in an
+       hour that exists — found by spine_check.js's obtainability pass, which
+       is the whole reason that pass checks the hour and not just the water. */
+    legendWhen: { season: 'sommer', weather: 'klar', h0: 20 * 60, h1: 21 * 60 }
   },
   fjord: {
     pool: [{ id: 'torsk', w: 5 }, { id: 'makrell', w: 3 }],
@@ -1098,6 +1131,14 @@ export const BEK_RECIPES = {
       fr: { npc: 'astrid', min: 4 }, lvl: { kind: 'farm', min: 1 } },
     { id: 'gjerde',     out: 'gjerde',   qty: 1, need: { tommer: 3, spiker: 4 },
       fr: { npc: 'hakon',  min: 2 }, lvl: { kind: 'mine', min: 1 } },
+    /* `planke` had a name, an icon, a sell price and two recipes needing it,
+       and nothing anywhere that produced one — no drop, no shop line, no
+       recipe — so the jar and the keg below could only ever be bought and
+       never made. Found by spine_check.js's obtainability pass, which is
+       what that pass is for. Håkon is who would show you how to rip a log,
+       and fr 2 is the gate his own `gjerde` already sits behind. */
+    { id: 'planke',     out: 'planke',   qty: 2, need: { tommer: 3 },
+      fr: { npc: 'hakon',  min: 2 } },
     { id: 'dyrefor',    out: 'dyrefor',  qty: 3, need: { potet: 1, nepe: 1 },
       fr: { npc: 'sigrid', min: 2 }, lvl: { kind: 'farm', min: 1 } },
     /* GIFTING: the one item on the ghost list — a name, an icon and a
@@ -1134,7 +1175,13 @@ export const BEK_RECIPES = {
     { id: 'jar', out: 'jar', qty: 1, need: { planke: 3, tau: 1 },
       fr: { npc: 'sigrid', min: 3 }, lvl: { kind: 'farm', min: 1 } },
     { id: 'keg', out: 'keg', qty: 1, need: { planke: 5, jern: 1 },
-      fr: { npc: 'sigrid', min: 5 }, lvl: { kind: 'farm', min: 2 } }
+      fr: { npc: 'sigrid', min: 5 }, lvl: { kind: 'farm', min: 2 } },
+    /* ---- THE LOFT: a recipe is what a finished wing pays out, and `spine`
+       gates it exactly the way `fr`/`lvl` above already do — declared here,
+       checked read-only by recipeUnlocked() (index.js) against spine.js's
+       wingDone(), never set anywhere. See BEK_LOFT below. */
+    { id: 'snelle_stal', out: 'snelle_stal', qty: 1, need: { snelle: 1, jern: 2, tau: 1 },
+      spine: 'vann' }
   ],
   /* one raw crop plus one animal product each, and every dish restores more
      than the best shop food does (multekrem's 110) — see BEK_ITEMS */
@@ -1144,9 +1191,150 @@ export const BEK_RECIPES = {
     { id: 'gulrotkake',   out: 'gulrotkake',   qty: 1, need: { gulrot: 1, egg: 1 },
       fr: { npc: 'sigrid', min: 6 }, lvl: { kind: 'farm', min: 2 } },
     { id: 'rabarbragrot', out: 'rabarbragrot', qty: 1, need: { rabarbra: 1, melk: 1 },
-      fr: { npc: 'sigrid', min: 8 }, lvl: { kind: 'farm', min: 3 } }
+      fr: { npc: 'sigrid', min: 8 }, lvl: { kind: 'farm', min: 3 } },
+    /* THE LOFT: the field wing's payout, gated the same read-only way */
+    { id: 'gresskarsuppe', out: 'gresskarsuppe', qty: 1, need: { gresskar: 1, melk: 1 },
+      spine: 'aker' }
   ]
 };
+
+/* ==========================================================================
+   28 THE LOFT — the long spine
+   --------------------------------------------------------------------------
+   Bekkedal had nothing to be doing on day thirty. The house by the water
+   closes Act I around day seven, Act II adds three purchases and two board
+   templates, and after that the only renewable thing in the valley is a
+   generated fetch quest. Twelve crops over four seasons, ten fish, a
+   twenty-five floor descent, eight arcs and twenty-four heart events — and
+   nothing any of it added up to.
+
+   LOFTET is what it adds up to: the old two-storey log storehouse on the
+   town square, shut since the company left, that Astrid's grandmother kept
+   the valley's things in. She hands over the key once the house is finished
+   and she trusts you with it (spine.js's `spineOpen`, derived from
+   S.act2Unlocked and S.fr.astrid — never stored), and you fill it back up.
+
+   Seven wings, sixty-four entries, and *every* system of the game is on the
+   critical path of one of them. An entry is one of two shapes and no more:
+
+     { id, item }   one BEK_ITEMS id, one of it, taken out of the bag
+     { id, when }   a pure predicate on S, for the things you cannot carry
+
+   and ÅRET's four carry both, because a festival offering is a thing you
+   hold on a day that comes once a year.
+
+   **What makes it take a year is `ÅRET`, and it is unbypassable.** Its four
+   entries each want that season's own festival day (BEK_FESTIVALS, day 10 of
+   each season). Four entries is four distinct seasons is at least
+   3 * BEK_SEASON_DAYS + 1 days between the first and the last — not a
+   balance figure somebody tuned, a consequence of the calendar, and no
+   amount of money, skill or greenhouse shortens it. spine_check.js asserts
+   it from this table rather than from a simulation.
+
+   Nothing here is set by anything. `spine.js` reads this table and S and
+   answers questions; `spineDonate()` in index.js is the one function in the
+   app that writes S.spine, and every gate that pays a wing out reads back
+   through spine.js. See .claude/rules/bekkedal-content.md, **The loft**.
+   ========================================================================== */
+/* the display each finished wing puts on its own plinth — the `c` crate
+   baked into BEK_MAPS.loftet's rows, empty until then. Every `kind` is PROP
+   art the game already had (decor.js and its two siblings); not one new
+   drawing, the same rule the descent was built under. */
+export const BEK_LOFT = [
+  { id: 'aker', t: { no: 'ÅKEREN', en: 'THE FIELD' },
+    prop: { x: 3, y: 3, kind: 'basket' },
+    pay: { id: 'w:aker', t: { no: 'OPPSKRIFT: GRESSKARSUPPE', en: 'RECIPE: PUMPKIN SOUP' } },
+    e: [{ id: 'potet', item: 'potet' }, { id: 'nepe', item: 'nepe' },
+        { id: 'gulrot', item: 'gulrot' }, { id: 'kal', item: 'kal' },
+        { id: 'jordbar', item: 'jordbar' }, { id: 'rabarbra', item: 'rabarbra' },
+        { id: 'lauk', item: 'lauk' }, { id: 'purre', item: 'purre' },
+        { id: 'kalrot', item: 'kalrot' }, { id: 'gresskar', item: 'gresskar' },
+        { id: 'spinat', item: 'spinat' }, { id: 'gronnkal', item: 'gronnkal' }] },
+  { id: 'skog', t: { no: 'SKOGEN', en: 'THE WOOD' },
+    prop: { x: 7, y: 3, kind: 'fungi' },
+    pay: { id: 'w:skog', t: { no: 'MER Å FINNE HVER MORGEN', en: 'MORE TO FIND EVERY MORNING' } },
+    e: [{ id: 'sopp', item: 'sopp' }, { id: 'kantarell', item: 'kantarell' },
+        { id: 'blabar', item: 'blabar' }, { id: 'multe', item: 'multe' },
+        { id: 'tyttebar', item: 'tyttebar' }, { id: 'tang', item: 'tang' },
+        { id: 'urt', item: 'urt' }, { id: 'blomst_bla', item: 'blomst_bla' },
+        { id: 'blomst_gul', item: 'blomst_gul' }, { id: 'blomst_ro', item: 'blomst_ro' },
+        { id: 'tommer', item: 'tommer' }, { id: 'planke', item: 'planke' }] },
+  { id: 'vann', t: { no: 'VANNET', en: 'THE WATER' },
+    prop: { x: 11, y: 3, kind: 'net' },
+    pay: { id: 'w:vann', t: { no: 'OPPSKRIFT: STÅLSNELLE', en: 'RECIPE: STEEL TACKLE' } },
+    e: [{ id: 'orret', item: 'orret' }, { id: 'laks', item: 'laks' },
+        { id: 'roye', item: 'roye' }, { id: 'torsk', item: 'torsk' },
+        { id: 'makrell', item: 'makrell' }, { id: 'kveite', item: 'kveite' },
+        { id: 'gullorret', item: 'gullorret' }, { id: 'trollorret', item: 'trollorret' },
+        { id: 'havkonge', item: 'havkonge' }, { id: 'sneulke', item: 'sneulke' }] },
+  { id: 'fjell', t: { no: 'FJELLET', en: 'THE MOUNTAIN' },
+    prop: { x: 15, y: 3, kind: 'orecart' },
+    pay: { id: 'w:fjell', t: { no: 'HEISEN GÅR HELT NED', en: 'THE HOIST GOES ALL THE WAY DOWN' } },
+    e: [{ id: 'stein', item: 'stein' }, { id: 'jern', item: 'jern' },
+        { id: 'kobber', item: 'kobber' }, { id: 'solv', item: 'solv' },
+        { id: 'krystall', item: 'krystall' },
+        /* the two that are not things you carry: how far down you have been.
+           S.deepest is raised by mineStart() and by nothing else. */
+        { id: 'deep10', t: { no: 'TIENDE ETASJE', en: 'THE TENTH FLOOR' }, when: S => (S.deepest || 0) >= 10 },
+        { id: 'deep20', t: { no: 'TJUENDE ETASJE', en: 'THE TWENTIETH FLOOR' }, when: S => (S.deepest || 0) >= 20 }] },
+  { id: 'fjos', t: { no: 'FJØSET', en: 'THE FARMSTEAD' },
+    prop: { x: 19, y: 3, kind: 'milkchurn' },
+    pay: { id: 'w:fjos', t: { no: 'SYLTING GÅR EN DAG FORTERE', en: 'PRESERVES FINISH A DAY SOONER' } },
+    e: [{ id: 'melk', item: 'melk' }, { id: 'ull', item: 'ull' },
+        { id: 'egg', item: 'egg' }, { id: 'brunost', item: 'brunost' },
+        { id: 'syltetoy', item: 'syltetoy' }, { id: 'fruktvin', item: 'fruktvin' },
+        { id: 'potetstuing', item: 'potetstuing' }, { id: 'gulrotkake', item: 'gulrotkake' },
+        { id: 'rabarbragrot', item: 'rabarbragrot' },
+        { id: 'gjerde', item: 'gjerde' }, { id: 'sprinkler', item: 'sprinkler' }] },
+  /* Nothing is handed over here and nothing can be lost: the entry is the
+     friendship itself, written into the loft's book. A keepsake item would
+     have been eight more ids and one bad afternoon of gifting away the one
+     thing the wing needed. */
+  { id: 'folk', t: { no: 'FOLKET', en: 'THE PEOPLE' },
+    prop: { x: 5, y: 9, kind: 'picture' },
+    pay: { id: 'w:folk', t: { no: 'FIRE GAVER I UKA', en: 'FOUR GIFTS A WEEK' } },
+    e: [{ id: 'fr:astrid', t: { no: 'ASTRID', en: 'ASTRID' }, when: S => (S.fr.astrid || 0) >= 10 },
+        { id: 'fr:hakon',  t: { no: 'HÅKON',  en: 'HÅKON'  }, when: S => (S.fr.hakon  || 0) >= 10 },
+        { id: 'fr:ingrid', t: { no: 'INGRID', en: 'INGRID' }, when: S => (S.fr.ingrid || 0) >= 10 },
+        { id: 'fr:olav',   t: { no: 'OLAV',   en: 'OLAV'   }, when: S => (S.fr.olav   || 0) >= 10 },
+        { id: 'fr:marit',  t: { no: 'MARIT',  en: 'MARIT'  }, when: S => (S.fr.marit  || 0) >= 10 },
+        { id: 'fr:sigrid', t: { no: 'SIGRID', en: 'SIGRID' }, when: S => (S.fr.sigrid || 0) >= 10 },
+        { id: 'fr:gunnar', t: { no: 'GUNNAR', en: 'GUNNAR' }, when: S => (S.fr.gunnar || 0) >= 10 },
+        { id: 'fr:lars',   t: { no: 'LARS',   en: 'LARS'   }, when: S => (S.fr.lars   || 0) >= 10 }] },
+  /* The spine's clock. One offering per festival, and a festival comes once
+     a season — see this section's header for why that, and not a tuned
+     number, is what makes the loft take a year. `season` is stated beside
+     the predicate so spine_check.js can count the distinct seasons out of
+     the table rather than by evaluating anything. */
+  { id: 'ar', t: { no: 'ÅRET', en: 'THE YEAR' },
+    prop: { x: 17, y: 9, kind: 'flowers' },
+    pay: { id: 'w:ar', t: { no: '+20 UTHOLDENHET', en: '+20 STAMINA' }, grant: { enMax: 20 } },
+    e: [{ id: 'ar:var',    season: 'var',    item: 'jordbar',  t: { no: 'VÅRBLOT: JORDBÆR',    en: 'SPRING FESTIVAL: STRAWBERRY' }, when: S => S.festival === 'var' },
+        { id: 'ar:sommer', season: 'sommer', item: 'laks',     t: { no: 'SOLSNU: LAKS',        en: 'MIDSUMMER: SALMON' },          when: S => S.festival === 'sommer' },
+        { id: 'ar:host',   season: 'host',   item: 'gresskar', t: { no: 'HAUSTGILDE: GRESSKAR', en: 'HARVEST FAIR: PUMPKIN' },     when: S => S.festival === 'host' },
+        { id: 'ar:vinter', season: 'vinter', item: 'kalrot',   t: { no: 'JULEBLOT: KÅLROT',    en: 'MIDWINTER: RUTABAGA' },        when: S => S.festival === 'vinter' }] }
+];
+
+/* The three restoration stages, at a count of donations rather than at a
+   wing — so the loft starts coming back before any one wing is anywhere
+   near done, and the payouts arrive steadily instead of all at the end.
+   `props` layer into the room the way BEK_DECOR.lakehouse_t2 layers into the
+   house (propsPrepare(), index.js): over what is there, never instead of it.
+   `town` is the same overlay seen from outside — BEK_DECOR.town_t1. */
+export const BEK_LOFT_STAGES = [
+  { id: 'st1', at: 8,  t: { no: 'TAKET OG LEMMENE', en: 'THE ROOF AND THE SHUTTERS' },
+    grant: { bagCap: 20 }, gt: { no: '+20 SEKKEPLASS', en: '+20 BAG SPACE' },
+    props: [{ x: 2, y: 2, kind: 'lamp' }, { x: 21, y: 12, kind: 'broom' }] },
+  { id: 'st2', at: 24, t: { no: 'GOLVET OG OVNEN', en: 'THE FLOOR AND THE STOVE' },
+    grant: { enMax: 10 }, gt: { no: '+10 UTHOLDENHET', en: '+10 STAMINA' },
+    props: [{ x: 2, y: 7, kind: 'coat' }, { x: 21, y: 7, kind: 'firewood' }, { x: 13, y: 6, kind: 'cat' }] },
+  { id: 'st3', at: 44, t: { no: 'SVALGANGEN', en: 'THE UPPER GALLERY' },
+    grant: { enMax: 10 }, gt: { no: '+10 UTHOLDENHET', en: '+10 STAMINA' },
+    props: [{ x: 6, y: 2, kind: 'picture' }, { x: 16, y: 2, kind: 'crockery' }, { x: 2, y: 12, kind: 'jars' }] }
+];
+/* Astrid's own gate on the key, stated once here rather than twice — read by
+   spine.js's spineOpen() and by her own dialogue node's `when`. */
+export const BEK_LOFT_FR = 6;
 
 /* The finished house, drawn straight over the lake lot — same rows-shaped
    overlay as before, only as wide and as tall as the water map now is.

@@ -88,8 +88,19 @@ This file carries the full art/rendering doctrine for the siblings above.
 - `menus_talk.js` — the two panels a *conversation* puts up, split off for the
   300-line rule. See **The faces** below.
 - `menus_chrome.js` — the board, the bag, the shop/workshop counters, the
-  travel sign and the sleep card's own materials, split off `menus.js` the
-  same way. See **Where the palette does not reach** above.
+  travel sign, the sleep card and the loft's shelving, split off `menus.js`
+  the same way. See **Where the palette does not reach** above. `shelf()` is
+  the one material that takes the caller's own row grid: a shelf lip ruled at
+  an even fifth of the box crosses whatever text sits at that height and reads
+  as a line struck through it, so `menus_spine.js` hands it the panel's first
+  row and its row height and every lip lands in a gap.
+- `menus_spine.js` — the loft's two panels, split off for the 300-line rule
+  the same way: the shelves (two columns — the seven wings with a fill bar
+  each, and the selected wing's own entries) and the loft's own ending. That
+  ending is a second painting, not a variant of `drawEnd`'s: an interior at
+  lamplight rather than a house at dusk, so its lines sit on the floor under
+  the shelves rather than in a sky (`LOFT_END_TEXT_Y`, `layout.js`). See
+  **The loft**, `.claude/rules/bekkedal-content.md`.
 - `music.js` — five tunes and the crossfading scheduler that rotates them.
 - `ambience.js` — a bed per map, weather and the hour layered over it,
   positional hearth crackle, and material footsteps. See **Ambience** below.
@@ -1513,3 +1524,27 @@ after dark without any of them having to ask. `ditherPat`'s cache is keyed
 by the LUT as well as by the context, colour and strength, and swept when
 the hour's table changes, so patterns baked at one hour are never filled
 with at the next.
+
+**A panel that covers the HUD is a panel that hides the day and the energy
+bar**, which are the two things a player checks before deciding to walk home.
+Most of the boxes in `layout.js` are centred on the canvas and happen to
+clear both bands; the loft's is centred on the *viewport* (`BEK_VIEW_Y` +
+`BEK_VIEW_H`) and its row height is a bare `ICON_PX` rather than the shop's
+`ICON_PX + 4`, because twelve rows plus two header lines and a footer is what
+had to fit between them. `layout_check.js` holds it to that.
+
+## Props draw on every glyph, including the ones that return early
+
+`tileDetail` answers a handful of glyphs and returns — the pier, the path, the
+three rock glyphs, the shoreline — and for a long time the one line that drew
+a `BEK_DECOR` prop sat below all of them. Ten authored props were on those
+glyphs and had never once been drawn: the town's two street lamps and its well
+bucket, the lake's rowboat and washing line, the fjord's four jetty posts, and
+**the ladder at the mouth of the mine**, which this app's own doctrine
+describes as standing on the mouth. It was found by pixel-diffing the town
+with and without the loft's own overlay — nothing else in the repo could see
+it, because a prop that is never drawn looks exactly like a map that has no
+prop there.
+
+It is `tileProp(c, x, y)` now, called from every branch that returns. **A new
+early return in `tileDetail` has to call it too.**

@@ -134,5 +134,34 @@ export function createChrome(GG, C, stipple) {
     stipple(x, y, w, h, ATMO[2], 1);
   }
 
-  return { board, note, cloth, counter, workbench, sign, card };
+  /* ---- the loft: shelving in a log storehouse ---------------------------
+     Deeper timber than the workbench and lit from the same corner, with the
+     shelf lips reading as the horizontal that the two columns of the panel
+     sit on. Cross-braces at the ends, so the box reads as a frame standing
+     against a wall rather than as another plank surface: the loft is the one
+     panel whose whole subject is things stood on shelves. */
+  function shelf(x, y, w, h, rowY, rowH) {
+    frame(x, y, w, h, TIM[2], TIM[1], TIM[3]);
+    const [ix, iy, iw, ih] = inner(x, y, w, h);
+    GG().fillStyle = C(TIM[0]); GG().fillRect(ix, iy, iw, ih);
+    stipple(ix, iy, iw, ih, TIM[1], 2);                 /* the grain of old logs */
+    /* The lips are laid on the caller's own row grid rather than on an even
+       fifth of the box, and that is not decoration: a shelf edge ruled at an
+       arbitrary height crosses whatever text happens to be at that height and
+       reads as a line struck through it. Given the first row's top and a row
+       height, every lip lands in the gap between two rows. */
+    const step = (rowH || Math.round(ih / 5)) * 3;
+    for (let sy = (rowY != null ? rowY : iy + step) - BORDER * 2; sy < iy + ih - BORDER * 2; sy += step) {
+      if (sy <= iy) continue;
+      GG().fillStyle = C(TIM[1]); GG().fillRect(ix, sy, iw, BORDER);
+      GG().fillStyle = C(TIM[2]); GG().fillRect(ix, sy + BORDER, iw, BORDER);
+    }
+    const br = BORDER * 2;                              /* the end braces */
+    GG().fillStyle = C(TIM[1]);
+    GG().fillRect(ix, iy, br, ih); GG().fillRect(ix + iw - br, iy, br, ih);
+    GG().fillStyle = C(TIM[2]);
+    GG().fillRect(ix + br, iy, BORDER, ih); GG().fillRect(ix + iw - br - BORDER, iy, BORDER, ih);
+  }
+
+  return { board, note, cloth, counter, workbench, sign, card, shelf };
 }

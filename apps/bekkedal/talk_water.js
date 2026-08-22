@@ -8,6 +8,9 @@
 
 const VAR = 0, SOMMER = 1, HOST = 2, VINTER = 3;
 const idle = S => !S.yst.farm && !S.yst.mine && !S.yst.fish && !S.yst.forage;
+/* THE LOFT: how much has been carried into the storehouse on the square —
+   read defensively, like every gate in these files. See BEK_LOFT (data.js). */
+const loft = S => (S.spine && S.spine.d) ? Object.keys(S.spine.d).length : 0;
 
 export const WATER_TALK = {
   ingrid: {
@@ -62,6 +65,9 @@ export const WATER_TALK = {
         give: { orret: 2 }, set: { tally: 1 } }
     ],
     chat: [
+      /* THE LOFT */
+      { mood: 'warm', t: [{ no: 'Du bar en fisk inn på et museum. Bra. La dem se hva som bor her.', en: 'You carried a fish into a museum. Good. Let them see what lives here.' }],
+        if: S => loft(S) >= 1 },
       { t: ['Still biting. Slowly.'] },
       { mood: 'troubled', t: ['The lot behind you has been empty a long time.'] },
       { t: ['Deep water, deep fish. Patience.'], if: S => S.flag.fisk === 'ro' },
@@ -180,6 +186,9 @@ export const WATER_TALK = {
         give: { makrell: 3 }, set: { munning: 1 } }
     ],
     chat: [
+      /* THE LOFT */
+      { t: [{ no: 'Loftet fylles. Jeg går forbi og ser inn, og lar være å si noe.', en: 'The loft is filling. I walk past and look in, and say nothing about it.' }],
+        if: S => loft(S) >= 24 },
       { mood: 'troubled', t: ['Water finds every gap you leave it.'] },
       { t: ['The pier is Ingrid’s. The dock at the fjord is mine.'] },
       { mood: 'warm', t: [{ no: 'Boat floats now. Take it whenever. Pier’s end, press act.', en: 'Boat floats now. Take it whenever. Pier’s end, press act.' }], if: S => S.flag.boat },
