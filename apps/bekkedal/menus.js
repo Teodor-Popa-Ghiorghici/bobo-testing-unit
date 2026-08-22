@@ -285,7 +285,7 @@ export function createMenus(A, GG, C) {
     if (S.q.blomst === 'done') lines.push(TX('Blomster på karmen, som Marit ville.', 'Flowers on the sill, as Marit wanted.'));
     const ly = END_TEXT_Y;
     for (let i = 0; i < lines.length; i++) if (S.ending > 1.6 + i * 0.7) text(lines[i], END_TEXT_X, ly + i * LINE_SM, i === 0 ? 15 : 11, FONT_SM);
-    const stat = 'DAG ' + S.day + ' — ' + S.kr + ' KR';
+    const stat = TX('DAG ', 'DAY ') + S.day + ' — ' + S.kr + ' KR';
     if (S.ending > 1.6 + lines.length * 0.7 + 0.5) text(stat, Math.round((BEK_W - textW(stat, FONT_SM)) / 2), ly + lines.length * LINE_SM + LINE_SM, 11, FONT_SM);
     /* not "start over" — this screen no longer resets S, so SPACE says what it does */
     const cont = TX('SPACE — FORTSETT', 'SPACE — CONTINUE');

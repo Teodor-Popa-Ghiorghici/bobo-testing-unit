@@ -19,7 +19,7 @@ import * as L from './layout.js';
 import * as Q from './quests.js';
 import { mineTitle, MINE_MAX, MINE_STATION } from './mine.js';
 import { canPlace, connectivityOK, PLACE_BLOCKS } from './placement.js';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -458,6 +458,28 @@ Object.keys(D.BEK_MAPS).forEach(id => {
 ok(sweepMaps === Object.keys(D.BEK_MAPS).length, 'every authored map had a walkable tile to sweep from',
    sweepMaps + '/' + Object.keys(D.BEK_MAPS).length);
 pass('swept every candidate fence tile on every authored map', sweepMaps + ' maps, ' + sweepTiles + ' tiles');
+
+/* ---- BILINGUAL: no {no,en} pair may be byte-identical ------------------- */
+console.log('\n-- bilingual toggle --');
+/* A {no,en} pair that is byte-identical is either translation debt (an
+ * English sentence nobody translated) or a redundant object where a plain
+ * string would do (a proper noun/loanword genuinely spelled the same in
+ * both). Either way it should not exist as a {no,en} pair — this sweeps
+ * every .js file in the app for the pattern directly out of source text, so
+ * a new one introduced later fails the check rather than going unnoticed. */
+const __dir2 = dirname(fileURLToPath(import.meta.url));
+const dataFiles = readdirSync(__dir2).filter(f => f.endsWith('.js') && !f.endsWith('_check.js'));
+const identicalPairs = [];
+dataFiles.forEach(f => {
+  const src = readFileSync(join(__dir2, f), 'utf8');
+  const re = /\{\s*no:\s*'((?:[^'\\]|\\.)*)',\s*en:\s*'((?:[^'\\]|\\.)*)'\s*\}/g;
+  let m;
+  while ((m = re.exec(src))) {
+    if (m[1] === m[2]) identicalPairs.push(f + ': ' + JSON.stringify(m[1]));
+  }
+});
+ok(identicalPairs.length === 0, 'no {no,en} pair is byte-identical',
+   identicalPairs.length ? identicalPairs.slice(0, 5).join(' | ') : dataFiles.length + ' files swept');
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' checks FAILED' : 'All ' + checks + ' layout checks pass.'));
 process.exit(fails ? 1 : 0);
