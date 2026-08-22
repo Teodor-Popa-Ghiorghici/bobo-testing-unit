@@ -317,6 +317,15 @@ export const TOWN_TALK = {
         if: S => S.act2Unlocked },
       { t: [{ no: 'Førtitre jobber nå. To av dem blir stående. Det holder.', en: 'Forty-three jobs now. Two of them will stand. That is enough.' }],
         if: S => S.act2Unlocked && S.flag.mone }
-    ]
+    ],
+    /* ---- FURNISHING: not `shop` — that field is read unconditionally at
+       the end of every conversation (openMenu(), index.js) and would skip
+       hakonBuild()'s whole lot/house/tier funnel. This one is opened by
+       hakonTilbygg() itself, once there is nothing else left to build —
+       a carpenter selling furniture once the house is up. */
+    /* gjerde stays craft-only, same as it always was ("not sold anywhere" —
+       BEK_ITEMS.gjerde) — everything else here is buyable and craftable both */
+    furniture: ['stol', 'bord', 'matte', 'seng', 'hylle', 'kommode', 'lampe', 'lys', 'veggbilde',
+                'grind', 'sti', 'blomsterkasse', 'benk', 'fugleskremsel', 'skilt']
   }
 };

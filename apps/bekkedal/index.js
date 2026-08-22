@@ -6,6 +6,7 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS,
          BEK_TALK, BEK_SCENES, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
          BEK_BARN_PLOT2, BEK_GREENHOUSE_PLOT, BEK_ANIMAL_KINDS, BEK_GIFT_CAP, BEK_MINE_MOUTH,
          BEK_RECIPES, BEK_FISH_WATERS, BEK_SEASON_DAYS, BEK_LOFT,
+         BEK_PLACE_CAT, BEK_PLACE_ROT,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          mapCols, mapRows, camMaxX, camMaxY,
@@ -42,7 +43,9 @@ import { houseCost, houseTierCost, houseTierAvailable, barnSlots,
 import { spineOpen, spineProgress, spineStage, spineComplete, spineWants,
          spineClaimable, spineProps, spineRecipeOK, spineForageBonus,
          spineHoistEveryFloor, spinePresvDaysOff, spineGiftCap } from './spine.js';
-import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
+import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS, PLACE_BLOCKS } from './decor.js';
+import { canPlace, connectivityOK } from './placement.js';
+import { mask4 } from './autotile.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE } from './palette.js';
 import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
 import { lightAt, shelter, keyOf, cssFor, DAY_CSS, mineLight } from './light.js';
@@ -206,7 +209,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 17, lang: BEK_LANG, fullscreen: 0,
+        ver: 18, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -315,7 +318,19 @@ export default {
            seven wings are finished, and all six of the payouts that are not
            numbers — is derived from this table by spine.js and stored
            nowhere. See BEK_LOFT (data.js). */
-        spine: { d: {}, m: {}, first: 0, done: 0 }
+        spine: { d: {}, m: {}, first: 0, done: 0 },
+        /* ---- ver 18: FURNISHING --------------------------------------------
+           Every object a player has placed, never an authored one — those
+           stay in BEK_DECOR and never touch this. Keyed by rkey(map, x, y)
+           exactly like S.mined/S.felled, so a placement is per-tile and
+           per-map with no second lookup table to keep in sync. `{ kind,
+           item, rot }`: `kind` is the decor.js/decor_place.js drawing (and
+           the LIGHTS/PLACE_BLOCKS key), `item` is the BEK_ITEMS id handed
+           back to the bag when it is picked back up (not always the same
+           string — lampe places the 'lamp' kind), `rot` is 0/1 for the
+           handful of kinds BEK_PLACE_ROT says read a facing. See
+           placement.js and index.js's `place` mode. */
+        placed: {}
         };
         /* the repeatable quest board (quests.js) — two or three live
            instances on top of BEK_QUESTS above, seeded here so day 1 already
@@ -368,7 +383,7 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay', 'cropGrade', 'presv', 'spine'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay', 'cropGrade', 'presv', 'spine', 'placed'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
         });
         /* ver 16: a save from before QUALITY has no plot's soil record
@@ -413,6 +428,20 @@ export default {
         if (!Number.isFinite(s.spine.done)) s.spine.done = 0;
         /* ver 15: a save from before legendary fish existed has caught none */
         if (typeof s.legend !== 'object' || s.legend === null) s.legend = {};
+        /* ver 18: a save from before FURNISHING existed has placed nothing —
+           the honest blank, same reasoning as S.legend and S.deepest above.
+           Every authored prop still renders (BEK_DECOR, untouched by this),
+           only the player's own layer starts empty. A malformed entry (a
+           kind this build does not know, or a map that no longer exists —
+           the descent tears its own floors down between sessions) is
+           dropped rather than repaired, the same rule healCoords() applies
+           to S.soil/S.felled/S.mined/S.picked below. */
+        Object.keys(s.placed).forEach(k => {
+          const rec = s.placed[k];
+          const mp = k.slice(0, k.indexOf(':'));
+          if (!rec || typeof rec !== 'object' || !PROP[rec.kind] || !BEK_ITEMS[rec.item] || !BEK_MAPS[mp]) { delete s.placed[k]; return; }
+          rec.rot = rec.rot ? 1 : 0;
+        });
         /* ver 14: a save from before the descent existed has never been down
            one, so it starts at the mouth with no shortcut — the honest
            reading, the same one the yesterday counters take above. A run that
@@ -550,6 +579,10 @@ export default {
       }
 
       let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null, loft = null;
+      /* FURNISHING: `place` is `{ item, kind, x, y, rot }` while mode ===
+         'place', else null — see startPlace()/confirmPlace() and the
+         `mode === 'place'` keydown block below. */
+      let place = null;
       /* the heart event currently playing, or null — a run object out of
          scene.js, transient by definition (it holds the square the player
          came from, and that must not survive a reload). The scene draws
@@ -651,7 +684,15 @@ export default {
       const solid = (mp, x, y) => {
         const c = tileAt(mp, x, y);
         if (c === 'D') return true;
-        return BEK_SOLID.indexOf(c) >= 0;
+        if (BEK_SOLID.indexOf(c) >= 0) return true;
+        /* FURNISHING: the one deliberate exception to "decor never changes
+           walkability" — a placed gjerde/grind is a real barrier, the same
+           way placement.js's connectivityOK() already treats it when
+           deciding whether a placement is allowed in the first place. Every
+           other placed kind (all the indoor furniture, every other outdoor
+           kind) never reaches this: PLACE_BLOCKS names only these two. */
+        const rec = S.placed[rkey(mp, x, y)];
+        return !!(rec && PLACE_BLOCKS[rec.kind]);
       };
       const has = (id, n) => (S.bag[id] || 0) >= (n || 1);
       const add = (id, n) => { S.bag[id] = (S.bag[id] || 0) + (n || 1); if (S.bag[id] <= 0) delete S.bag[id]; };
@@ -1305,6 +1346,19 @@ export default {
           }
         }
 
+        /* FURNISHING: facing a placed object with nothing else claiming the
+           tile (door/chest/hearth/preserve/NPC/animal above have all
+           already returned) picks it up and drops straight into placement
+           mode holding it — see the section's own header above act(). */
+        const pk = rkey(S.map, f.x, f.y);
+        if (S.placed[pk]) {
+          const rec = S.placed[pk];
+          delete S.placed[pk]; terrDirty();
+          add(rec.item, 1); sfx.pick();
+          say(TX('PLUKKET OPP.', 'PICKED UP.'));
+          startPlace(rec.item, f.x, f.y);
+          return;
+        }
         const tool = BEK_TOOLS[S.tool];
         if (t === 'p' && S.picked[rkey(S.map, f.x, f.y)] <= S.day) {   /* pick a wildflower */
           if (S.lvl.forage < 1 && !spend(1)) return;   /* forage lvl1: picking costs no energy */
@@ -1781,6 +1835,13 @@ export default {
              Håkon has to offer once Act II is open, checked here rather
              than as a third branch of hakonBuild() itself */
           if (greenhouseAvailable(S)) { hakonGreenhouse(hak2); return; }
+          /* FURNISHING: nothing left to build, so the carpenter's wares are
+             furniture — same shop panel the other shopkeepers use, just
+             opened from here rather than from BEK_TALK[npc].shop (which
+             would hijack every conversation with him — see the `furniture`
+             field's own comment, talk_town.js). Only offered once a house
+             actually stands: there is nowhere to put a chair before then. */
+          if (S.built) { shop = { list: BEK_TALK.hakon.furniture, sel: 0, side: 0, npc: hak2 }; mode = 'shop'; dlg = null; return; }
           dlg = { lines: [S.houseTier ? { no: 'Tilbygget står. Ikke mer å legge til.', en: 'The annex stands. Nothing more to add.' }
                                        : 'It is standing. Go and live in it.'], i: 0, npc: hak2, mood: 'warm' };
           mode = 'talk'; return;
@@ -1923,6 +1984,56 @@ export default {
         sfx.pick(); say('+' + (r.qty || 1) + ' ' + iname(r.out));
       }
 
+      /* ---- FURNISHING: placement mode ------------------------------------
+         Carrying a placeable item (BEK_ITEMS[id].place is the decor.js/
+         decor_place.js kind it puts down) and pressing the bag's own SPACE
+         opens this instead of the usual gift-hold toggle (see the `mode ===
+         'bag'` keydown block below). Same input shape every other panel in
+         this app already uses: WASD/arrows move the ghost by a tile, R
+         rotates where BEK_PLACE_ROT says that means something, SPACE
+         confirms, ESC cancels — never a new scheme.
+
+         Picking a placed object back up is the same door in reverse: facing
+         one and pressing act() (not inside any menu) lifts it back into the
+         bag and drops straight into placement mode holding it, so "move
+         it" is pick-up-then-place rather than a drag the player has to
+         learn a second gesture for. See act()'s own `S.placed` branch. */
+      function startPlace(itemId, x0, y0) {
+        const kind = BEK_ITEMS[itemId] && BEK_ITEMS[itemId].place;
+        if (!kind) return;
+        /* Never in the descent (generated floors are torn down and
+           regenerated between runs, so a coordinate there does not mean the
+           same thing twice — see mine.js's own header) and never in the
+           loft (spineProps already owns every tile of that room). Both are
+           places nothing is ever placed by hand. */
+        if (isMineId(S.map) || S.map === 'loftet') {
+          say(TX('IKKE HER.', 'NOT HERE.')); deny(); return;
+        }
+        const wantIn = (BEK_PLACE_CAT[itemId] || 'in') === 'in';
+        if (wantIn !== ins_()) {
+          say(wantIn ? TX('DETTE HØRER HJEMME.', 'THIS BELONGS INDOORS.') : TX('DETTE HØRER UTE.', 'THIS BELONGS OUTDOORS.'));
+          deny(); return;
+        }
+        const f = facing();
+        place = { item: itemId, kind: kind, x: x0 != null ? x0 : f.x, y: y0 != null ? y0 : f.y, rot: 0 };
+        mode = 'place'; dlg = null; shop = null; craft = null; sfx.sel();
+      }
+      function cancelPlace() { mode = ''; place = null; }
+      function confirmPlace() {
+        const mapDef = BEK_MAPS[S.map];
+        const placedHere = placedHereObj(S.map);
+        if (!canPlace(mapDef, placedHere, S.px, S.py, place.x, place.y, place.kind)) {
+          say(TX('KAN IKKE STÅ DER.', "CAN'T STAND THERE."));
+          deny(); return;
+        }
+        if (!has(place.item, 1)) { say(TX('HAR DEN IKKE LENGER.', 'NO LONGER HAVE IT.')); cancelPlace(); return; }
+        add(place.item, -1);
+        S.placed[rkey(S.map, place.x, place.y)] = { kind: place.kind, item: place.item, rot: place.rot || 0 };
+        terrDirty(); sfx.done();
+        say(TX('SATT NED.', 'PLACED.'));
+        mode = ''; place = null;
+      }
+
       /* ---- fast travel -------------------------------------------------- */
       function openTravel() {
         const list = Object.keys(S.disc).filter(m => BEK_HOME[m] && m !== S.map);
@@ -1959,6 +2070,7 @@ export default {
         if (mode === 'offer') { offer = null; mode = ''; return; }
         if (mode === 'shop') { shop = null; mode = ''; return; }
         if (mode === 'craft') { craft = null; mode = ''; return; }
+        if (mode === 'place') { cancelPlace(); return; }
         if (mode === 'travel') { travel = null; mode = ''; return; }
         if (mode === 'loft') { loft = null; mode = ''; return; }
         if (mode === 'bag' || mode === 'quest' || mode === 'sleep') { mode = ''; return; }
@@ -2021,6 +2133,16 @@ export default {
           if (k === 'Escape' || k === 'e') closeMenu();
           return;
         }
+        if (mode === 'place') {
+          if (k === 'w' || k === 'ArrowUp') place.y = Math.max(0, place.y - 1);
+          if (k === 's' || k === 'ArrowDown') place.y = Math.min(ROWS() - 1, place.y + 1);
+          if (k === 'a' || k === 'ArrowLeft') place.x = Math.max(0, place.x - 1);
+          if (k === 'd' || k === 'ArrowRight') place.x = Math.min(COLS() - 1, place.x + 1);
+          if (k === 'r' && BEK_PLACE_ROT[place.item]) { place.rot = place.rot ? 0 : 1; sfx.sel(); }
+          if (k === ' ' || k === 'Enter') confirmPlace();
+          if (k === 'Escape') cancelPlace();
+          return;
+        }
         if (mode === 'loft') {
           const n = BEK_LOFT.length;
           if (k === 'w' || k === 'ArrowUp') { loft.sel = (loft.sel + n - 1) % n; sfx.sel(); }
@@ -2056,6 +2178,12 @@ export default {
             if (k === 'd' || k === 'ArrowRight') bagCur = (bagCur + 1) % ids.length;
             if (k === ' ' || k === 'Enter') {
               const id = ids[bagCur % ids.length];
+              /* FURNISHING: a placeable item's own kind (a string) closes
+                 the bag straight into placement mode rather than toggling
+                 the gift hold — see startPlace()'s own header. */
+              if (BEK_ITEMS[id].place && typeof BEK_ITEMS[id].place === 'string') {
+                mode = ''; startPlace(id); return;
+              }
               giftSel = giftSel === id ? null : id;
               sfx.sel();
               say(giftSel ? TX('HOLDER FRAM: ', 'HOLDING OUT: ') + iname(giftSel) : TX('LA VEKK GAVEN.', 'PUT THE GIFT AWAY.'));
@@ -2601,10 +2729,49 @@ export default {
            the roof is back on. */
         if (S.map === 'loftet') spineProps(S).forEach(d => propMap.set(d.x + ',' + d.y, d));
         if (S.map === 'town' && spineStage(S) >= 1) (BEK_DECOR.town_t1 || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
+        /* FURNISHING: the player's own placements, layered over the
+           authored table exactly the way lakehouse_t2/town_t1/spineProps
+           already are above — never a second draw path, never a second
+           lightSources()/drawProp() branch. See placement.js and S.placed's
+           own header (index.js's fresh()). */
+        placedForMap(S.map).forEach((rec, k) => {
+          const [x, y] = k.split(',').map(Number);
+          propMap.set(k, { x: x, y: y, kind: rec.kind, rot: rec.rot, placed: true });
+        });
       }
+      /* S.placed keyed by rkey(map, x, y) = 'map:x,y' — filtered to one map
+         and reindexed by 'x,y' for callers that already think in local tile
+         keys, same shape propMap and canPlace()'s `placedHere` both want. */
+      function placedForMap(mp) {
+        const out = new Map();
+        const pre = mp + ':';
+        Object.keys(S.placed).forEach(k => {
+          if (k.slice(0, pre.length) !== pre) return;
+          out.set(k.slice(pre.length), S.placed[k]);
+        });
+        return out;
+      }
+      function placedHereObj(mp) {
+        const out = {};
+        placedForMap(mp).forEach((rec, k) => { const [x, y] = k.split(',').map(Number); out[k] = { x: x, y: y, kind: rec.kind }; });
+        return out;
+      }
+      /* gjerde/sti are neighbour-aware, drawn with a cardinal autotile.js
+         mask (mask4) against their own kind rather than the usual hash
+         variation every other prop's fourth argument carries — see
+         decor_place.js's own header. */
+      const CONNECTS = { gjerde: 1, sti: 1 };
+      /* every BEK_PLACE_ROT id happens to place a kind of the same name
+         (stol -> 'stol', benk -> 'benk' — only the lamp/candle/picture
+         remaps rotate nothing), so the item table doubles as the kind set */
       function drawProp(d, x, y, t) {
         const fn = PROP[d.kind];
-        if (fn) native(() => fn(propArt, x * BEK_T, y * BEK_T, hLowV(x, y, mapSalt(S.map) + 4090, 1, 3), t));
+        if (!fn) return;
+        const v = CONNECTS[d.kind]
+          ? mask4((nx, ny) => { const p = propMap.get(nx + ',' + ny); return !!p && p.kind === d.kind; }, x, y)
+          : (d.placed && BEK_PLACE_ROT[d.kind]) ? (d.rot || 0)
+          : hLowV(x, y, mapSalt(S.map) + 4090, 1, 3);
+        native(() => fn(propArt, x * BEK_T, y * BEK_T, v, t));
       }
 
       /* The ring of trees around every outdoor map, as one continuous strip
@@ -3428,6 +3595,24 @@ export default {
                        n.walking ? walkStep(S.min) : (Math.floor(t) % 2 ? 0 : 2), n.hair, n.shirt, n.pants);
         });
 
+        /* FURNISHING: the ghost. A stipple under the real prop art, never a
+           colour overlay — no alpha anywhere in this app, so "valid" and
+           "invalid" are two different dither strengths against two
+           different marks (a light stipple, col 10, or a dark one, col 12)
+           rather than a tint. Drawn after every sprite and before the fx,
+           the same layer order a placed object will actually sit in once
+           it is real. */
+        if (mode === 'place' && place) {
+          const okNow = canPlace(BEK_MAPS[S.map], placedHereObj(S.map), S.px, S.py, place.x, place.y, place.kind);
+          native(() => {
+            const gx = place.x * BEK_T, gy = place.y * BEK_T;
+            g.fillStyle = ditherPat(okNow ? 10 : 12, 9);
+            g.fillRect(gx, gy, BEK_T, BEK_T);
+            const fn = PROP[place.kind];
+            if (fn) fn(propArt, gx, gy, place.rot || 0, t);
+          });
+        }
+
         /* the chips, the dust and the spray, in front of everything in the
            playfield and under the chrome */
         native(() => fx.draw());
@@ -3746,7 +3931,43 @@ export default {
           return { steps: maxSteps, result: 'timeout' };
         },
         /* A plain snapshot of the fields a fishing test cares about. */
-        state: () => JSON.parse(JSON.stringify({ bag: S.bag, legend: S.legend, xp: S.xp, kr: S.kr }))
+        state: () => JSON.parse(JSON.stringify({ bag: S.bag, legend: S.legend, xp: S.xp, kr: S.kr })),
+        /* FURNISHING, from the harness. Grants the item (so a functional
+           test does not first have to play through a whole shop visit),
+           stands the player at (x, y) on `mapId` (or leaves them where they
+           are if omitted), then drives the real startPlace()/confirmPlace()
+           the bag panel and the keyboard both call — the placement is
+           validated by the same canPlace() a player's SPACE goes through,
+           never a direct S.placed write. */
+        furnish: (itemId, mapId, x, y, rot) => {
+          /* stand just south of the target tile, not on it — canPlace()
+             correctly refuses a placement on the player's own square, so
+             the harness has to stand somewhere else, the same way a real
+             player would before pressing SPACE */
+          if (mapId) { S.map = mapId; S.px = x; S.py = y + 1; S.dir = 1; }
+          add(itemId, 1);
+          startPlace(itemId, x, y);
+          if (place && rot) place.rot = 1;
+          const opened = mode === 'place';
+          if (opened) confirmPlace();
+          return { opened: opened, map: S.map, placed: JSON.parse(JSON.stringify(S.placed)),
+                   bag: Object.assign({}, S.bag), note: note };
+        },
+        /* Face (x, y) on the current map and pick it up — same door in
+           reverse act() already opens for a player standing there. */
+        pickup: (x, y) => {
+          S.px = x; S.py = y + 1; S.dir = 1;             /* stand just south, facing north onto it */
+          act();
+          return { placed: JSON.parse(JSON.stringify(S.placed)), bag: Object.assign({}, S.bag), note: note };
+        },
+        /* What lightSources() reports right now — a placed lamp/candle has
+           to show up here the exact way an authored one does, through the
+           same PROP_LIGHTS table. Runs propsPrepare() first so propMap
+           reflects whatever was placed since the last real rebuild. */
+        lights: () => { propsPrepare(); return lightSources(1).map(s => ({ px: s.px, py: s.py, r: Math.round(s.r), peak: s.peak })); },
+        placedAt: (mapId, x, y) => S.placed[rkey(mapId, x, y)] || null,
+        teleport: (mapId, x, y) => { S.map = mapId; S.px = x; S.py = y; S.dir = 0; return { map: S.map, px: S.px, py: S.py }; },
+        walkable: (mapId, x, y) => !solid(mapId, x, y)
       };
       window.__bekDebug = dbg;
 

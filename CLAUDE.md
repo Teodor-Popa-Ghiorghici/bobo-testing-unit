@@ -136,6 +136,28 @@ The machine's base rule is that all colour comes from `VGA16` (`kernel/god.js`) 
   `positionFor()`, which `node apps/bekkedal/schedule_check.js` checks over
   a simulated year. A shopkeeper's shop hours are one of their posts, stated
   in their own dialogue.
+  **The house you build is a house you furnish:** carrying a placeable item
+  (a chair, a table, a rug, a bed, a shelf, a lamp, a wall hanging, a
+  dresser indoors; a fence, a gate, a path, a planter, a bench, a scarecrow,
+  a sign outdoors — every one buyable from Håkon once the house stands, and
+  craftable at the chest) and pressing SPACE from the bag opens placement
+  mode: a ghost snaps to the tile, R rotates it where that means something,
+  SPACE confirms, ESC cancels — the same arrows-select/space-acts/escape-
+  closes convention the shop and craft panels already use. Facing a placed
+  object and pressing act picks it up and drops straight into placement
+  mode holding it, so moving one is pick-up-then-place. Every kind is a
+  `decor.js`/`decor_place.js` `PROP` drawn through the same terrain-cache
+  pass, `propMap` and light-source machinery authored decor already uses —
+  a placed lamp lights the room through `lightSources()` exactly the way an
+  authored one does — but it lives in `S.placed` (`index.js`), keyed by map
+  and tile, never in `BEK_DECOR`. `gjerde` (fence) and `grind` (gate) are
+  the one deliberate exception to "decor never changes walkability": a
+  placement of either is refused outright if it would disconnect any door,
+  mapped exit or bed from the player's own square, proved by a flood fill
+  in `apps/bekkedal/placement.js` rather than a local check around the
+  candidate tile — the same function `node apps/bekkedal/layout_check.js`
+  exercises directly, with synthetic corridors where the trap is
+  constructed rather than merely hoped for, and a sweep of every real map.
   **Palette:** this app is the second explicit, user-requested exception to the machine's base 16-colour rule above — see `apps/bekkedal/CLAUDE.md` and `.claude/rules/bekkedal-art.md` for the full doctrine.
 - `standbattle`: `apps/standbattle/index.js` - Stand Battle Arena, a JoJo's Bizarre Adventure roguelike combat prototype (see `docs/stand-battle-arena-spec.md`), ported in full from the jojo-roguelike repo's current, far more developed build (replacing this repo's earlier prototype port). Playable Jotaro Kujo/Star Platinum vs. Morioh enemies and boss Yoshikage Kira/Killer Queen, across a 6-node Act 1 (Morioh) map. Zero meta-progression by design; internal 480×270 canvas on a 720×260 belt plane (x, z) with a tracking camera, integer-only upscale.
   **Combat engine:** dodge (Step) is edge-triggered and gated by a 2-charge meter (`fighter.js`, GDD §3.7) with a HUD pip readout. All action inputs are queued in a 9-frame input buffer (`combat.js`) and fire the instant the player returns to idle. Arena world bounds are centralized in `arena_bounds.js`, shared by the sim (`combat.js`) and camera (`render.js`).

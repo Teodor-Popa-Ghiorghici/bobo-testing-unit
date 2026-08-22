@@ -177,8 +177,12 @@ export const BEK_ITEMS = {
   /* placeable farm gear — `place: true` is read by act()'s kanne branch,
      never by the shop or the bag, which treat it like any other item */
   sprinkler:  { name: { no: 'SPREDER',    en: 'SPRINKLER'    }, buy: 250, sell: 60, icon: 'sprinkler', col: 7, place: true },
-  /* not sold anywhere — only BEK_RECIPES.craft produces it, at the chest */
-  gjerde:     { name: { no: 'GJERDE',     en: 'FENCE'        }, sell: 35, icon: 'wood', col: 6 },
+  /* not sold anywhere — only BEK_RECIPES.craft produces it, at the chest.
+     `place: 'gjerde'` is the one that was always craftable and never had
+     placement code to go with it — see BEK_PLACE_CAT and PLACE_BLOCKS
+     (decor.js): this is a real barrier, refused whenever it would trap the
+     player (placement.js). */
+  gjerde:     { name: { no: 'GJERDE',     en: 'FENCE'        }, sell: 35, icon: 'wood', col: 6, place: 'gjerde' },
   /* ---- P20: QUALITY -----------------------------------------------------
      Craftable at the chest (BEK_RECIPES.craft), from things the valley
      already made: kelp (tang), a fed animal's own wool (ull, standing in
@@ -202,6 +206,34 @@ export const BEK_ITEMS = {
      value is in the wait, not in which crop paid for it. */
   jar:        { name: { no: 'SYLTEKRUKKE', en: 'PRESERVE JAR' }, buy: 180, sell: 40, icon: 'sprinkler', col: 12, place: true },
   keg:        { name: { no: 'TØNNE',      en: 'KEG'          }, buy: 320, sell: 70, icon: 'sprinkler', col: 6,  place: true },
+  /* ---- FURNISHING ---------------------------------------------------------
+     A real placement system, not the sprinkler's one-off hack: `place` here
+     is a *string*, the `decor.js`/`decor_place.js` kind it puts on the
+     ground, read by index.js's `place` mode (arrows move the ghost, R
+     rotates where that means something, SPACE confirms, ESC cancels — the
+     same input shape the shop/craft panels already use) rather than by any
+     one tool's own act() branch. `BEK_PLACE_CAT` below says indoors or
+     outdoors; `PLACE_BLOCKS` (decor.js) says which of these are a real
+     barrier — only gjerde and grind, and only ever refused rather than
+     letting a run trap the player (placement.js). Every one of these is
+     both buyable from Håkon (BEK_TALK.hakon.furniture) and craftable at the
+     chest (BEK_RECIPES.craft), the same dual sourcing sprinkler/jar/keg
+     already had. */
+  stol:        { name: { no: 'STOL',      en: 'CHAIR'        }, buy: 90,  sell: 30, icon: 'wood', col: 6,  place: 'stol' },
+  bord:        { name: { no: 'BORD',      en: 'TABLE'        }, buy: 150, sell: 55, icon: 'wood', col: 6,  place: 'bord' },
+  matte:       { name: { no: 'MATTE',     en: 'RUG'          }, buy: 70,  sell: 25, icon: 'wood', col: 12, place: 'matte' },
+  seng:        { name: { no: 'SENG',      en: 'BED'          }, buy: 300, sell: 110,icon: 'wood', col: 6,  place: 'seng' },
+  hylle:       { name: { no: 'HYLLE',     en: 'SHELF'        }, buy: 120, sell: 45, icon: 'wood', col: 6,  place: 'hylle' },
+  kommode:     { name: { no: 'KOMMODE',   en: 'DRESSER'      }, buy: 220, sell: 80, icon: 'wood', col: 6,  place: 'kommode' },
+  lampe:       { name: { no: 'GULVLAMPE', en: 'FLOOR LAMP'   }, buy: 200, sell: 70, icon: 'sprinkler', col: 14, place: 'lamp' },
+  lys:         { name: { no: 'LYSESTAKE', en: 'CANDLESTICK'  }, buy: 40,  sell: 14, icon: 'sprinkler', col: 14, place: 'candle' },
+  veggbilde:   { name: { no: 'VEGGBILDE', en: 'WALL PICTURE' }, buy: 90,  sell: 32, icon: 'wood', col: 6,  place: 'picture' },
+  grind:       { name: { no: 'GRIND',     en: 'GATE'         }, buy: 140, sell: 50, icon: 'wood', col: 6,  place: 'grind' },
+  sti:         { name: { no: 'STI',       en: 'PATH'         }, buy: 20,  sell: 6,  icon: 'stone', col: 14, place: 'sti' },
+  blomsterkasse:{ name: { no: 'BLOMSTERKASSE', en: 'PLANTER' }, buy: 60,  sell: 20, icon: 'wood', col: 12, place: 'blomsterkasse' },
+  benk:        { name: { no: 'BENK',      en: 'BENCH'        }, buy: 130, sell: 45, icon: 'wood', col: 6,  place: 'benk' },
+  fugleskremsel:{ name: { no: 'FUGLESKREMSEL', en: 'SCARECROW'}, buy: 80, sell: 28, icon: 'wood', col: 14, place: 'fugleskremsel' },
+  skilt:       { name: { no: 'SKILT',     en: 'SIGN'         }, buy: 50,  sell: 18, icon: 'wood', col: 6,  place: 'skilt' },
   syltetoy:   { name: { no: 'SYLTETØY',   en: 'JAM'          }, sell: 220, icon: 'bowl', col: 12 },
   fruktvin:   { name: { no: 'FRUKTVIN',   en: 'FRUIT WINE'   }, sell: 420, icon: 'bowl', col: 6 },
   /* fish — each carries a `pattern` (index.js's tickFish reads it, never
@@ -297,6 +329,26 @@ export const BEK_ITEMS = {
   ullgenser:  { name: { no: 'ULLGENSER',  en: 'WOOL SWEATER' }, icon: 'shirt', col: 4 },
   bukett:     { name: { no: 'BUKETT',     en: 'BOUQUET'      }, icon: 'flower', col: 13 }
 };
+
+/* which room a placeable item's kind belongs in — 'in' only ever placeable
+   indoors (insideMap(S.map)), 'out' only ever outdoors. Keyed by the
+   BEK_ITEMS id, which is not always the decor.js kind it places (lampe
+   places the 'lamp' kind, veggbilde the 'picture' kind — see each item's own
+   `place` field for that mapping). Read by index.js's place mode before it
+   ever asks placement.js's canPlace() about the tile itself. */
+export const BEK_PLACE_CAT = {
+  stol: 'in', bord: 'in', matte: 'in', seng: 'in', hylle: 'in', kommode: 'in',
+  lampe: 'in', lys: 'in', veggbilde: 'in',
+  gjerde: 'out', grind: 'out', sti: 'out', blomsterkasse: 'out', benk: 'out',
+  fugleskremsel: 'out', skilt: 'out'
+};
+
+/* which of these carry a `rot` (0/1) worth cycling with R in place mode —
+   only the ones whose art actually reads a facing. A table, a bed, a rug, a
+   shelf and every other symmetric piece reads the same either way, so it is
+   not offered a rotation there is nothing to see; a chair and a bench are
+   drawn seated-facing-down at rot 0 and turned side-on at rot 1. */
+export const BEK_PLACE_ROT = { stol: 1, benk: 1 };
 
 /* which items are seeds, in the order the planter cycles them */
 export const BEK_SEED_ORDER = ['potetfro', 'nepefro', 'gulrotfro', 'kalfro', 'jordbarfro', 'rabarbrafro',
@@ -1181,7 +1233,26 @@ export const BEK_RECIPES = {
        checked read-only by recipeUnlocked() (index.js) against spine.js's
        wingDone(), never set anywhere. See BEK_LOFT below. */
     { id: 'snelle_stal', out: 'snelle_stal', qty: 1, need: { snelle: 1, jern: 2, tau: 1 },
-      spine: 'vann' }
+      spine: 'vann' },
+    /* ---- FURNISHING: every placeable in BEK_PLACE_CAT is craftable here
+       too, the same dual-sourcing sprinkler/jar/keg already had — bought
+       from Håkon (BEK_TALK.hakon.furniture) or built at the chest. Gated on
+       Håkon himself, the carpenter, rather than on a gathering level: this
+       is furniture, not a farming or mining tier. */
+    { id: 'stol',  out: 'stol',  qty: 1, need: { tommer: 2 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'bord',  out: 'bord',  qty: 1, need: { tommer: 3, spiker: 2 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'matte', out: 'matte', qty: 1, need: { ull: 2 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'seng',  out: 'seng',  qty: 1, need: { tommer: 5, ull: 2 }, fr: { npc: 'hakon', min: 2 } },
+    { id: 'hylle', out: 'hylle', qty: 1, need: { tommer: 3 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'kommode', out: 'kommode', qty: 1, need: { tommer: 4, spiker: 3 }, fr: { npc: 'hakon', min: 2 } },
+    { id: 'lampe', out: 'lampe', qty: 1, need: { jern: 2, stein: 1 }, fr: { npc: 'hakon', min: 2 } },
+    { id: 'veggbilde', out: 'veggbilde', qty: 1, need: { planke: 2 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'grind', out: 'grind', qty: 1, need: { tommer: 3, jern: 1 }, fr: { npc: 'hakon', min: 2 } },
+    { id: 'sti', out: 'sti', qty: 2, need: { stein: 3 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'blomsterkasse', out: 'blomsterkasse', qty: 1, need: { tommer: 2 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'benk', out: 'benk', qty: 1, need: { tommer: 3 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'fugleskremsel', out: 'fugleskremsel', qty: 1, need: { tommer: 2, ull: 1 }, fr: { npc: 'hakon', min: 1 } },
+    { id: 'skilt', out: 'skilt', qty: 1, need: { tommer: 1 }, fr: { npc: 'hakon', min: 1 } }
   ],
   /* one raw crop plus one animal product each, and every dish restores more
      than the best shop food does (multekrem's 110) — see BEK_ITEMS */
