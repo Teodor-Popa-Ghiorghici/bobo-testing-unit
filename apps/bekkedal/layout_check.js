@@ -105,12 +105,35 @@ const boxes = [
   ['shop', L.SHOP_X, L.SHOP_Y, L.SHOP_W, L.SHOP_H],
   ['bag', L.BAG_X, L.BAG_Y, L.BAG_W, L.BAG_H],
   ['quests', L.QUEST_X, L.QUEST_Y, L.QUEST_W, L.QUEST_H],
-  ['travel', L.TRAVEL_X, L.TRAVEL_Y, L.TRAVEL_W, L.TRAVEL_H]
+  ['travel', L.TRAVEL_X, L.TRAVEL_Y, L.TRAVEL_W, L.TRAVEL_H],
+  ['loft', L.LOFT_X, L.LOFT_Y, L.LOFT_W, L.LOFT_H]
 ];
 for (const [name, x, y, bw, bh] of boxes)
   ok(x >= 0 && y >= 0 && x + bw <= D.BEK_W && y + bh <= D.BEK_H, 'panel on screen: ' + name,
      '(' + x + ',' + y + ' ' + bw + 'x' + bh + ')');
 ok(L.DLG_Y + L.DLG_H <= L.HUD_BOT_Y, 'dialogue clears the bottom HUD band');
+/* the loft's two columns, sized the same derived way the rest of these are:
+   LOFT_ROWS is the largest wing's own entry count and LOFT_WINGS is how many
+   wings there are (layout.js reads BEK_LOFT for both), so a wing that grows
+   grows the panel and this is what says it still fits. Its *content* — that
+   the plinths are real, that every display is a PROP kind — is
+   apps/bekkedal/spine_check.js, beside the rest of the loft. */
+{
+  const contentH = L.LOFT_H - L.PAD_SM * 2 - L.LINE_SM * 3;
+  ok(L.LOFT_ROW * L.LOFT_ROWS <= contentH, 'the loft\u2019s widest wing fits its entry column',
+     L.LOFT_ROWS + ' rows of ' + L.LOFT_ROW + 'px in ' + contentH);
+  ok(L.LOFT_WING_ROW * L.LOFT_WINGS <= contentH, 'and all its wings fit the wing column',
+     L.LOFT_WINGS + ' rows of ' + L.LOFT_WING_ROW + 'px in ' + contentH);
+  const labels = [], wings = [];
+  D.BEK_LOFT.forEach(wg => {
+    both(wg.t).forEach(t => wings.push('> ' + t));
+    wg.e.forEach(e => labels.push(...(e.t ? both(e.t) : both(D.BEK_ITEMS[e.item].name))));
+  });
+  ok(widest(labels) !== null && w(widest(labels), F.FONT_SM) <= L.LOFT_TW,
+     'the longest loft entry label fits its column', w(widest(labels), F.FONT_SM) + 'px of ' + L.LOFT_TW);
+  ok(w(widest(wings), F.FONT_SM) <= L.LOFT_COUNT_DX,
+     'the longest wing name clears its own count column', w(widest(wings), F.FONT_SM) + 'px of ' + L.LOFT_COUNT_DX);
+}
 
 /* ---- the dialogue box's two columns --------------------------------------
    The portrait is not a size somebody picked: it is what is left beside the
@@ -332,7 +355,10 @@ ok(Object.keys(D.BEK_MAPS).length <= 12, 'travel list has a row per destination'
    up the mountain, and the hoist is floor 1 plus every station down to
    MINE_MAX. Its rows have to clear the cost line at the foot of the sign,
    which the two-row case never came close to. */
-const hoistRows = 1 + Math.floor(MINE_MAX / MINE_STATION);
+/* the floor at the top, every station down to the bottom, and — once the
+   loft's mountain wing is full — the one deepest floor you have reached, if
+   it is not already a station (mineStations(), index.js) */
+const hoistRows = 1 + Math.floor(MINE_MAX / MINE_STATION) + 1;
 const lastRow = L.PAD_SM + L.LINE_SM * 2 + (hoistRows - 1) * L.LINE_SM + L.GLYPH_SM;
 const hintTop = L.TRAVEL_H - L.PAD_SM - L.GLYPH_SM;
 ok(lastRow <= hintTop, 'the hoist list clears the cost line at the foot of the sign',

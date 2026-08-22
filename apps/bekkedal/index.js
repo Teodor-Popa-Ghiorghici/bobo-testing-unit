@@ -5,7 +5,7 @@ import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS,
          BEK_CROPS, BEK_TOOLS, AXE_NAME, PICK_NAME, ROD_NAME, BEK_MAPS, BEK_SOLID, BEK_NPCS, BEK_GOATS,
          BEK_TALK, BEK_SCENES, BEK_QUESTS, BEK_HOUSE, BEK_DECOR, BEK_FARM_PLOTS, BEK_BARN_PLOT,
          BEK_BARN_PLOT2, BEK_GREENHOUSE_PLOT, BEK_ANIMAL_KINDS, BEK_GIFT_CAP, BEK_MINE_MOUTH,
-         BEK_RECIPES, BEK_FISH_WATERS, BEK_SEASON_DAYS,
+         BEK_RECIPES, BEK_FISH_WATERS, BEK_SEASON_DAYS, BEK_LOFT,
          BEK_SEASONS, BEK_SEASON_TINT, BEK_FESTIVALS,
          BEK_W, BEK_H, BEK_HUD_H, BEK_VIEW_X, BEK_VIEW_Y, BEK_VIEW_W, BEK_VIEW_H,
          mapCols, mapRows, camMaxX, camMaxY,
@@ -35,6 +35,13 @@ import { mineFloor, mineGem, mineDig, mineBand, mineTitle, mineId, floorOf, isMi
          mineClearCache, MINE_BANDS, MINE_STATION, MINE_MAX } from './mine.js';
 import { houseCost, houseTierCost, houseTierAvailable, barnSlots,
          greenhouseCost, greenhouseAvailable } from './progression.js';
+/* THE LOFT — every question about the long spine, and not one answer written
+   here. See spine.js's header: this file owns exactly one writer for it,
+   spineDonate() below, and every gate that pays a wing out reads back through
+   these. */
+import { spineOpen, spineProgress, spineStage, spineComplete, spineWants,
+         spineClaimable, spineProps, spineRecipeOK, spineForageBonus,
+         spineHoistEveryFloor, spinePresvDaysOff, spineGiftCap } from './spine.js';
 import { PROP, furniture, LIVE as PROP_LIVE, LIGHTS as PROP_LIGHTS } from './decor.js';
 import { PAL_CSS, ATMO, GRASS, DRY, CON, TIM, STO, SOI, WAT, SAN, SNO, WAR, ORE } from './palette.js';
 import { MARKS, SHADOWS, FEATURES } from './palette_marks.js';
@@ -199,7 +206,7 @@ export default {
       let S = null;
       const fresh = () => {
         const f = {
-        ver: 16, lang: BEK_LANG, fullscreen: 0,
+        ver: 17, lang: BEK_LANG, fullscreen: 0,
         map: 'farm', px: 8, py: 8, dir: 0, step: 0, walk: 0,
         day: 1, min: 6 * 60, kr: 500, en: 120, enMax: 120,
         water: 20, waterMax: 20,
@@ -297,7 +304,18 @@ export default {
            table, keyed like S.soil: `{kind, item, day}` per farm-map square,
            `item` empty while nothing is fermenting. Neither one exists on a
            save from before this pass, and both start honestly blank. */
-        cropGrade: {}, presv: {}
+        cropGrade: {}, presv: {},
+        /* ---- ver 17: THE LOFT ---------------------------------------------
+           The long spine, and the only field it has. `d` is entry id -> the
+           day it was given; `m` is the id of every milestone that has already
+           handed over a *number* (bag space, stamina), so it hands it over
+           once; `first` and `done` are the day the first gift was carried in
+           and the day the last one was. Everything else about the loft —
+           whether it is open, which stage the building is at, which of the
+           seven wings are finished, and all six of the payouts that are not
+           numbers — is derived from this table by spine.js and stored
+           nowhere. See BEK_LOFT (data.js). */
+        spine: { d: {}, m: {}, first: 0, done: 0 }
         };
         /* the repeatable quest board (quests.js) — two or three live
            instances on top of BEK_QUESTS above, seeded here so day 1 already
@@ -350,7 +368,7 @@ export default {
       /* nested objects a stale save might be missing */
       const heal = s => {
         const f = fresh();
-        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay', 'cropGrade', 'presv'].forEach(k => {
+        ['tools', 'fr', 'soil', 'felled', 'mined', 'picked', 'flag', 'q', 'met', 'seen', 'chatIx', 'disc', 'bag', 'chest', 'xp', 'lvl', 'giftWeek', 'yst', 'xpDay', 'cropGrade', 'presv', 'spine'].forEach(k => {
           if (typeof s[k] !== 'object' || s[k] === null) s[k] = f[k];
         });
         /* ver 16: a save from before QUALITY has no plot's soil record
@@ -383,6 +401,16 @@ export default {
            truthful reading of a day this build never watched. */
         Object.keys(f.xp).forEach(k => { if (s.yst[k] == null) s.yst[k] = 0; if (s.xpDay[k] == null) s.xpDay[k] = s.xp[k] || 0; });
         ['axeLv', 'pickLv', 'rodLv', 'kanneLv', 'seedIx', 'enMax', 'waterMax', 'bagCap', 'bagTier', 'weather', 'ver', 'houseBuilt', 'houseBuiltDay', 'act2Unlocked', 'houseTier', 'fullscreen', 'animalSeq', 'deepest'].forEach(k => { if (s[k] == null) s[k] = f[k]; });
+        /* ver 17: a save from before the loft has given nothing to it, which
+           is the honest reading — the same one the yesterday counters and the
+           descent's own S.deepest take. The two nested tables are backfilled
+           beside the two day stamps rather than trusting `spine` above to have
+           come back whole: a truncated blob can carry the object and not its
+           contents. */
+        if (typeof s.spine.d !== 'object' || s.spine.d === null) s.spine.d = {};
+        if (typeof s.spine.m !== 'object' || s.spine.m === null) s.spine.m = {};
+        if (!Number.isFinite(s.spine.first)) s.spine.first = 0;
+        if (!Number.isFinite(s.spine.done)) s.spine.done = 0;
         /* ver 15: a save from before legendary fish existed has caught none */
         if (typeof s.legend !== 'object' || s.legend === null) s.legend = {};
         /* ver 14: a save from before the descent existed has never been down
@@ -521,7 +549,7 @@ export default {
         s.animals.forEach((a, i) => { if (slots[i]) { a.x = slots[i].x; a.y = slots[i].y; } });
       }
 
-      let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null;
+      let mode = '', dlg = null, shop = null, craft = null, fish = null, note = '', noteT = 0, travel = null, offer = null, loft = null;
       /* the heart event currently playing, or null — a run object out of
          scene.js, transient by definition (it holds the square the player
          came from, and that must not survive a reload). The scene draws
@@ -709,7 +737,12 @@ export default {
       /* the crystal lamp is a lantern too — it is made *of* the mine, so it
          must never be the thing that keeps you out of it */
       const hasLamp = () => has('lykt') || has('krystallykt');
-      const gateOK = need => need === 'warm' ? has('ullgenser') : need === 'lamp' ? hasLamp() : need === 'boat' ? !!S.flag.boat : true;
+      /* THE LOFT adds the fourth `need` a way through can carry, and it is the
+         only one that is not a thing in the bag: the storehouse on the square
+         is shut until Act II has closed and Astrid trusts you with the key
+         (spine.js's spineOpen, derived from S.act2Unlocked and S.fr.astrid and
+         stored nowhere). Read here, set nowhere. */
+      const gateOK = need => need === 'warm' ? has('ullgenser') : need === 'lamp' ? hasLamp() : need === 'boat' ? !!S.flag.boat : need === 'loft' ? spineOpen(S) : true;
       const curSeed = () => {
         const owned = BEK_SEED_ORDER.filter(id => (S.bag[id] || 0) > 0);
         if (!owned.length) return null;
@@ -886,7 +919,15 @@ export default {
          — and it is why S.deepest is the one thing a run leaves behind. */
       function mineStations() {
         const out = [1];
-        for (let f = MINE_STATION; f <= Math.min(S.deepest, MINE_MAX); f += MINE_STATION) out.push(f);
+        const deep = Math.min(S.deepest, MINE_MAX);
+        for (let f = MINE_STATION; f <= deep; f += MINE_STATION) out.push(f);
+        /* THE LOFT: the mountain wing pays out the rest of the ladder. Not
+           every floor — the hoist's list is drawn on the travel sign and forty
+           rows would not fit it — but the one floor that matters, the deepest
+           you have actually got to, so the walk from the last station down to
+           where you turned back stops being something you do twice. One extra
+           row, and only when it is not already a station. */
+        if (spineHoistEveryFloor(S) && deep > 1 && deep % MINE_STATION !== 0) out.push(deep);
         return out;
       }
       /* A new run: a new seed, so the floors are not the floors you saw last
@@ -938,8 +979,9 @@ export default {
         /* the water's berries keep to the strip of shore west of the path */
         for (let i=0;i<4;i++) dropAt('lake','blabar',40,[1,9,8,14]);
         for (let i=0;i<3;i++) dropAt('enga','urt');
-        /* forage lvl2: the valley has more to find, every morning */
-        if (S.lvl.forage >= 2) {
+        /* forage lvl2 — and the loft's wood wing, which pays out the same
+           extra round rather than a second mechanism for it */
+        if (S.lvl.forage >= 2 || spineForageBonus(S)) {
           dropAt('forest','sopp'); dropAt('setra','multe'); dropAt('vidda','tyttebar'); dropAt('enga','urt');
         }
       }
@@ -1090,7 +1132,11 @@ export default {
       const PRESV_OUT = { jar: 'syltetoy', keg: 'fruktvin' };
       function presvAct(pr) {
         if (pr.item) {
-          const left = PRESV_DAYS[pr.kind] - (S.day - pr.day);
+          /* THE LOFT: the farmstead wing takes a day off every keg and jar,
+             read here rather than stored on the keg — a preserve already
+             fermenting speeds up too, which is what "the loft knows how" is
+             supposed to feel like */
+          const left = PRESV_DAYS[pr.kind] - spinePresvDaysOff(S) - (S.day - pr.day);
           if (left > 0) { say(TX('IKKE FERDIG. ' + left + ' DAG(ER) IGJEN.', 'NOT READY. ' + left + ' DAY(S) LEFT.')); return; }
           const out = PRESV_OUT[pr.kind];
           if (!gainCapped(out, 1)) return;
@@ -1172,13 +1218,23 @@ export default {
         return null;
       }
       function pickTackle() {
-        if ((S.bag.snelle || 0) > 0) { add('snelle', -1); return BEK_ITEMS.snelle.bait; }
+        /* best first, same "first match in the bag" rule pickBait() above
+           already follows — the steel reel is what the loft's water wing pays
+           out and it should not have to be the only one you carry */
+        for (const id of ['snelle_stal', 'snelle'])
+          if ((S.bag[id] || 0) > 0) { add(id, -1); return BEK_ITEMS[id].bait; }
         return null;
       }
       function doorTravel(f) {
         if (S.map === 'lake' && S.built && f.x === 5 && f.y === 4) { S.map = 'lakehouse'; S.px = 11; S.py = 12; S.dir = 1; say(T(BEK_MAPS.lakehouse.title)); return true; }
         const d = M().door;
-        if (d && d.x === f.x && d.y === f.y) { S.map = d.to; S.px = d.tx; S.py = d.ty; markDisc(d.to); say(T(BEK_MAPS[d.to].title)); return true; }
+        /* a door may carry the same `need`/`why` a seam does (maps.js) — the
+           loft's is the first one that does, and it is answered by the same
+           gateOK() rather than by a second kind of lock */
+        if (d && d.x === f.x && d.y === f.y) {
+          if (d.need && !gateOK(d.need)) { say(T(d.why)); deny(); return true; }
+          S.map = d.to; S.px = d.tx; S.py = d.ty; markDisc(d.to); say(T(BEK_MAPS[d.to].title)); return true;
+        }
         const e = (M().exits || []).filter(e2 => e2.x === f.x && e2.y === f.y)[0];
         if (e) { if (e.need && !gateOK(e.need)) { say(T(e.why)); deny(); return true; } S.map = e.to; S.px = e.tx; S.py = e.ty; markDisc(e.to); say(T(BEK_MAPS[e.to].title)); return true; }
         return false;
@@ -1216,7 +1272,10 @@ export default {
         if (t === 'S' && S.map === 'lake') return lotSign();
         if (t === 'S') { say(TX('OPPSLAGSTAVLE — TRYKK Q.', 'NOTICE BOARD — PRESS Q.')); return; }
         if (t === 'D') { if (doorTravel(f)) return; say(TX('LÅST.', 'LOCKED.')); deny(); return; }
-        if (t === 'K') { openCraft(); return; }
+        /* the same chest glyph, answered by the map it is on: the farm's is
+           the workshop, the loft's is the loft's own book. One glyph, two
+           panels, no new tile. */
+        if (t === 'K') { if (S.map === 'loftet') openSpine(); else openCraft(); return; }
         /* QUALITY: ash off any hearth, once a day — S.met is already the
            daily table every NPC's own "met today" bonus clears through
            newDay(), so this needed no field of its own. Free, the way
@@ -1578,7 +1637,10 @@ export default {
            chatter when nothing is held out. */
         if (giftSel && npc.gift && has(giftSel, 1)) {
           const given = S.giftWeek[npc.id] || 0;
-          if (given >= BEK_GIFT_CAP) {
+          /* THE LOFT: the people wing doubles what a week will take (spine.js's
+             spineGiftCap, derived) — BEK_GIFT_CAP is still the floor and still
+             the only number written down */
+          if (given >= spineGiftCap(S)) {
             say(TX('DU HAR GITT NOK DENNE UKEN.', 'YOU HAVE GIVEN ENOUGH THIS WEEK.'));
             deny();
           } else {
@@ -1791,6 +1853,10 @@ export default {
       function recipeUnlocked(r) {
         if (r.fr && (S.fr[r.fr.npc] || 0) < r.fr.min) return false;
         if (r.lvl && (S.lvl[r.lvl.kind] || 0) < r.lvl.min) return false;
+        /* THE LOFT: a recipe a finished wing pays out, gated exactly the way
+           the two lines above gate on friendship and level — read-only, out of
+           the recipe's own `spine` field (data.js), never set here */
+        if (!spineRecipeOK(S, r)) return false;
         return true;
       }
       /* how many of a recipe the current combined stock can pay for right
@@ -1800,6 +1866,52 @@ export default {
         return Object.keys(r.need).reduce((m, id) => Math.min(m, Math.floor(stockOf(id) / r.need[id])), Infinity);
       }
       function openCraft() { craft = { side: 0, sel: 0 }; mode = 'craft'; sfx.talk(); }
+      /* ---- THE LOFT ------------------------------------------------------
+         The panel is a reader — every number on it comes back out of
+         `spine.js`, which writes nothing — and `spineDonate()` below is the
+         **one** function in this app that writes `S.spine`. Everything the
+         spine pays out is either derived from what that function recorded
+         (a recipe, the extra forage round, the hoist's stops, a day off a
+         keg, the gift cap, the props in the room and on the square) or is a
+         number claimed exactly once through `S.spine.m`. Nothing else,
+         anywhere, sets a spine flag. See BEK_LOFT (data.js). */
+      function openSpine() {
+        if (!spineOpen(S)) { say(TX('LOFTET ER LÅST.', 'THE LOFT IS SHUT.')); deny(); return; }
+        loft = { sel: 0 }; mode = 'loft'; sfx.talk();
+      }
+      function spineDonate() {
+        const want = spineWants(S, id => (S.bag[id] || 0));
+        if (!want.length) {
+          say(TX('INGENTING Å GI I DAG.', 'NOTHING TO GIVE TODAY.'));
+          deny(); return;
+        }
+        want.forEach(x => {
+          if (x.e.item) add(x.e.item, -1);
+          S.spine.d[x.e.id] = S.day;
+          if (!S.spine.first) S.spine.first = S.day;
+        });
+        /* the milestones that hand over a number, once each. Everything else
+           a milestone does is read back through spine.js and needs no record
+           at all — see its header for why the split is where it is. */
+        const got = spineClaimable(S);
+        got.forEach(m => {
+          if (m.grant.bagCap) S.bagCap += m.grant.bagCap;
+          if (m.grant.enMax) { S.enMax += m.grant.enMax; S.en = Math.min(S.enMax, S.en + m.grant.enMax); }
+          S.spine.m[m.id] = S.day;
+        });
+        sfx.done(); terrDirty();
+        const p = spineProgress(S);
+        say('+' + want.length + TX(' GITT — ', ' GIVEN — ') + p.have + '/' + p.need +
+            (got.length ? '  ' + got.map(m => T(m.gt || m.t)).join(', ') : ''));
+        /* and the second ending, on the gift that finishes the last wing. The
+           house ending's own screen is untouched and still fires where it
+           always did (the first night in the house by the water). */
+        if (spineComplete(S) && !S.spine.done) {
+          S.spine.done = S.day;
+          loft = null; mode = 'loftend'; S.ending = 0;
+          if (window.Economy) window.Economy.earn(1000, 'BEKKEDAL: THE LOFT');
+        }
+      }
       function doCraft() {
         const list = BEK_RECIPES[craft.side ? 'cook' : 'craft'];
         const r = list[craft.sel];
@@ -1848,6 +1960,7 @@ export default {
         if (mode === 'shop') { shop = null; mode = ''; return; }
         if (mode === 'craft') { craft = null; mode = ''; return; }
         if (mode === 'travel') { travel = null; mode = ''; return; }
+        if (mode === 'loft') { loft = null; mode = ''; return; }
         if (mode === 'bag' || mode === 'quest' || mode === 'sleep') { mode = ''; return; }
       }
       cv.addEventListener('keydown', e => {
@@ -1856,6 +1969,13 @@ export default {
         keys[k] = true;
         if (k === ' ' || k === 'Tab' || String(k).indexOf('Arrow') === 0) e.preventDefault();
 
+        /* the loft's ending closes back into the same save the house ending
+           does — a second ending to a second thing, and play carries on past
+           it exactly as it carries on past the first */
+        if (mode === 'loftend') {
+          if (k === ' ' || k === 'Enter') { mode = ''; Song.pickNext(true); }
+          return;
+        }
         if (mode === 'end') {
           if (k === ' ' || k === 'Enter') {
             /* the finished house is a permanent milestone: mark it on the
@@ -1899,6 +2019,14 @@ export default {
           if (k === 's' || k === 'ArrowDown') craft.sel = (craft.sel + 1) % len;
           if (k === ' ' || k === 'Enter') doCraft();
           if (k === 'Escape' || k === 'e') closeMenu();
+          return;
+        }
+        if (mode === 'loft') {
+          const n = BEK_LOFT.length;
+          if (k === 'w' || k === 'ArrowUp') { loft.sel = (loft.sel + n - 1) % n; sfx.sel(); }
+          if (k === 's' || k === 'ArrowDown') { loft.sel = (loft.sel + 1) % n; sfx.sel(); }
+          if (k === ' ' || k === 'Enter') spineDonate();
+          if (k === 'Escape' || k === 'l') closeMenu();
           return;
         }
         if (mode === 'travel') {
@@ -1949,6 +2077,10 @@ export default {
         if (k === 'c') { cycleSeed(); return; }
         if (k === 'i') { mode = 'bag'; bagCur = 0; return; }
         if (k === 'q') { mode = 'quest'; qScroll = 0; return; }
+        /* the loft, from anywhere — the shelves are a place you walk to, but
+           what you are still missing has to be answerable while you are
+           standing in the water with a rod in your hand */
+        if (k === 'l') { openSpine(); return; }
         if (k === 'm') { openTravel(); return; }
         if (k === 'Tab' || k === 'e') { for (let i = 0; i < BEK_TOOLS.length; i++) { S.tool = (S.tool + 1) % BEK_TOOLS.length; if (S.tools[BEK_TOOLS[S.tool].id]) break; } sfx.talk(); return; }
         if (k >= '1' && k <= '5') { const ix = parseInt(k, 10) - 1; if (BEK_TOOLS[ix] && S.tools[BEK_TOOLS[ix].id]) S.tool = ix; return; }
@@ -2017,7 +2149,7 @@ export default {
           S = heal(Object.assign(fresh(), JSON.parse(raw)));
           terrDirty();                                    /* a loaded save brings its own felled/mined/picked */
           BEK_LANG = S.lang || BEK_LANG; refreshBar();
-          mode = ''; dlg = null; shop = null; craft = null; fish = null; travel = null; offer = null; scene = null;
+          mode = ''; dlg = null; shop = null; craft = null; fish = null; travel = null; offer = null; loft = null; scene = null;
           say(T(UI.loaded) + ' DAG ' + S.day + '.'); sfx.coin();
         } catch (e) { say(TX('LAGRINGEN ER ØDELAGT.', 'SAVE IS UNREADABLE.')); }
         cv.focus();
@@ -2063,7 +2195,7 @@ export default {
       function tickClock(dt) {
         /* a scene is a held breath: the hour it was triggered in is the hour
            it plays out in, however long the player takes over the lines */
-        if (mode === 'end' || scene) return;
+        if (mode === 'end' || mode === 'loftend' || scene) return;
         S.min += dt * 4;
         if (S.min >= 26 * 60) { newDay(true); return; }
       }
@@ -2462,6 +2594,13 @@ export default {
            the same room rather than swapping BEK_DECOR[S.map] for a second
            table — see BEK_DECOR.lakehouse_t2 (data.js). */
         if (S.map === 'lakehouse' && S.houseTier) (BEK_DECOR.lakehouse_t2 || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
+        /* THE LOFT, both sides of it, and the same overlay-not-replace call:
+           inside, whichever restoration stages have been reached plus one
+           display per finished wing (spine.js's spineProps, derived from the
+           donations and stored nowhere); outside, the square's own corner once
+           the roof is back on. */
+        if (S.map === 'loftet') spineProps(S).forEach(d => propMap.set(d.x + ',' + d.y, d));
+        if (S.map === 'town' && spineStage(S) >= 1) (BEK_DECOR.town_t1 || []).forEach(d => propMap.set(d.x + ',' + d.y, d));
       }
       function drawProp(d, x, y, t) {
         const fn = PROP[d.kind];
@@ -2574,11 +2713,29 @@ export default {
         if (ins_()) native(() => interior.floor(x, y)); else if (isCave(S.map)) caveGround(x, y); else grassGround(x, y);
       }
 
+      /* A prop stands on whatever tile the content table put it on, drawn
+         after that tile's own art and before the actors — so the player passes
+         in front of the boots by the door rather than under them. The animated
+         kinds are not here; they are redrawn per frame.
+
+         This is a *function* and called from every branch of tileDetail that
+         returns early because it used to be one line at the bottom, and ten
+         authored props were on glyphs that never got there: the town's two
+         street lamps and its well bucket, the lake's rowboat and washing line,
+         the fjord's four jetty posts, and the ladder at the mouth of the mine
+         — which this app's own CLAUDE.md describes as standing on the mouth
+         and which had never once been drawn. Found by pixel-diffing the town
+         with and without the loft's own overlay. Anything added to
+         tileDetail's ladder that returns has to call this too. */
+      function tileProp(c, x, y) {
+        const prp = propMap.get(x + ',' + y);
+        if (prp && !PROP_LIVE[prp.kind] && LIVE.indexOf(c) < 0) drawProp(prp, x, y, 0);
+      }
       function tileDetail(c, x, y) {
         const px = x * BEK_T_SRC, py = y * BEK_T_SRC;
         const ins = ins_(), snow = snow_(), rim = rim_(x, y);
         if (c === ' ' || c === 'W') return;                  /* nothing static of its own */
-        if (c === '~') { native(() => shore.detail(x, y, edgeVar(S.map, x, y))); if (rim_(x, y)) edgeMark(px, py, x, y); return; }
+        if (c === '~') { native(() => shore.detail(x, y, edgeVar(S.map, x, y))); tileProp(c, x, y); if (rim_(x, y)) edgeMark(px, py, x, y); return; }
         if (!ownGround(c, x, y)) {
           if (ins) native(() => interior.volume(x, y)); else if (isCave(S.map)) caveDetail(x, y); else grassDetail(x, y);
         }
@@ -2588,10 +2745,11 @@ export default {
         if (c === 'P') {
           g.fillStyle = C(TIM[2]); for (let i = 0; i < BEK_T_SRC; i += 5) g.fillRect(px, py + i, BEK_T_SRC, 1);
           g.fillStyle = C(TIM[1]); g.fillRect(px + 2, py, 1, BEK_T_SRC); g.fillRect(px + 12, py, 1, BEK_T_SRC);
+          tileProp(c, x, y);
           return;
         }
-        if (c === '.') { pathDetail(x, y); if (rim) edgeMark(px, py, x, y); return; }
-        if (c === 'M' || c === 'O' || c === 'Q') { native(() => rock.detail(c, x, y, snow)); if (rim) edgeMark(px, py, x, y); return; }
+        if (c === '.') { pathDetail(x, y); tileProp(c, x, y); if (rim) edgeMark(px, py, x, y); return; }
+        if (c === 'M' || c === 'O' || c === 'Q') { native(() => rock.detail(c, x, y, snow)); tileProp(c, x, y); if (rim) edgeMark(px, py, x, y); return; }
         if (c === ',') {
           g.fillStyle = C(GRASS[3]);
           g.fillRect(px + spot(o.ax, BEK_T_SRC, 1), py + spot(o.ay, BEK_T_SRC, 8), 1, 8);
@@ -2671,12 +2829,7 @@ export default {
            still had them. */
         if (c === 'z') { native(() => interior.rug(x, y)); }
         else if ('nuJcb'.indexOf(c) >= 0) native(() => furniture(propArt, c, x, y));
-        /* A prop stands on whatever tile the content table put it on, drawn
-           after that tile's own art and before the actors — so the player
-           passes in front of the boots by the door rather than under them.
-           The animated kinds are not here; they are redrawn per frame. */
-        const prp = propMap.get(x + ',' + y);
-        if (prp && !PROP_LIVE[prp.kind] && LIVE.indexOf(c) < 0) drawProp(prp, x, y, 0);
+        tileProp(c, x, y);
         if (rim) edgeMark(px, py, x, y);
       }
 
@@ -3363,7 +3516,9 @@ export default {
         if (mode === 'quest') drawQuests();
         if (mode === 'travel') drawTravel();
         if (mode === 'sleep') drawSleep();
+        if (mode === 'loft') drawSpine();
         if (mode === 'end') drawEnd(t);
+        if (mode === 'loftend') drawLoftEnd(t);
       }
 
       /* The needle and the zone are both placed by multiplying the same track
@@ -3374,9 +3529,9 @@ export default {
          the travel list and the ending painting. All chrome, so all of it
          draws after the LUT goes back to daylight. */
       const { drawFish, drawTalk, drawOffer, drawShop, drawCraft, drawBag, drawQuests, drawTravel,
-              drawSleep, drawEnd, toolName } = createMenus({
+              drawSleep, drawEnd, drawSpine, drawLoftEnd, toolName } = createMenus({
         S: () => S, fish: () => fish, dlg: () => dlg, shop: () => shop, craft: () => craft,
-        travel: () => travel, offer: () => offer, qScroll: () => qScroll,
+        travel: () => travel, offer: () => offer, qScroll: () => qScroll, loft: () => loft,
         bagCur: () => bagCur, giftSel: () => giftSel,
         T: T, TX: TX, iname: iname, price: price, houseCost: () => houseCost(S),
         recipeUnlocked: recipeUnlocked, craftCount: craftCount,
@@ -3603,7 +3758,7 @@ export default {
         if (!mode) { move(dt); tickFish(dt); sceneWatch(); }
         mineSync();
         tickSwing(dt); fx.step(dt);
-        if (mode === 'end') S.ending += dt;
+        if (mode === 'end' || mode === 'loftend') S.ending += dt;
         tickClock(dt);
         if (noteT > 0) { noteT -= dt; if (noteT <= 0) note = ''; }
         autoT += dt; if (autoT > 6) { autoT = 0; autoSave(); }

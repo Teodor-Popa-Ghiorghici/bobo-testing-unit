@@ -13,7 +13,7 @@
  * a menu behind at the old scale.
  */
 import { BEK_W, BEK_H, BEK_ART_SCALE, BEK_HUD_H, BEK_VIEW_Y, BEK_VIEW_H, UI, BEK_TALK,
-         BEK_NPCS } from './data.js';
+         BEK_NPCS, BEK_LOFT } from './data.js';
 import { FONT_GLYPH_H, FONT_ADV, FONT_LINE, FONT_SM, FONT_LG } from './font.js';
 
 /* A box that shows one fixed string should be measured from that string, not
@@ -210,6 +210,37 @@ export const TRAVEL_X = Math.round((BEK_W - TRAVEL_W) / 2);
 export const TRAVEL_Y = Math.round((BEK_H - TRAVEL_H) / 2);
 export const TRAVEL_TW = TRAVEL_W - PAD_SM * 2;
 
+/* ---- the loft ------------------------------------------------------------
+   Two columns, and the same derivation rule as everything above: the box is
+   as tall as the widest wing is long. LOFT_ROWS is not a number somebody
+   liked — it is the entry count of the largest wing in BEK_LOFT, so a wing
+   that grows grows the panel with it and `spine_check.js` can assert the
+   panel still fits on the canvas rather than hoping it does. */
+export const LOFT_ROWS = Math.max(...BEK_LOFT.map(w => w.e.length));
+export const LOFT_WINGS = BEK_LOFT.length;
+/* an icon row with no padding, unlike the shop's: twelve of these plus two
+   header lines and a footer is what has to clear *both* HUD bands, and the
+   panel is centred in the viewport rather than on the canvas for the same
+   reason — a box that covers the day and the energy bar is a box that hides
+   the two things a player checks before deciding to walk home. */
+export const LOFT_ROW = ICON_PX;
+export const LOFT_W = BEK_W - CELL_SM * 4;
+export const LOFT_H = PAD_SM * 2 + LINE_SM * 2 + LOFT_ROW * LOFT_ROWS + LINE_SM;
+export const LOFT_X = Math.round((BEK_W - LOFT_W) / 2);
+export const LOFT_Y = BEK_VIEW_Y + Math.round((BEK_VIEW_H - LOFT_H) / 2);
+/* the wing column: a name, a count and a fill bar per wing, two text lines
+   each, wide enough for the longest wing name in either language plus its
+   own ' 12/12' count */
+export const LOFT_COL_W = CELL_SM * 26;
+export const LOFT_WING_ROW = LINE_SM * 2;
+export const LOFT_BAR_W = LOFT_COL_W - CELL_SM * 3;
+export const LOFT_BAR_H = GLYPH_SM / 2;
+export const LOFT_COUNT_DX = LOFT_COL_W - CELL_SM * 8;
+/* the entry column, beside it */
+export const LOFT_ENTRY_DX = LOFT_COL_W + CELL_SM;
+export const LOFT_NAME_DX = ICON_PX + BEK_ART_SCALE * 2;
+export const LOFT_TW = LOFT_W - PAD_SM * 2 - LOFT_ENTRY_DX - LOFT_NAME_DX;
+
 /* ---- the ending ---------------------------------------------------------- */
 export const END_SRC_W = BEK_W / BEK_ART_SCALE, END_SRC_H = BEK_H / BEK_ART_SCALE;
 export const END_TREES = 6, END_TREE_DX = Math.floor(END_SRC_W / END_TREES);
@@ -221,3 +252,10 @@ export const END_HOUSE_W = 100;
 export const END_HOUSE_X = Math.round((END_SRC_W - END_HOUSE_W) / 2);
 export const END_TEXT_X = CELL_SM * 4;
 export const END_TEXT_Y = PAD_LG + LINE_LG * 2;
+/* The loft's ending is an interior, so unlike the house's there is no empty
+   sky for the lines to sit on — they go on the floor, under the shelves. The
+   origin is derived backwards from the bottom of the canvas so the block, the
+   day/count line and the SPACE prompt all clear each other however many lines
+   the run earns, and LOFT_END_LINES is what menus_spine.js holds itself to. */
+export const LOFT_END_LINES = 8;
+export const LOFT_END_TEXT_Y = BEK_H - PAD_LG - GLYPH_SM - LINE_SM * (LOFT_END_LINES + 2);

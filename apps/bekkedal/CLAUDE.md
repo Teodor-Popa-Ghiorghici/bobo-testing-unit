@@ -20,7 +20,7 @@ and `scenes_wild.js`, joined as `BEK_SCENES`. The maps are the other, but
 eleven maps of forty-odd columns is more than one file should carry beside
 all of that, so they live in three siblings and `data.js` re-exports
 `BEK_MAPS` from them: `maps_valley.js` (the farm, the town, the water, the
-meadow and the two rooms), `maps_wild.js` (the wood, the setra, the vidda,
+meadow and the three rooms — the two houses and the loft), `maps_wild.js` (the wood, the setra, the vidda,
 the mine, the fjord) and `maps.js`, which joins the two halves and hangs
 every seam between them off one declaration. `index.js` holds all engine and game logic:
 state, input, drawing, audio, save/load. When adding content, it goes in
@@ -36,7 +36,8 @@ coordinates") lives in `bekkedal-art.md`.
 
 ## File map
 
-- `maps_valley.js` — the four places on the valley floor, and the two rooms. Rows only.
+- `maps_valley.js` — the four places on the valley floor, and the three rooms
+  (the two houses and the loft on the town square). Rows only.
 - `maps_wild.js` — the five places past it. Rows only.
 - `maps.js` — the seam table, and the one loop that turns it into both sides' `exits`.
 - `font.js` — bitmap glyph table and metrics. See `.claude/rules/bekkedal-art.md`.
@@ -92,7 +93,16 @@ coordinates") lives in `bekkedal-art.md`.
   out of instead of `panel()`'s flat black rectangle: planed timber and
   pinned paper for the board, cloth and leather for the bag, a counter and
   its slate for the shop, bare planks for the workshop, a routed sign for
-  travel, a quiet dark card for sleep. See `.claude/rules/bekkedal-art.md`.
+  travel, a quiet dark card for sleep, shelving for the loft. See
+  `.claude/rules/bekkedal-art.md`.
+- `menus_spine.js` — the loft's own two panels: the shelves, and the second
+  ending. A third sibling of `menus.js` for the same 300-line reason. See
+  **The loft**, `.claude/rules/bekkedal-content.md`.
+- `spine.js` — the long spine, as questions rather than as state: whether the
+  loft is open, what is in it, which wings are finished, which milestones are
+  owed and what each one pays out. Pure, the way `schedule.js` and `scene.js`
+  are; `spineDonate()` in `index.js` is the one writer in the app. See **The
+  loft**, `.claude/rules/bekkedal-content.md`.
 - `music.js` — five tunes and the crossfading scheduler. See `.claude/rules/bekkedal-art.md`.
 - `ambience.js` — a bed per map, weather and the hour layered over it, positional hearth crackle, and material footsteps. See `.claude/rules/bekkedal-art.md`.
 - `decor.js` — room prop kinds; placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.
@@ -124,6 +134,12 @@ coordinates") lives in `bekkedal-art.md`.
   the same way and for the same reason `mine_ore.js` is. Still one command.
 - `season_check.js` — `node apps/bekkedal/season_check.js`. See `.claude/rules/bekkedal-content.md`.
 - `act2_check.js` — `node apps/bekkedal/act2_check.js`. See `.claude/rules/bekkedal-content.md`.
+- `spine_check.js` — `node apps/bekkedal/spine_check.js`. The loft: its
+  shape, that everything it asks for can actually be got, that no milestone
+  is unreachable, that it completes, and how many in-game days it takes. See
+  `.claude/rules/bekkedal-content.md`.
+- `spine_check_time.js` — its last family, split the same way and for the
+  same reason `mine_check_ore.js` is. Still one command.
 - `world_check.js` — `node apps/bekkedal/world_check.js`. The valley as one walkable thing: seams, flood fills, and everything placed by coordinate.
 
 ## Hard invariants
@@ -150,7 +166,14 @@ coordinates") lives in `bekkedal-art.md`.
 ## Save versioning
 
 The save key is `BEK_SAVE` (`data.js`). The in-save schema version is the `ver`
-field written by `fresh()` in `index.js` — currently **16**, which added
+field written by `fresh()` in `index.js` — currently **17**, which added
+`S.spine`, the long spine's only field: `{ d, m, first, done }`, where `d` is
+entry id to the day it was given and `m` is which milestones have already
+handed over a *number*. Everything else about the loft — whether it is open,
+which stage the building is at, which wings are finished, and all six payouts
+that are not numbers — is derived from that table by `spine.js` and stored
+nowhere, which is what stops a payout drifting from the donations that earned
+it. Version 16 before it added
 `S.cropGrade` (a crop item id's running quality average, 0..2 — see
 **Farming depth** below) and `S.presv` (the keg/jar table, keyed like
 `S.soil`), and extended every `S.soil` plot's own record with `fert`/`tend`.
@@ -184,7 +207,7 @@ still load without throwing.
 
 ## Checks
 
-Run all eleven before claiming anything is done:
+Run all twelve before claiming anything is done:
 
 - `node apps/bekkedal/tile_check.js` — terrain variation field is
   deterministic, uniform and aperiodic. Full paragraph: `.claude/rules/bekkedal-art.md`.
@@ -222,6 +245,17 @@ Run all eleven before claiming anything is done:
   found below its floor, and nothing is empty or unwinnable. Full paragraph:
   `.claude/rules/bekkedal-content.md`. **This is the check a change to the
   generator is most likely to break, and the only one that can see it at all.**
+- `node apps/bekkedal/spine_check.js` — the loft (the long spine): its ids,
+  plinths and displays; that every one of the sixty-four things it asks for
+  has a real source in the valley and every condition reads a counter the
+  engine raises; that all ten milestones fire exactly once at the count their
+  own table declares; that nothing is open before Act II and Astrid and that
+  the whole thing completes; and how many in-game days a lucky run needs,
+  measured against the four-season target. Full paragraph:
+  `.claude/rules/bekkedal-content.md`. **It has already found two bugs older
+  than the loft: a legendary fish whose window the clock could not reach, and
+  `planke`, which had a price and two recipes wanting it and no source
+  anywhere.**
 - `node apps/bekkedal/world_check.js` — the valley joins up: every seam is
   paired tile for tile and gated only on the way in, every map is one
   walkable piece, every place is reached from the farm without the travel
@@ -231,8 +265,11 @@ Run all eleven before claiming anything is done:
   menu's own landing squares — stands in a wall or on the water.
   This is the check that a map edit is most likely to break.
 - `node scripts/smoke.mjs` — headless 30-day run, save migration, a full
-  simulated year run idle, and a heart event played end to end through the
-  real frame loop from a save seeded at friendship 4. Full paragraph: `.claude/rules/bekkedal-engine.md`.
+  simulated year run idle, a heart event played end to end through the
+  real frame loop from a save seeded at friendship 4, a descent walked, and
+  the loft opened, given to and finished — the only place the two panels in
+  `menus_spine.js` are ever actually drawn. Full paragraph:
+  `.claude/rules/bekkedal-engine.md`.
 - `node scripts/lint-content.mjs` — the static content conventions: real item
   ids, sane friendship gates, real travel destinations, and — since the
   dialogue box grew a name plate — that no spoken line repeats the speaker's

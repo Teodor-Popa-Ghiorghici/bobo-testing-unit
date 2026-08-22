@@ -98,7 +98,16 @@ export const VALLEY = {
       'Tgggggggggggggggggggg...ggTTgggggggTgggTgggggT',
       'TTTTTTTTTTTTTTTTTTTTg...gTTTTTTTTTTTTTTTTTTTTT'
     ],
-    exits: []
+    exits: [],
+    /* THE LOFT. The square has had six locked doors on it since the town was
+       drawn; this is the one with something behind it. `need` is carried the
+       same way a seam's gate is (maps.js's WARM/LAMP) and answered by the
+       same gateOK() — the building is shut, not invisible, and what opens it
+       is Astrid's key, never a wall that stops existing. See BEK_LOFT
+       (data.js) and spine.js. */
+    door: { x: 40, y: 13, to: 'loftet', tx: 11, ty: 12, need: 'loft', why: {
+      no: 'Låst. Astrid holder nøkkelen til bygdeloftet.',
+      en: 'Locked. Astrid keeps the key to the valley loft.' } }
   },
   lake: {
     title: { no: 'VANNET', en: 'THE WATER' },
@@ -218,5 +227,45 @@ export const VALLEY = {
       '                        '
     ],
     exits: [{ x: 11, y: 13, to: 'lake', tx: 5, ty: 5 }]
+  },
+  /* ---- THE LOFT ---------------------------------------------------------
+     The third room, and the only one that is not somebody's house: the old
+     two-storey log storehouse on the town square, reached through the door
+     at town (40,13) once Astrid hands over the key (BEK_LOFT, data.js).
+
+     Same 24x15 frame and the same dead margin as the two houses — this is a
+     room, and the rule that a map is at least one screen holds for rooms as
+     much as for the valley floor. What is different is what is in it: seven
+     `c` plinths, five along the back wall and two down the hall, one per
+     wing of the loft, standing empty until that wing is full. They are the
+     crate glyph the two houses already use, so `surface.js`, `interior.js`,
+     `solid()` and the terrain cache needed nothing — from their side a
+     plinth is a crate somebody left there, which for six years it was.
+
+     The 'K' at (11,11) is the loft's own book: the same chest glyph the
+     farm's workshop is, answered differently by act() because of the map it
+     is on, so the donation panel needed no glyph of its own either.
+     ---------------------------------------------------------------------- */
+  loftet: {
+    title: { no: 'LOFTET', en: 'THE LOFT' },
+    inside: true,
+    rows: [
+      '                        ',
+      ' HHHHHHHHHHHHHHHHHHHHHH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiciiiciiiciiiciiiciiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiizzzzzziiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiciiiiiiiiiiiciiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HiiiiiiiiiKiiiiiiiiiiH ',
+      ' HiiiiiiiiiiiiiiiiiiiiH ',
+      ' HHHHHHHHHHDHHHHHHHHHHH ',
+      '                        '
+    ],
+    exits: [{ x: 11, y: 13, to: 'town', tx: 40, ty: 14 }]
   }
 };

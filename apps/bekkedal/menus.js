@@ -39,6 +39,8 @@ import { boardRows } from './quests.js';
 import { createDialogue } from './menus_talk.js';
 import { createChrome } from './menus_chrome.js';
 import { createFish } from './menus_fish.js';
+import { createSpine } from './menus_spine.js';
+import { spineRow } from './spine.js';
 import { WAT, TIM, CON, WAR, SAN, SNO, ATMO } from './palette.js';
 import { FONT_SM, FONT_LG } from './font.js';
 import { CELL_SM, LINE_SM, LINE_LG, PAD_SM, PAD_LG, GLYPH_SM, ICON_PX,
@@ -64,12 +66,16 @@ export function createMenus(A, GG, C) {
      workbench, a sign, a card — instead of `panel()`'s flat black rectangle.
      See menus_chrome.js. `panel()` itself is untouched: the HUD, the crop
      tooltip and the fishing gauge stay the machine's own chrome. */
-  const { board, note, cloth, counter, workbench, sign, card } = createChrome(GG, C, stipple);
+  const { board, note, cloth, counter, workbench, sign, card, shelf } = createChrome(GG, C, stipple);
   /* the fishing gauge — the tension bar and its reel progress. See
      menus_fish.js, split off for the same 300-line reason menus_talk.js and
      menus_chrome.js already are. `panel()` itself is untouched: the fishing
      gauge stays the machine's own chrome, same as the HUD and the tooltip. */
   const { drawFish } = createFish(A, GG, C);
+  /* the loft's shelves and the loft's own ending, a fourth sibling for the
+     same reason — handed the chrome, since `shelf()` is a material like the
+     rest. `drawEnd` below is untouched. See menus_spine.js. */
+  const { drawSpine, drawLoftEnd } = createSpine(A, GG, C, { shelf: shelf });
 
   function drawShop() {
       const S = A.S(), fish = A.fish(), dlg = A.dlg(), shop = A.shop(), travel = A.travel(), offer = A.offer();
@@ -190,6 +196,12 @@ export function createMenus(A, GG, C) {
         stc: S.act2Unlocked || S.built ? 10 : 11,
         d: S.built ? null : c.kr + ' kr + ' + c.tommer + ' ' + iname('tommer') + ' + ' + c.stein + ' ' + iname('stein') });
     }
+    /* THE LOFT: the half of the spine legible from anywhere. The wing-by-wing
+       panel is at the loft (and on L); this is what the board owes a player
+       standing in the mine at midnight. Read off spine.js, which writes nothing. */
+    const lr = spineRow(S);
+    if (lr) rows.push({ t: TX('LOFTET', 'THE LOFT'), tc: 14,
+      st: lr.have + '/' + lr.need, stc: lr.have === lr.need ? 10 : 11, d: lr.d });
     if (!rows.length) text(TX('Ingen oppdrag ennå. Snakk med folk.', 'No quests yet. Go and talk to people.'), bx, y, 7, FONT_SM);
     const scroll = Math.max(0, Math.min(A.qScroll(), Math.max(0, rows.length - QUEST_VISIBLE_ROWS)));
     rows.slice(scroll, scroll + QUEST_VISIBLE_ROWS).forEach(r => {
@@ -282,5 +294,6 @@ export function createMenus(A, GG, C) {
 
   return { drawFish: drawFish, drawTalk: drawTalk, drawOffer: drawOffer, drawShop: drawShop,
            drawCraft: drawCraft, drawBag: drawBag, drawQuests: drawQuests, drawTravel: drawTravel,
-           drawSleep: drawSleep, drawEnd: drawEnd, toolName: toolName };
+           drawSleep: drawSleep, drawEnd: drawEnd, drawSpine: drawSpine, drawLoftEnd: drawLoftEnd,
+           toolName: toolName };
 }

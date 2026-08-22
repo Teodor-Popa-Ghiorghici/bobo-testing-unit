@@ -180,7 +180,16 @@ that harness this change was verified 72/72 byte-identical against HEAD.
 - `node scripts/smoke.mjs` (a headless 30-day run, save migration, and —
   cases 5/6 — a full simulated year run idle: Act II never unlocks itself
   with no player input, and a save seeded with it already unlocked never
-  drifts a single field back).
+  drifts a single field back). Case 11 is the loft, driven through the real
+  keydown handler and the real frame loop from a seeded save: the chest opens
+  the panel, SPACE gives it everything it wants, the milestone hands over the
+  number it declares, and the gift that finishes the last wing plays the
+  second ending. That case exists because the two panels in `menus_spine.js`
+  are otherwise never rendered by anything — `spine_check.js` walks the tables
+  with no canvas, and the shot matrix does not know the loft is there.
+  Case 9 carries the save-version tripwire (`out.ver !== 17`), deliberately a
+  literal: bumping the shape of `S` without bumping `ver` and adding a
+  `heal()` line should fail a check, not surface six months later.
 - `node scripts/bekkedal_shots.mjs <out-dir>` — the shot matrix. Boots the
   real machine in Chromium, seeds a save per shot, and captures eighty
   960x540 frames: every map at morning, dusk and night, the mine with and

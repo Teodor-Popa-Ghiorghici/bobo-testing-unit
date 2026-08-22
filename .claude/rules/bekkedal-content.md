@@ -41,6 +41,11 @@ crafting, and Act II.
   crew left on it. Pure, in the same sense `schedule.js` and `scene.js` are —
   a floor is a function of `(runSeed, floorNumber)` and of nothing else. See
   **The descent** below.
+- `spine.js` — the long spine (**The loft** below): whether the loft is open,
+  what is in it, which wings are finished, which milestones are owed and what
+  each pays out. Pure in `(S, …)`, same convention as `seasons.js`/`quests.js`/
+  `schedule.js`/`scene.js` — it writes nothing, and `spineDonate()` in
+  `index.js` is the one writer in the app.
 - `mine_carve.js` — the primitives `mine.js` cuts rock with: chambers, drifts,
   the flood fill, the repair pass and the dead-end stub. A sibling for the
   300-line rule, the way `decor_wild.js` is one of `decor.js`.
@@ -136,6 +141,27 @@ crafting, and Act II.
   `houseTierCost()`, `BEK_LOT_COST`, `BEK_QUEST_TEMPLATES`' `act2` entries,
   `BEK_BARN_PLOT2`/`BEK_BARN_SLOTS2`, `BEK_DECOR.lakehouse_t2`, or any
   `BEK_TALK` chat line gated on `S.act2Unlocked`.
+- `node apps/bekkedal/spine_check.js` — the loft, in five families. **Shape**:
+  ids unique, every item real and holdable, one `c` plinth per wing with a
+  display `decor.js` can draw, restoration stages that climb and land before
+  the end, and no stage prop on a plinth, the chest or the door. **Obtainability**:
+  an independently authored account of where a thing in this valley comes from
+  — crops off `BEK_CROPS`, forage and ore and ash cited to `index.js` the way
+  `act2_check.js` cites `fresh()`'s starting kr, fish off `BEK_FISH_WATERS`
+  *including that a legendary's window names an hour the 06:00-to-02:00 clock
+  can reach* — asserting nothing the loft asks for is unobtainable and, in the
+  other direction, that no recipe in the game needs an ingredient nothing
+  produces. **Milestones**: walked donation by donation, each fires exactly
+  once at the count its own table declares, no grant is handed over twice, and
+  the numbers handed over are the numbers declared. **Gated and completable**:
+  shut before Act II and before Astrid's own `BEK_LOFT_FR` (checked against
+  her dialogue node's gate, since the two are stated in files that may not
+  import each other), nothing about it reads true on a save that has not
+  opened it, donating everything completes it, and each of the six derived
+  payouts flips with its own wing and nothing else. **How long it takes** is
+  in `spine_check_time.js` — see **The loft** below. Run it after touching
+  `BEK_LOFT`/`BEK_LOFT_STAGES`, `spine.js`, any `spine`-gated recipe, or
+  anything that changes where an item comes from.
 - `node apps/bekkedal/schedule_check.js` — every NPC's schedule. Asserts
   every post any NPC owns is a real map and a tile you can stand on; that
   each NPC's own *default* posts (the ones with no `weather`/`season`/
@@ -625,6 +651,137 @@ exactly one walkable neighbour, which is the only reason stepping onto an exit
 is a safe way to travel down here — a shaft you can cross in passing is a shaft
 you fall down by accident, and that would be the one fail state this game has.
 `mine_check.js` asserts it on every shaft of every floor.
+
+## The loft
+
+Bekkedal had nothing to be doing on day thirty. The house by the water closes
+Act I around day seven, Act II adds three purchases and two board templates,
+and after that the only renewable thing in the valley is a generated fetch
+quest. Twelve crops over four seasons, ten fish, a twenty-five floor descent,
+eight arcs and twenty-four heart events — and nothing any of it added up to.
+
+**LOFTET** is what it adds up to. It is not a new building: the valley being
+half-abandoned is already the premise, so the collection hall is the old
+two-storey log storehouse that has stood shut on the town square since the
+company left, and that Astrid's grandmother kept the valley's things in. She
+hands over the key once the house is finished and she trusts you with it, and
+you fill it back up. `BEK_LOFT` / `BEK_LOFT_STAGES` (`data.js`) are the
+content; `spine.js` is every question about it; `menus_spine.js` draws the two
+panels; `spine_check.js` is the check.
+
+### Seven wings, sixty-four entries, and every system on the critical path
+
+An entry is one of two shapes and no more:
+
+    { id, item }   one BEK_ITEMS id, one of it, taken out of the bag
+    { id, when }   a pure predicate on S, for the things you cannot carry
+
+and `ÅRET`'s four carry both, because a festival offering is a thing you hold
+on a day that comes once a year. The wings are `aker` (twelve crops), `skog`
+(seven forage, three meadow flowers, timber and a plank), `vann` (five common
+fish, two rare, three legendary), `fjell` (five ores and stone, plus the tenth
+and twentieth floors of the descent), `fjos` (dairy, preserves, the three
+cooked dishes and the two placeable things), `folk` (friendship 10 with each of
+the eight) and `ar` (one offering per season's festival). Farming, foraging,
+felling, fishing, mining, the descent, animals, crafting, cooking, preserves,
+gifting, the heart-event arcs and the calendar are each the only way to finish
+some wing. That is the point of seven rather than one.
+
+### What makes it take a year is the calendar, not a tuned number
+
+`ÅRET`'s four entries each want that season's own festival day
+(`BEK_FESTIVALS`, day 10 of each season). A festival comes once a season, so
+four entries is four distinct seasons, which is at least
+`3 * BEK_SEASON_DAYS + 1` days between the first and the last — a consequence
+of the calendar, not a balance figure, and unbypassable by money, skill or the
+greenhouse. `spine_check_time.js` asserts that from the table before it
+simulates anything, and then measures the rest: two hundred simulated runs
+from the day the loft opens, with the real `rollWeather` odds deciding when
+each legendary window comes round. It reports the fastest, the median and what
+was last in. The fastest is day 90 — four and a half seasons — and what holds
+it there is nearly always the spring offering, which cannot be in hand for the
+spring festival of the year the loft opens.
+
+### One writer, and everything else derived
+
+**`spineDonate()` in `index.js` is the only function in the app that writes
+`S.spine`**, and `S.spine` is `{ d, m, first, done }` and nothing else: `d` is
+entry id to the day it was given, `m` is which milestones have already handed
+over a *number*. Every other consequence of a donation is read back through
+`spine.js` at the point of use and stored nowhere:
+
+- a recipe a wing pays out, through the recipe's own `spine` field and
+  `recipeUnlocked()` — gated exactly the way `fr`/`lvl` already are;
+- the extra daily forage round, in `spawnDrops()`;
+- the hoist offering the deepest floor you have reached and not only the
+  stations above it, in `mineStations()`;
+- a day off every keg and jar, in `presvAct()`;
+- the doubled gift cap, in `talkTo()`;
+- the props in the room and the ones on the square, in `propsPrepare()`.
+
+That split is the whole design. As little is stored as a milestone genuinely
+requires, so a payout cannot drift from the donations that earned it — roll a
+donation back and all six roll back with it. `spineOpen()` is derived for the
+same reason: the loft is not a flag somebody sets when a conversation happens,
+it is a fact about how far Act II and Astrid have got.
+
+### Built out of things the game already had
+
+The same constraint the descent was built under, and it is why this cost so
+little:
+
+- **The room is a room.** `BEK_MAPS.loftet` is a 24x15 interior with the two
+  houses' own frame and margin. Its seven plinths are the `c` crate glyph, so
+  `surface.js`, `interior.js`, `solid()` and the terrain cache needed nothing.
+- **The door is a door.** `BEK_MAPS.town.door` with a `need`, answered by the
+  same `gateOK()` that answers a seam's `warm`/`lamp`. The building is shut,
+  not invisible.
+- **The donation desk is the chest glyph.** `act()`'s `'K'` branch answers the
+  farm's as the workshop and the loft's as the loft's own book. One glyph, two
+  panels, no new tile.
+- **Every display is `PROP` art that already existed** — a basket, fungi, a
+  net, an ore cart, a milk churn, a picture, flowers — layered over
+  `BEK_DECOR.loftet` the way `lakehouse_t2` layers over the house. Not one new
+  drawing.
+- **The town's own overlay is `BEK_DECOR.town_t1`**, named for the `_t\d+`
+  suffix `world_check.js` already strips to find the room a decor list belongs
+  to.
+
+### Ten milestones, and where they land
+
+Three restoration stages on a count of donations (8 / 24 / 44) and one payout
+per finished wing. Only the ones that hand over a *number* — bag space at
+stage 1, stamina at stages 2 and 3 and at `ÅRET` — are recorded, in
+`S.spine.m`, and `spineClaimable()` is what `spineDonate()` acts on. The
+stages are what make the building visibly come back before any one wing is
+close to done, which is what "milestones pay out along the way" has to mean if
+it is to mean anything.
+
+### The second ending
+
+Finishing the last wing plays `drawLoftEnd()` (`menus_spine.js`), and **it
+does not replace `drawEnd()`**. That screen is the close of Act I — the house
+by the water and the choices you made getting to it — and this is a second
+ending to a second thing: the loft at lamplight from inside, and a second set
+of choices read back. Which wing you began with and which you left until last
+come out of the day stamped on each gift (`wingOrder()`), so the ending cost
+the save no field of its own. SPACE returns to play, the same way the house
+ending's does.
+
+### Two things not to do to it
+
+**Do not let anything else write `S.spine`.** The moment a second writer
+exists, the derived half of the payouts is no longer derived from anything
+trustworthy, and the six read-only gates above become six places that can
+disagree with each other.
+
+**Do not add an entry that names an item with no source.** That is the failure
+mode this whole system has, and it is invisible from playing: an unfillable
+shelf looks exactly like a shelf you have not got to yet. `spine_check.js`'s
+obtainability family is the only thing between a player and sixty days of
+looking for something that does not exist — it has already found a legendary
+fish whose window the clock could not reach and a `planke` that had a price,
+two recipes wanting it, and no source anywhere in the valley.
 
 ## Act II
 

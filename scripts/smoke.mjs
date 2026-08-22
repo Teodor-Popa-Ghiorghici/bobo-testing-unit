@@ -25,6 +25,10 @@
       the climb back out — with nothing left registered or leaked into S
      10. and what the 02:00 clock does to a run: the farm, an empty run, and
       the bag and the deepest floor both still yours
+     11. the loft, driven through the real panel: the chest opens it, SPACE
+      gives it everything it wants, the milestone hands over the number it
+      declares, and the gift that finishes the last wing plays the second
+      ending — a screen no other check in this repo ever draws
    7. a save whose coordinates were written against maps that have since
       changed shape — a player off the edge of the world, a soil key over a
       wall, a felled key on grass, a mined key in bare rock, a picked key on
@@ -130,7 +134,7 @@ function setupGlobalEnv() {
 setupGlobalEnv();
 
 const dataMod = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/data.js')));
-const { BEK_SAVE, BEK_SEASON_DAYS, BEK_MAPS } = dataMod;
+const { BEK_SAVE, BEK_SEASON_DAYS, BEK_MAPS, BEK_LOFT } = dataMod;
 const appMod = await import(pathToFileURL(path.join(ROOT, 'apps/bekkedal/index.js')));
 const app = appMod.default;
 
@@ -762,7 +766,11 @@ function caseDescent() {
     if (out.deepest !== 3) problems.push('the shortcut was not kept: deepest ' + out.deepest);
     if (Object.keys(out.disc).some(k => k.indexOf('synk') === 0)) problems.push('a floor leaked into S.disc');
     if (Object.keys(out.mined).some(k => k.indexOf('synk') === 0)) problems.push('a floor leaked into S.mined');
-    if (out.ver !== 16) problems.push('a fresh save is ver ' + out.ver);
+    /* the save-version tripwire, on purpose a literal: apps/bekkedal/CLAUDE.md
+       says any change to the shape of S bumps `ver` and adds a heal() line,
+       and this is what makes forgetting either one a failing check rather
+       than a save that loads wrong six months later. 17 added S.spine. */
+    if (out.ver !== 17) problems.push('a fresh save is ver ' + out.ver);
   } catch (e) { report(NAME, false, 'threw driving the descent: ' + (e && e.stack || e)); return; }
 
   report(NAME, problems.length === 0, problems.join('; '));
@@ -809,6 +817,71 @@ function caseNightEndsARun() {
   report(NAME, problems.length === 0, problems.join('; '));
 }
 
+/* ---- case 11: the loft, opened, given to, and finished -------------------
+   The long spine's two new panels (menus_spine.js) are the only surfaces in
+   the app that nothing else here renders: spine_check.js walks the tables
+   without a canvas, and the shot matrix does not know the loft exists. So
+   this drives them the way case 4 drives the house ending — a seeded save,
+   the real keydown handler, and the real frame loop — and asserts the one
+   writer did what it says: the gift recorded, the number handed over once,
+   and the second ending played without replacing the first. */
+function caseLoft() {
+  const NAME = 'the loft opens, takes a gift, and ends';
+  const problems = [];
+  clearSave();
+  let seed;
+  try { seed = mountApp(); } catch (e) { report(NAME, false, 'seed mount() threw: ' + (e && e.stack || e)); return; }
+  seed.bSave.click();
+  const save = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE));
+
+  /* everything the loft wants except one item, so the very next gift is both
+     an ordinary donation and the one that finishes the last wing */
+  const flat = BEK_LOFT.reduce((a, w) => a.concat(w.e.map(e => e)), []);
+  const LAST = 'planke';
+  flat.forEach(e => { if (e.id !== LAST) save.spine.d[e.id] = 1; });
+  save.spine.first = 1;
+  save.bag = { planke: 1 };
+  save.kr = 4321; save.day = 99;
+  save.act2Unlocked = true; save.houseBuilt = true; save.built = 1;
+  save.fr.astrid = 10;
+  save.map = 'loftet'; save.px = 11; save.py = 12; save.dir = 1;   /* facing the chest at (11,11) */
+  const bagCap0 = save.bagCap, enMax0 = save.enMax;
+
+  clearSave();
+  globalThis.localStorage.setItem(BEK_SAVE, JSON.stringify(save));
+  let handle;
+  try { handle = mountApp(); } catch (e) { report(NAME, false, 'mount() threw: ' + (e && e.stack || e)); return; }
+  const cv = findCanvas();
+  if (!cv) { report(NAME, false, 'canvas not found'); return; }
+  const space = { key: ' ', preventDefault: () => {} };
+  let ts = 0;
+  const frames = n => { for (let i = 0; i < n; i++) { ts += 100; handle.tick()(ts); } };
+  try {
+    frames(2);
+    cv.keydown(space);                                    /* act() on 'K' -> the loft panel */
+    frames(3);                                            /* draws drawSpine() */
+    cv.keydown({ key: 's', preventDefault: () => {} });   /* move down the wing column */
+    frames(2);
+    cv.keydown(space);                                    /* give it everything it wants */
+    frames(4);                                            /* draws drawLoftEnd() */
+    cv.keydown(space);                                    /* dismiss the second ending */
+    frames(2);
+  } catch (e) { report(NAME, false, 'threw driving the loft: ' + (e && e.stack || e)); return; }
+
+  handle.bSave.click();
+  const after = JSON.parse(globalThis.localStorage.getItem(BEK_SAVE) || '{}');
+  if (!after.spine || after.spine.d[LAST] !== 99) problems.push('the gift was not recorded on the day it was given');
+  if ((after.bag.planke || 0) !== 0) problems.push('the item was not taken out of the bag');
+  if (!after.spine.done) problems.push('the loft never finished');
+  if (Object.keys(after.spine.m).length !== 4) problems.push('claimed ' + Object.keys(after.spine.m).length + ' grants, expected 4');
+  if (after.bagCap <= bagCap0) problems.push('bag space never grew: ' + after.bagCap);
+  if (after.enMax <= enMax0) problems.push('stamina never grew: ' + after.enMax);
+  if (after.kr !== 4321) problems.push('kr changed: ' + after.kr);
+  if (after.day !== 99) problems.push('day changed: ' + after.day);
+  if (after.houseBuilt !== true) problems.push('the house ending was undone by the loft ending');
+  report(NAME, problems.length === 0, problems.join('; '));
+}
+
 caseSimulate30Days();
 caseRoundTrip();
 caseMigration();
@@ -819,5 +892,6 @@ caseIdleYearAct2();
 caseHeartEvent();
 caseDescent();
 caseNightEndsARun();
+caseLoft();
 
 process.exit(failed ? 1 : 0);

@@ -8,6 +8,9 @@
 
 const VAR = 0, SOMMER = 1, HOST = 2, VINTER = 3;
 const idle = S => !S.yst.farm && !S.yst.mine && !S.yst.fish && !S.yst.forage;
+/* THE LOFT: how much has been carried into the storehouse on the square —
+   read defensively, like every gate in these files. See BEK_LOFT (data.js). */
+const loft = S => (S.spine && S.spine.d) ? Object.keys(S.spine.d).length : 0;
 const flowers = S => (S.bag.blomst_bla || 0) + (S.bag.blomst_gul || 0) + (S.bag.blomst_ro || 0);
 
 export const FIELD_TALK = {
@@ -54,6 +57,9 @@ export const FIELD_TALK = {
         give: { bukett: 1 }, set: { klokker: 1 } }
     ],
     chat: [
+      /* THE LOFT */
+      { mood: 'warm', t: [{ no: 'Blomster i et loft. Noen kommer til å se dem om hundre år.', en: 'Flowers in a loft. Somebody will see them in a hundred years.' }],
+        if: S => loft(S) >= 1 },
       { mood: 'troubled', t: ['The bells only ring at midsummer now. Nobody minds.'] },
       { t: [{ no: 'Blåklokke, soleie, revebjelle. The meadow keeps them all.', en: 'Harebell, buttercup, foxglove. The meadow keeps them all.' }] },
       { t: ['Flowers picked at dawn last longest. An old trick.'] },
@@ -166,6 +172,9 @@ export const FIELD_TALK = {
         give: { brunost: 2 }, set: { valgte: 1 } }
     ],
     chat: [
+      /* THE LOFT */
+      { t: [{ no: 'Mormora til Astrid tok min mors ost inn dit. Den står der ennå, tror jeg.', en: 'Astrid\u2019s grandmother took my mother\u2019s cheese in there. I think it is still standing.' }],
+        if: S => loft(S) >= 24 },
       { mood: 'warm', t: ['Mind the goats. They will eat your bootlaces.'] },
       { mood: 'troubled', t: [{ no: 'Multe first, then the vidda. In that order, or you freeze.', en: 'Cloudberries first, then the plateau. In that order, or you freeze.' }] },
       { t: ['A wool genser is all that stands between you and the wind.'] },

@@ -76,6 +76,27 @@ The machine's base rule is that all colour comes from `VGA16` (`kernel/god.js`) 
   survivable. `node apps/bekkedal/mine_check.js` walks four hundred generated
   floors — connected, viable, no vein sealed in rock, no shaft you can cross
   in passing.
+  **There is a reason to be here on day thirty:** the long spine is **LOFTET**,
+  the old log storehouse shut on the town square since the mine company left,
+  which Astrid gives you the key to once the house is finished and she trusts
+  you with it. Seven wings and sixty-four things — every crop, every fish
+  including the three legends, the ores and two depths of the descent, the
+  forage and the flowers, the dairy and the preserves and the cooked dishes,
+  friendship 10 with all eight, and one offering at each of the four seasons'
+  festivals — declared once in `BEK_LOFT` (`data.js`), answered by pure
+  functions in `apps/bekkedal/spine.js`, drawn in `menus_spine.js`, and
+  **written by exactly one function**, `spineDonate()`. Everything a wing pays
+  out that is not a number (a recipe, an extra forage round, a hoist that goes
+  all the way down, a day off every keg, the doubled gift cap, the
+  displays that appear in the room and on the square) is derived from the
+  donation table at the point of use and stored nowhere. It takes a year
+  because the calendar says so rather than because a number was tuned: four
+  festival offerings is four distinct seasons, and
+  `node apps/bekkedal/spine_check.js` proves that from the table before
+  measuring two hundred simulated runs against it (fastest: day 90). Filling it
+  restores the building in three visible stages and ends in a second ending
+  screen that reads back *this* run's choices — the house ending is untouched
+  and stays the Act I close.
   **The valley is walked, not chosen from a menu:** the nine outdoor maps are three to four times the size they were and join along whole runs of their own edges — walk west off the farm and you are in the wood. The seams are declared once each, as pairings, in `apps/bekkedal/maps.js`; the rows themselves are in `maps_valley.js` and `maps_wild.js`. The travel menu survives only for the setra and the vidda, which are up the mountain and have to be climbed on foot before they are ever offered (`BEK_HOME`, `index.js`). `node apps/bekkedal/world_check.js` is what holds all of that together.
   **They have arcs, and three scenes each:** all eight carry a five-beat arc —
   a reticence, a first admission, a difficulty, a turn, a resolution — as

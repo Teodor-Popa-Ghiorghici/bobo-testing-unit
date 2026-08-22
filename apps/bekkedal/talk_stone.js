@@ -8,6 +8,9 @@
 
 const VAR = 0, SOMMER = 1, HOST = 2, VINTER = 3;
 const idle = S => !S.yst.farm && !S.yst.mine && !S.yst.fish && !S.yst.forage;
+/* THE LOFT: how much has been carried into the storehouse on the square —
+   read defensively, like every gate in these files. See BEK_LOFT (data.js). */
+const loft = S => (S.spine && S.spine.d) ? Object.keys(S.spine.d).length : 0;
 const ore = S => (S.bag.jern || 0) + (S.bag.kobber || 0) + (S.bag.solv || 0);
 
 export const STONE_TALK = {
@@ -48,6 +51,9 @@ export const STONE_TALK = {
         give: { tyttebar: 4 } }
     ],
     chat: [
+      /* THE LOFT */
+      { t: [{ no: 'Så det er der det havner. Greit nok. Bedre enn i en sekk.', en: 'So that is where it ends up. Fair enough. Better than in a sack.' }],
+        if: S => loft(S) >= 1 },
       { mood: 'troubled', t: ['Wind from the north. There is always wind from the north.'] },
       { t: [{ no: 'Røye in the tarn. Tyttebær in the heather. The vidda provides.', en: 'Char in the tarn. Lingonberries in the heather. The plateau provides.' }] },
       { mood: 'troubled', t: ['You wore the wool. Good. I have buried men who did not.'] },
@@ -169,6 +175,9 @@ export const STONE_TALK = {
         give: { solv: 1 }, set: { synk: 1 } }
     ],
     chat: [
+      /* THE LOFT */
+      { mood: 'warm', t: [{ no: 'Sølv og kobber og bergkrystall på en hylle, i rekkefølge. Selskapet klarte aldri det.', en: 'Silver and copper and rock crystal on a shelf, in order. The company never managed that.' }],
+        if: S => loft(S) >= 44 },
       { t: ['Mm. Deeper is darker. Darker is richer.'] },
       { t: [{ no: 'Kobber sells well in town. Sølv sells better anywhere.', en: 'Copper sells well in town. Silver sells better anywhere.' }] },
       { t: [{ no: 'Åtte til åtte jeg er ved gruveåpningen. Etter det er jeg lenger inne, og sover.', en: 'Eight to eight I am at the adit. After that I am further in, asleep.' }] },
