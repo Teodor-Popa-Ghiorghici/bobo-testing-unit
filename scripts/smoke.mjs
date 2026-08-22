@@ -769,8 +769,9 @@ function caseDescent() {
     /* the save-version tripwire, on purpose a literal: apps/bekkedal/CLAUDE.md
        says any change to the shape of S bumps `ver` and adds a heal() line,
        and this is what makes forgetting either one a failing check rather
-       than a save that loads wrong six months later. 17 added S.spine. */
-    if (out.ver !== 17) problems.push('a fresh save is ver ' + out.ver);
+       than a save that loads wrong six months later. 17 added S.spine; 18
+       added S.placed (FURNISHING). */
+    if (out.ver !== 18) problems.push('a fresh save is ver ' + out.ver);
   } catch (e) { report(NAME, false, 'threw driving the descent: ' + (e && e.stack || e)); return; }
 
   report(NAME, problems.length === 0, problems.join('; '));

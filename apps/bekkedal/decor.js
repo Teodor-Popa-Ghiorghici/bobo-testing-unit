@@ -39,6 +39,10 @@ import { BEK_T } from './data.js';
    split rule — decor_outdoor.js was already full. */
 import { PROP_OUTDOOR } from './decor_outdoor.js';
 import { PROP_WILD } from './decor_wild.js';
+/* the player-placeable kinds — furniture and yard-dressing set down through
+   S.placed (index.js) rather than authored in BEK_DECOR. See its own header
+   for the one exception to "decor never changes walkability". */
+import { PROP_PLACE } from './decor_place.js';
 
 /* kinds that are redrawn every frame rather than baked into the cache */
 export const LIVE = { cat: 1 };
@@ -50,6 +54,13 @@ export const LIVE = { cat: 1 };
    doctrine already talks about, finally placed (see BEK_DECOR.town). */
 export const LIGHTS = { candle: { r: 1.2, peak: 10 }, lamp: { r: 1.8, peak: 13 },
                          lamppost: { r: 1.8, peak: 12 } };
+
+/* the outdoor placeable kinds that are a genuine barrier once set down — the
+   one deliberate exception to "decor never changes walkability", and only
+   for a player's own placement (S.placed), never for BEK_DECOR. See
+   placement.js's connectivity check, which refuses any placement of one of
+   these that would trap the player. */
+export const PLACE_BLOCKS = { gjerde: 1, grind: 1 };
 
 /* Each takes (A, px, py, v) where `v` is a small integer of variation off the
    tile hash, so two of the same prop in one room are not the same prop. */
@@ -223,7 +234,7 @@ const PROP_ROOM = {
 
 /* the outdoor kinds (decor_outdoor.js) merged in, so every other caller
    still just sees one PROP table keyed by kind name */
-export const PROP = Object.assign({}, PROP_ROOM, PROP_OUTDOOR, PROP_WILD);
+export const PROP = Object.assign({}, PROP_ROOM, PROP_OUTDOOR, PROP_WILD, PROP_PLACE);
 
 /* ---- the furniture -------------------------------------------------------
    Moved out of `tileDetail`'s glyph ladder and redrawn at native density on

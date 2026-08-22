@@ -105,9 +105,23 @@ coordinates") lives in `bekkedal-art.md`.
   loft**, `.claude/rules/bekkedal-content.md`.
 - `music.js` — five tunes and the crossfading scheduler. See `.claude/rules/bekkedal-art.md`.
 - `ambience.js` — a bed per map, weather and the hour layered over it, positional hearth crackle, and material footsteps. See `.claude/rules/bekkedal-art.md`.
-- `decor.js` — room prop kinds; placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.
+- `decor.js` — room prop kinds; authored placement lives in `data.js`'s `BEK_DECOR`. See `.claude/rules/bekkedal-art.md`.
 - `decor_outdoor.js` — the farm/town/lake prop kinds, split out of `decor.js` purely for the 300-line rule and merged back into one `PROP` table there. See `.claude/rules/bekkedal-art.md`.
 - `decor_wild.js` — the forest/vidda/setra/enga/fjord/gruva prop kinds, a second sibling for the same 300-line reason, merged into the same `PROP` table. See **Density**, `.claude/rules/bekkedal-art.md`.
+- `decor_place.js` — FURNISHING: the player-placeable kinds (chairs, tables,
+  rugs, beds, shelves, a dresser, plus the outdoor fence/gate/path/planter/
+  bench/scarecrow/sign), a third sibling of `decor.js` for the same 300-line
+  reason, merged into the same `PROP` table. Where one of these stands is
+  never authored — it lives in `S.placed` (`index.js`), not `BEK_DECOR`.
+  `gjerde`/`sti` are neighbour-aware, drawn with an `autotile.js` cardinal
+  mask instead of the usual hash variation; `stol`/`benk` read `BEK_PLACE_ROT`
+  (`data.js`) for a manual two-way rotation instead. See its own header.
+- `placement.js` — whether a placement is allowed: pure functions of a map
+  definition, what is already placed, and a candidate tile — `canPlace()`
+  and the connectivity flood fill (`connectivityOK()`) behind the hard rule
+  that a placement must never trap the player. No canvas, no `S`, exercised
+  directly by `layout_check.js`. `PLACE_BLOCKS` (`decor.js`) names the only
+  two kinds (`gjerde`, `grind`) this ever treats as a barrier.
 - `wear.js` — the paths worn between the places people actually walk (door to field, road, pier, well), derived from a map's own landmark glyphs the same way `interior.js`'s `traceWear()` derives indoor wear. See `.claude/rules/bekkedal-art.md`.
 - `quests.js` — the repeatable quest board. See `.claude/rules/bekkedal-content.md`.
 - `seasons.js` — the seasonal layer (season/day-of-season/festival/weather). See `.claude/rules/bekkedal-content.md`.
@@ -166,8 +180,19 @@ coordinates") lives in `bekkedal-art.md`.
 ## Save versioning
 
 The save key is `BEK_SAVE` (`data.js`). The in-save schema version is the `ver`
-field written by `fresh()` in `index.js` — currently **17**, which added
-`S.spine`, the long spine's only field: `{ d, m, first, done }`, where `d` is
+field written by `fresh()` in `index.js` — currently **18**, which added
+`S.placed`, FURNISHING's only field: every object a player has placed by
+hand, keyed by `rkey(map, x, y)` exactly like `S.mined`/`S.felled`, each a
+`{ kind, item, rot }` (the `decor.js`/`decor_place.js` drawing, the
+`BEK_ITEMS` id handed back on pick-up, and 0/1 for the handful of kinds that
+read a facing). Authored decor (`BEK_DECOR`) never touches this table and a
+save from before it existed starts with an honest empty one — see
+**FURNISHING** in the file map above and `placement.js`'s own header for the
+validity rule (a placement is refused outright rather than saved and healed
+around if it would trap the player, so `heal()`'s own backfill only ever
+has to drop a malformed entry — an unknown kind, or a map that no longer
+exists, the way a mid-run mine floor's own coordinates can). Version 17
+before it added `S.spine`, the long spine's only field: `{ d, m, first, done }`, where `d` is
 entry id to the day it was given and `m` is which milestones have already
 handed over a *number*. Everything else about the loft — whether it is open,
 which stage the building is at, which wings are finished, and all six payouts

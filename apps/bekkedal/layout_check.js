@@ -18,6 +18,7 @@ import * as F from './font.js';
 import * as L from './layout.js';
 import * as Q from './quests.js';
 import { mineTitle, MINE_MAX, MINE_STATION } from './mine.js';
+import { canPlace, connectivityOK, PLACE_BLOCKS } from './placement.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -380,6 +381,83 @@ ok(w('SPACE — KJØP    ESC — NEI', F.FONT_LG) <= L.OFFER_W - L.PAD_LG * 2, '
 ok(w(longestUI, F.FONT_LG) <= L.SLEEP_W - L.PAD_LG * 2,
    'the longest UI string fits the box that shows it',
    JSON.stringify(longestUI) + ' = ' + w(longestUI, F.FONT_LG) + 'px of ' + (L.SLEEP_W - L.PAD_LG * 2));
+
+/* ---- N. FURNISHING: a placement must never trap the player --------------
+   `placement.js` is the validity function — pure, no canvas, exactly what
+   this file exists to exercise directly rather than trusting the argument.
+   Two families: synthetic corridors where the trap is known and constructed
+   (so the test does not depend on any authored map ever happening to have
+   one), and a sweep of the eleven real maps checking canPlace()'s answer
+   agrees with an independent connectivity read on every candidate tile. */
+console.log('\n-- FURNISHING: placement validity --');
+ok(Object.keys(PLACE_BLOCKS).sort().join(',') === 'gjerde,grind', 'only the fence and the gate ever block a tile',
+   JSON.stringify(PLACE_BLOCKS));
+
+/* a one-tile corridor: the only way from the player's own square (x=1) to
+   the door (x=3) runs through x=2 — fencing that square must be refused */
+const corridor = { rows: ['TTTTT', 'TgggD', 'TTTTT'] };
+ok(!canPlace(corridor, {}, 1, 1, 2, 1, 'gjerde'), 'a fence across the only corridor to a door is refused');
+ok(canPlace(corridor, {}, 1, 1, 2, 1, 'stol'), 'a non-blocking kind is never refused for the same square — only gjerde/grind reason about traps');
+
+/* the same shape, but the target is a seam exit rather than a door */
+const corridorExit = { rows: ['TTTTT', 'TgggT', 'TTTTT'], exits: [{ x: 4, y: 1, to: 'town', tx: 1, ty: 1 }] };
+ok(!canPlace(corridorExit, {}, 1, 1, 2, 1, 'grind'), 'a gate across the only corridor to a mapped exit is refused');
+
+/* the same shape again, with a bed at the far end instead */
+const corridorBed = { rows: ['TTTTT', 'Tgggb', 'TTTTT'] };
+ok(!canPlace(corridorBed, {}, 1, 1, 2, 1, 'gjerde'), 'a fence across the only corridor to a bed is refused');
+
+/* a loop with a second route round: blocking one leg is allowed because the
+   other leg still reaches the door, which is the case a purely local check
+   (look only at the candidate tile's own neighbours) could not tell apart
+   from a real trap — the flood fill can. */
+const loop = { rows: ['TTTTT', 'TgggD', 'TgTgT', 'TgggT', 'TTTTT'] };
+ok(canPlace(loop, {}, 1, 1, 2, 1, 'gjerde'), 'blocking one leg of a loop is allowed while the other leg still reaches the door');
+ok(canPlace(loop, {}, 1, 3, 2, 3, 'gjerde'), 'the same holds for the other leg');
+
+/* wide open ground: nothing here is ever a trap, and the answer must never
+   depend on which square of the open floor is asked about */
+const field = { rows: ['TTTTTT', 'TggggT', 'TggggT', 'TggggT', 'TTTTTT'] };
+let openOk = 0, openTotal = 0;
+for (let y = 1; y <= 3; y++) for (let x = 1; x <= 4; x++) {
+  if (x === 1 && y === 1) continue;                 /* the player's own square */
+  openTotal++;
+  if (canPlace(field, {}, 1, 1, x, y, 'gjerde')) openOk++;
+}
+ok(openOk === openTotal, 'a fence is never refused on open ground with no door/exit/bed at all',
+   openOk + '/' + openTotal);
+
+/* the real content: for every authored map, every candidate tile a fence
+   could stand on is swept, and canPlace()'s answer is asserted to agree
+   with connectivityOK() read independently at that same tile — the same
+   function under two different entry points rather than one call trusting
+   the other silently. A start tile is the first walkable, non-door square
+   the map's own rows contain, which every map has (BEK_MIN_COLS/ROWS and
+   the solid rim both guarantee at least one interior tile). */
+let sweepMaps = 0, sweepTiles = 0;
+Object.keys(D.BEK_MAPS).forEach(id => {
+  const def = D.BEK_MAPS[id];
+  const rows = def.rows, cols = rows[0].length, rowsN = rows.length;
+  let sx = -1, sy = -1;
+  for (let y = 0; y < rowsN && sx < 0; y++) for (let x = 0; x < cols; x++) {
+    const c = rows[y].charAt(x);
+    if (c !== 'D' && D.BEK_SOLID.indexOf(c) < 0) { sx = x; sy = y; break; }
+  }
+  if (sx < 0) return;                                /* no walkable tile at all — nothing to sweep */
+  sweepMaps++;
+  for (let y = 0; y < rowsN; y++) for (let x = 0; x < cols; x++) {
+    if (x === sx && y === sy) continue;
+    const c = rows[y].charAt(x);
+    if (c === 'D' || D.BEK_SOLID.indexOf(c) >= 0) continue;
+    sweepTiles++;
+    const want = connectivityOK(def, {}, sx, sy, { x, y });
+    const got = canPlace(def, {}, sx, sy, x, y, 'gjerde');
+    if (want !== got) ok(false, 'canPlace agrees with connectivityOK', id + ' @ ' + x + ',' + y + ' want=' + want + ' got=' + got);
+  }
+});
+ok(sweepMaps === Object.keys(D.BEK_MAPS).length, 'every authored map had a walkable tile to sweep from',
+   sweepMaps + '/' + Object.keys(D.BEK_MAPS).length);
+pass('swept every candidate fence tile on every authored map', sweepMaps + ' maps, ' + sweepTiles + ' tiles');
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' checks FAILED' : 'All ' + checks + ' layout checks pass.'));
 process.exit(fails ? 1 : 0);
