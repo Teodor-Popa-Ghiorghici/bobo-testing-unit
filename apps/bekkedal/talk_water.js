@@ -17,12 +17,12 @@ export const WATER_TALK = {
     nodes: [
       { id: 'i1',
         lines: [{ no: 'God kveld. Or morning. Out here it is the same.', en: 'Good evening. Or morning. Out here it is the same.' }],
-        ask: { q: { no: 'Why do you fish?', en: 'Why do you fish?' }, opts: [
-          { t: { no: 'For the calm.', en: 'For the calm.' }, set: { fisk: 'ro' }, fr: 2,
+        ask: { q: { no: 'Hvorfor fisker du?', en: 'Why do you fish?' }, opts: [
+          { t: { no: 'For roen.', en: 'For the calm.' }, set: { fisk: 'ro' }, fr: 2,
             reply: ['Then stand at the end of the pier, not the middle.',
                     { no: 'The laks lie deep out there. Bring me three sopp', en: 'The salmon lie deep out there. Bring me three mushrooms' },
                     { no: 'and the old stang is yours.', en: 'and the old rod is yours.' }] },
-          { t: { no: 'For the food.', en: 'For the food.' }, set: { fisk: 'mat' }, fr: 0,
+          { t: { no: 'For maten.', en: 'For the food.' }, set: { fisk: 'mat' }, fr: 0,
             reply: ['Sensible. I will keep you fed while you learn.',
                     { no: 'Three sopp from the forest, and you get the stang.', en: 'Three mushrooms from the forest, and you get the rod.' }] }
         ] } },
@@ -150,11 +150,11 @@ export const WATER_TALK = {
     nodes: [
       { id: 'o1', mood: 'troubled',
         lines: ['The boat leaks. Everything out here leaks, eventually.'],
-        ask: { q: { no: 'The fjord, or the open sea?', en: 'The fjord, or the open sea?' }, opts: [
-          { t: { no: 'The open sea. I want the big ones.', en: 'The open sea. I want the big ones.' }, set: { sea: 'hav' }, fr: 2,
+        ask: { q: { no: 'Fjorden, eller havet?', en: 'The fjord, or the open sea?' }, opts: [
+          { t: { no: 'Havet. Jeg vil ha de store.', en: 'The open sea. I want the big ones.' }, set: { sea: 'hav' }, fr: 2,
             reply: [{ no: 'A bold answer. Makrell run in shoals out past the mouth.', en: 'A bold answer. Mackerel run in shoals out past the mouth.' },
                     { no: 'Fix my boat and I will point you at them. Four tømmer, two tau.', en: 'Fix my boat and I will point you at them. Four timber, two rope.' }] },
-          { t: { no: 'The fjord. Calm water suits me.', en: 'The fjord. Calm water suits me.' }, set: { sea: 'fjord' }, fr: 0,
+          { t: { no: 'Fjorden. Rolig vann passer meg.', en: 'The fjord. Calm water suits me.' }, set: { sea: 'fjord' }, fr: 0,
             reply: [{ no: 'Sensible. Torsk sit still and wait, like you.', en: 'Sensible. Cod sit still and wait, like you.' },
                     { no: 'Patch the boat — four tømmer, two tau — and it is yours to borrow.', en: 'Patch the boat — four timber, two rope — and it is yours to borrow.' }] }
         ] } },
@@ -191,7 +191,7 @@ export const WATER_TALK = {
         if: S => loft(S) >= 24 },
       { mood: 'troubled', t: ['Water finds every gap you leave it.'] },
       { t: ['The pier is Ingrid’s. The dock at the fjord is mine.'] },
-      { mood: 'warm', t: [{ no: 'Boat floats now. Take it whenever. Pier’s end, press act.', en: 'Boat floats now. Take it whenever. Pier’s end, press act.' }], if: S => S.flag.boat },
+      { mood: 'warm', t: [{ no: 'Båten flyter nå. Ta den når du vil. Enden av brygga, trykk handling.', en: 'Boat floats now. Take it whenever. Pier’s end, press act.' }], if: S => S.flag.boat },
       /* ---- weather ---------------------------------------------------- */
       { mood: 'troubled', t: [{ no: 'Regn er ingenting. Vind er noe. I dag er det regn.', en: 'Rain is nothing. Wind is something. Today it is rain.' }],
         if: S => S.weather === 'regn' },

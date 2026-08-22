@@ -267,8 +267,12 @@ spend 20-60 rects on looking like something.
   generated title/detail strings. Also the dialogue box's own two columns —
   that the portrait column and the text body are flush, that the portrait is a
   whole number of art pixels, that the two columns and their gutter fill the
-  box exactly, and that the name plate holds the longest speaker. Run it after
-  touching `data.js` geometry, `font.js`, `layout.js`, or any content table
+  box exactly, and that the name plate holds the longest speaker. It also
+  sweeps every `.js` file in the app for `{no: '…', en: '…'}` pairs and fails
+  on any that are byte-identical — a `no`/`en` pair that says nothing
+  differently is either translation debt or a redundant object where a plain
+  string (a proper noun, a loanword) would do. Run it after touching
+  `data.js` geometry, `font.js`, `layout.js`, or any content table
   with user-visible strings. The two guards that go *with* the box are
   conventions rather than geometry and live in `node scripts/lint-content.mjs`
   instead: **no spoken string in `BEK_TALK` begins with a speaker's name and a

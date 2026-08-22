@@ -1630,11 +1630,11 @@ export default {
 
       /* ---- talking ------------------------------------------------------ */
       const BEAR_LINES = [
-        { no: 'PERKELE.', en: 'PERKELE.' },
-        { no: 'The bear sweeps his clearing and nods.', en: 'The bear sweeps his clearing and nods.' },
-        { no: 'A low sound. Not quite a growl. Almost hello.', en: 'A low sound. Not quite a growl. Almost hello.' },
-        { no: 'He offers you a berry. You take it.', en: 'He offers you a berry. You take it.' },
-        { no: 'He goes back to sweeping. The broom he never explains.', en: 'He goes back to sweeping. The broom he never explains.' }
+        'PERKELE.',
+        { no: 'Bjørnen feier plassen sin og nikker.', en: 'The bear sweeps his clearing and nods.' },
+        { no: 'En lav lyd. Ikke helt et brøl. Nesten et hei.', en: 'A low sound. Not quite a growl. Almost hello.' },
+        { no: 'Han rekker deg et bær. Du tar imot.', en: 'He offers you a berry. You take it.' },
+        { no: 'Han går tilbake til feiingen. Kosten forklarer han aldri.', en: 'He goes back to sweeping. The broom he never explains.' }
       ];
       function talkTo(npc) {
         if (npc.bear) {
@@ -1796,14 +1796,14 @@ export default {
       /* ---- the lot, the house ------------------------------------------- */
       function lotSign() {
         if (S.built) { mode = 'end'; S.ending = 0; return; }
-        if (S.q.tommer !== 'done') { dlg = { lines: [{no:'SKILT: TOMT TIL SALGS.',en:'SIGN: LOT FOR SALE.'}, {no:'Håkon in town holds the papers.',en:'Håkon in town holds the papers.'}], i: 0 }; mode = 'talk'; return; }
+        if (S.q.tommer !== 'done') { dlg = { lines: [{no:'SKILT: TOMT TIL SALGS.',en:'SIGN: LOT FOR SALE.'}, {no:'Håkon i byen har papirene.',en:'Håkon in town holds the papers.'}], i: 0 }; mode = 'talk'; return; }
         if (!S.flag.lot) {
-          if (S.kr < BEK_LOT_COST) { dlg = { lines: [{no:'SKILT: TOMT — 1200 KR.',en:'SIGN: LOT — 1200 KR.'}, {no:'You do not have it. Not yet.',en:'You do not have it. Not yet.'}], i: 0 }; mode = 'talk'; return; }
+          if (S.kr < BEK_LOT_COST) { dlg = { lines: [{no:'SKILT: TOMT — 1200 KR.',en:'SIGN: LOT — 1200 KR.'}, {no:'Du har det ikke. Ikke ennå.',en:'You do not have it. Not yet.'}], i: 0 }; mode = 'talk'; return; }
           S.kr -= BEK_LOT_COST; S.flag.lot = 1; sfx.coin();
-          dlg = { lines: ['You sign it against the post.', {no:'The lot is yours: trees on three sides, water on the fourth.',en:'The lot is yours: trees on three sides, water on the fourth.'}, 'Now it needs a house. Go and see Håkon.'], i: 0 };
+          dlg = { lines: ['You sign it against the post.', {no:'Tomten er din: skog på tre sider, vann på den fjerde.',en:'The lot is yours: trees on three sides, water on the fourth.'}, 'Now it needs a house. Go and see Håkon.'], i: 0 };
           mode = 'talk'; return;
         }
-        dlg = { lines: [{no:'Your lot. Empty, for now.',en:'Your lot. Empty, for now.'}], i: 0 }; mode = 'talk';
+        dlg = { lines: [{no:'Tomten din. Tom, foreløpig.',en:'Your lot. Empty, for now.'}], i: 0 }; mode = 'talk';
       }
       function hakonBuild() {
         if (S.built) { hakonTilbygg(); return; }
@@ -3558,16 +3558,23 @@ export default {
         }
 
         S.drops.filter(d => d.map === S.map).forEach(d => drawIcon(d.item, d.x * BEK_T_SRC + 3, d.y * BEK_T_SRC + 3));
-        BEK_GOATS.filter(gt => gt.map === S.map).forEach(gt => goat(gt.x * BEK_T_SRC + 1, gt.y * BEK_T_SRC + 1, t));
-        /* owned animals are their own system — collidable, stateful, never
-           merged with the decorative herd above */
-        if (S.map === 'farm') S.animals.forEach(a => {
-          if (a.kind === 'goat') goat(a.x * BEK_T_SRC + 1, a.y * BEK_T_SRC + 1, t);
-          else chicken(a.x * BEK_T_SRC + 3, a.y * BEK_T_SRC + 3, t);
-        });
 
+        /* Every live sprite in the playfield — the player, the NPCs, the
+           decorative herd and the player's own owned animals — is drawn in
+           one pass ordered by tile y (screen depth: a higher y is further
+           down the screen and nearer the camera), so someone standing on
+           the tile behind a goat, or a goat behind an NPC, draws behind it
+           rather than always on top. Before this they were four separate,
+           unordered passes — goats and owned animals always drew first
+           regardless of where anyone else on the same map stood. Furniture
+           and other authored/placed decor is still part of the terrain
+           cache (see propMap / propsPrepare), which this pass draws over —
+           moving it into this per-frame sort is a separate, much larger
+           change to how terrain is cached and out of scope here. */
         const actors = npcsHere().map(n => ({ n: n, y: n.y }));
         actors.push({ me: 1, y: S.py });
+        BEK_GOATS.filter(gt => gt.map === S.map).forEach(gt => actors.push({ goat: gt, y: gt.y }));
+        if (S.map === 'farm') S.animals.forEach(a => actors.push({ animal: a, y: a.y }));
         actors.sort((a, b) => a.y - b.y);
         actors.forEach(a => {
           if (a.me) {
@@ -3581,6 +3588,12 @@ export default {
             /* two frames of recoil when the answer was no */
             const jx = swing && swing.kind === 'deny' ? ((swing.t * 46) | 0) % 2 ? 2 : -2 : 0;
             person(S.px * BEK_T_SRC + 4 + jx, S.py * BEK_T_SRC + 2, S.dir, S.step, PLAYER_HAIR, PLAYER_SHIRT, PLAYER_PANTS, held);
+            return;
+          }
+          if (a.goat) { goat(a.goat.x * BEK_T_SRC + 1, a.goat.y * BEK_T_SRC + 1, t); return; }
+          if (a.animal) {
+            if (a.animal.kind === 'goat') goat(a.animal.x * BEK_T_SRC + 1, a.animal.y * BEK_T_SRC + 1, t);
+            else chicken(a.animal.x * BEK_T_SRC + 3, a.animal.y * BEK_T_SRC + 3, t);
             return;
           }
           const n = a.n;

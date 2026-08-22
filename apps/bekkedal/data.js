@@ -296,7 +296,7 @@ export const BEK_ITEMS = {
   melk:       { name: { no: 'MELK',       en: 'MILK'         }, sell: 22,  icon: 'milk',  col: 15 },
   brunost:    { name: { no: 'BRUNOST',    en: 'BROWN CHEESE' }, buy: 55, sell: 20, eat: 55, icon: 'cheese', col: 6 },
   ull:        { name: { no: 'ULL',        en: 'WOOL'         }, sell: 30,  icon: 'wool',  col: 7  },
-  egg:        { name: { no: 'EGG',        en: 'EGG'          }, sell: 18,  icon: 'egg',   col: 15 },
+  egg:        { name: 'EGG', sell: 18,  icon: 'egg',   col: 15 },
   /* animal feed, and the two animals themselves — `animal` is read by
      shopBuy() in index.js: an item that carries it never goes in the bag,
      it goes in the pen (see BEK_BARN_PLOT / BEK_ANIMAL_KINDS below) */
@@ -306,7 +306,7 @@ export const BEK_ITEMS = {
   /* food you eat */
   kaffe:      { name: { no: 'KAFFE',      en: 'COFFEE'       }, buy: 40,  sell: 12, eat: 35,  icon: 'cup',  col: 6  },
   vaffel:     { name: { no: 'VAFFEL',     en: 'WAFFLE'       }, buy: 65,  sell: 20, eat: 65,  icon: 'food', col: 14 },
-  lefse:      { name: { no: 'LEFSE',      en: 'LEFSE'        }, buy: 50,  sell: 16, eat: 50,  icon: 'food', col: 7  },
+  lefse:      { name: 'LEFSE', buy: 50,  sell: 16, eat: 50,  icon: 'food', col: 7  },
   fiskesuppe: { name: { no: 'FISKESUPPE', en: 'FISH SOUP'    }, buy: 90,  sell: 30, eat: 95,  icon: 'bowl', col: 11 },
   multekrem:  { name: { no: 'MULTEKREM',  en: 'CLOUDB. CREAM'}, buy: 120, sell: 40, eat: 110, icon: 'bowl', col: 14 },
   /* cooked at the chest, never sold — BEK_RECIPES.cook, one raw crop plus
@@ -1364,14 +1364,14 @@ export const BEK_LOFT = [
   { id: 'folk', t: { no: 'FOLKET', en: 'THE PEOPLE' },
     prop: { x: 5, y: 9, kind: 'picture' },
     pay: { id: 'w:folk', t: { no: 'FIRE GAVER I UKA', en: 'FOUR GIFTS A WEEK' } },
-    e: [{ id: 'fr:astrid', t: { no: 'ASTRID', en: 'ASTRID' }, when: S => (S.fr.astrid || 0) >= 10 },
-        { id: 'fr:hakon',  t: { no: 'HÅKON',  en: 'HÅKON'  }, when: S => (S.fr.hakon  || 0) >= 10 },
-        { id: 'fr:ingrid', t: { no: 'INGRID', en: 'INGRID' }, when: S => (S.fr.ingrid || 0) >= 10 },
-        { id: 'fr:olav',   t: { no: 'OLAV',   en: 'OLAV'   }, when: S => (S.fr.olav   || 0) >= 10 },
-        { id: 'fr:marit',  t: { no: 'MARIT',  en: 'MARIT'  }, when: S => (S.fr.marit  || 0) >= 10 },
-        { id: 'fr:sigrid', t: { no: 'SIGRID', en: 'SIGRID' }, when: S => (S.fr.sigrid || 0) >= 10 },
-        { id: 'fr:gunnar', t: { no: 'GUNNAR', en: 'GUNNAR' }, when: S => (S.fr.gunnar || 0) >= 10 },
-        { id: 'fr:lars',   t: { no: 'LARS',   en: 'LARS'   }, when: S => (S.fr.lars   || 0) >= 10 }] },
+    e: [{ id: 'fr:astrid', t: 'ASTRID', when: S => (S.fr.astrid || 0) >= 10 },
+        { id: 'fr:hakon',  t: 'HÅKON',  when: S => (S.fr.hakon  || 0) >= 10 },
+        { id: 'fr:ingrid', t: 'INGRID', when: S => (S.fr.ingrid || 0) >= 10 },
+        { id: 'fr:olav',   t: 'OLAV',   when: S => (S.fr.olav   || 0) >= 10 },
+        { id: 'fr:marit',  t: 'MARIT',  when: S => (S.fr.marit  || 0) >= 10 },
+        { id: 'fr:sigrid', t: 'SIGRID', when: S => (S.fr.sigrid || 0) >= 10 },
+        { id: 'fr:gunnar', t: 'GUNNAR', when: S => (S.fr.gunnar || 0) >= 10 },
+        { id: 'fr:lars',   t: 'LARS',   when: S => (S.fr.lars   || 0) >= 10 }] },
   /* The spine's clock. One offering per festival, and a festival comes once
      a season — see this section's header for why that, and not a tuned
      number, is what makes the loft take a year. `season` is stated beside

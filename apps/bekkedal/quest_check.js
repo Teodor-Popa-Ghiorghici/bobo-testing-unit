@@ -25,6 +25,9 @@
 import { BEK_ITEMS, BEK_NPCS, BEK_TALK, BEK_QUEST_TEMPLATES, BEK_RECIPES,
          BEK_QUEST_BOARD_MIN, BEK_QUEST_REFRESH_DAYS } from './data.js';
 import { refreshBoard, isRefreshDay, questTitle, questDetail } from './quests.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let fails = 0, checks = 0;
 const ok = (cond, label, detail) => {
@@ -194,6 +197,38 @@ const badRecipe = [];
 ok(badRecipe.length === 0, 'every recipe makes a real thing out of obtainable ones',
    badRecipe.length ? badRecipe.slice(0, 3).join('; ')
      : BEK_RECIPES.craft.length + ' craft + ' + BEK_RECIPES.cook.length + ' cook, ingredients and gates');
+
+/* ---- 5. every BEK_ITEMS entry, not just quest/gift/recipe ids ------------ */
+console.log('\n-- item obtainability (all of BEK_ITEMS) --');
+/* The gift/quest/recipe checks above only ever look at ids those three
+ * tables happen to mention. An item that is defined but never referenced
+ * from anywhere behavioural — no shop list, no BEK_CROPS/BEK_FISH_WATERS
+ * entry, no BEK_RECIPES output, no quest/gift table, no gateOK()/has() read
+ * — is dead: reachable in the data but not in the game. This sweeps the
+ * whole app source for every id's own name, the same "grep every item id's
+ * usage" audit a human would do by hand, so an item can never go dead
+ * silently again.
+ *
+ * A handful of ids are legitimately mentioned only inside data.js itself
+ * (e.g. a crop referencing its own seed's `seed:` field) — that still
+ * counts, since data.js content tables (BEK_TALK shop lists, BEK_CROPS,
+ * BEK_FISH_WATERS, BEK_RECIPES, BEK_NPCS.gift, BEK_PLACE_CAT) are exactly
+ * where a "source" or "sink" for an item is declared. */
+const __dir = path.dirname(fileURLToPath(import.meta.url));
+const SRC_FILES = fs.readdirSync(__dir).filter(f => f.endsWith('.js') && !f.endsWith('_check.js') && f !== 'quest_check.js');
+const ALL_SRC = SRC_FILES.map(f => fs.readFileSync(path.join(__dir, f), 'utf8')).join('\n');
+const unreferenced = [];
+Object.keys(BEK_ITEMS).forEach(id => {
+  const re = new RegExp('\\b' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
+  const hits = ALL_SRC.match(re) || [];
+  /* one hit is only ever the item's own `id:` key in the BEK_ITEMS block
+   * itself — anything reachable needs at least a second mention somewhere
+   * (a shop list, a crop/fish table, a recipe, a gift list, a gateOK()/
+   * has() read, a place-mode table). */
+  if (hits.length <= 1) unreferenced.push(id);
+});
+ok(unreferenced.length === 0, 'every BEK_ITEMS id is referenced somewhere beyond its own definition',
+   unreferenced.length ? unreferenced.join(', ') : Object.keys(BEK_ITEMS).length + ' items swept');
 
 console.log('\n' + (fails ? fails + ' of ' + checks + ' checks FAILED' : 'All ' + checks + ' quest checks pass.'));
 process.exit(fails ? 1 : 0);

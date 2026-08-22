@@ -18,10 +18,10 @@ export const STONE_TALK = {
     nodes: [
       { id: 'g1', mood: 'troubled',
         lines: ['Few come up onto the vidda on purpose. Fewer twice.'],
-        ask: { q: { no: 'Do you trap up here, or watch?', en: 'Do you trap up here, or watch?' }, opts: [
-          { t: { no: 'Trap. A living is a living.', en: 'Trap. A living is a living.' }, set: { fell: 'jakt' }, fr: 2,
+        ask: { q: { no: 'Feller du her oppe, eller ser du bare på?', en: 'Do you trap up here, or watch?' }, opts: [
+          { t: { no: 'Feller. Et levebrød er et levebrød.', en: 'Trap. A living is a living.' }, set: { fell: 'jakt' }, fr: 2,
             reply: [{ no: 'Honest. Tyttebær grow thick past the tarn. Sell them low, sell them often.', en: 'Honest. Lingonberries grow thick past the tarn. Sell them low, sell them often.' }] },
-          { t: { no: 'Watch. It is enough to be here.', en: 'Watch. It is enough to be here.' }, set: { fell: 'sjaa' }, fr: 0,
+          { t: { no: 'Ser på. Det er nok å være her.', en: 'Watch. It is enough to be here.' }, set: { fell: 'sjaa' }, fr: 0,
             reply: ['Then you already understand the plateau. Reindeer at dusk, if you are still.'] }
         ] } },
       /* ---- his arc: the crossings ------------------------------------ */
@@ -136,10 +136,10 @@ export const STONE_TALK = {
     nodes: [
       { id: 'l1', mood: 'troubled',
         lines: ['Watch your head. The good copper is where the ceiling is lowest.'],
-        ask: { q: { no: 'Silver, or stone?', en: 'Silver, or stone?' }, opts: [
+        ask: { q: { no: 'Sølv, eller stein?', en: 'Silver, or stone?' }, opts: [
           { t: { no: 'Silver. I came for the sølv.', en: 'Silver. I came for the silver.' }, set: { mine: 'solv' }, fr: 2,
-            reply: [{ no: 'A greedy answer. I like it. Rich veins glitter — you will know them.', en: 'A greedy answer. I like it. Rich veins glitter — you will know them.' }] },
-          { t: { no: 'Stone. A house needs walls.', en: 'Stone. A house needs walls.' }, set: { mine: 'stein' }, fr: 0,
+            reply: [{ no: 'Et grådig svar. Jeg liker det. Rike årer glitrer — du vil kjenne dem igjen.', en: 'A greedy answer. I like it. Rich veins glitter — you will know them.' }] },
+          { t: { no: 'Stein. Et hus trenger vegger.', en: 'Stone. A house needs walls.' }, set: { mine: 'stein' }, fr: 0,
             reply: [{ no: 'A builder. Good. Every swing gives stein along with the ore.', en: 'A builder. Good. Every swing gives stone along with the ore.' }] }
         ] } },
       { id: 'l2', when: S => !S.tools.hakke,
@@ -181,7 +181,7 @@ export const STONE_TALK = {
       { t: ['Mm. Deeper is darker. Darker is richer.'] },
       { t: [{ no: 'Kobber sells well in town. Sølv sells better anywhere.', en: 'Copper sells well in town. Silver sells better anywhere.' }] },
       { t: [{ no: 'Åtte til åtte jeg er ved gruveåpningen. Etter det er jeg lenger inne, og sover.', en: 'Eight to eight I am at the adit. After that I am further in, asleep.' }] },
-      { t: [{ no: 'The rich veins glitter. You need steel for those.', en: 'The rich veins glitter. You need steel for those.' }], if: S => S.pickLv < 2 },
+      { t: [{ no: 'De rike årene glitrer. Du trenger stål til dem.', en: 'The rich veins glitter. You need steel for those.' }], if: S => S.pickLv < 2 },
       { mood: 'warm', t: ['Steel in your hands now. The whole mountain is yours.'], if: S => S.pickLv >= 2 },
       /* ---- weather ---------------------------------------------------- */
       { t: [{ no: 'Regner det ute? Det regner alltid her inne. Det heter drypp.', en: 'Raining out there? It always rains in here. We call it drip.' }],

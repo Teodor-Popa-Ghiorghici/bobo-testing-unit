@@ -67,8 +67,12 @@ crafting, and Act II.
   rolled, then stress-rolls a few hundred batches at four stages to shake out
   item/npc choices one walkthrough would not hit, asserting every requester
   resolves to a real `BEK_TALK` entry and no batch asks the same NPC twice.
-  Run it after touching `BEK_QUEST_TEMPLATES`, `quests.js`, or what any
-  gathering action in `index.js` requires to succeed.
+  A last family sweeps every id in `BEK_ITEMS` — not only the ones a quest,
+  gift or recipe table happens to mention — for a second reference anywhere
+  else in the app source, so an item that is defined but never given a real
+  source or use (a dead item) fails the check rather than sitting unnoticed.
+  Run it after touching `BEK_QUEST_TEMPLATES`, `quests.js`, `BEK_ITEMS`, or
+  what any gathering action in `index.js` requires to succeed.
 - `node apps/bekkedal/mine_check.js` — the descent, over four hundred
   generated floors (sixteen seeds × floors 1-25). Every other check in this
   repo walks content somebody wrote and could in principle have looked at; a

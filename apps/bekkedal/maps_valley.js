@@ -67,7 +67,7 @@ export const VALLEY = {
     door: { x: 8, y: 6, to: 'farmhouse', tx: 11, ty: 12 }
   },
   town: {
-    title: { no: 'BEKKEDAL', en: 'BEKKEDAL' },
+    title: 'BEKKEDAL',
     rows: [
       'TTTTTTTTTTTTTTTTTTTTg...gTTTTTTTTTTTTTTTTTTTTT',
       'TggTgggggggg,gTgTgggg...gggggg,TgggTgg,ggggggT',

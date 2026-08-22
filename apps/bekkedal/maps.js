@@ -35,10 +35,10 @@ export const BEK_MAPS = Object.assign({}, VALLEY, WILD);
    cannot come back down and out.
    ========================================================================== */
 const WARM = { need: 'warm', why: {
-  no: 'The wind up top will cut through you. Get something woollen first.',
+  no: 'Vinden der oppe skjærer gjennom deg. Skaff noe ullent først.',
   en: 'The wind up top will cut through you. Get something woollen first.' } };
 const LAMP = { need: 'lamp', why: {
-  no: 'Pitch dark in there. Lars keeps the lanterns.',
+  no: 'Beksvart der inne. Lars har lyktene.',
   en: 'Pitch dark in there. Lars keeps the lanterns.' } };
 
 const SEAMS = [

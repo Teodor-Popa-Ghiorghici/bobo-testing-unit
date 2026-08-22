@@ -19,11 +19,11 @@ export const FIELD_TALK = {
       { id: 'm1', mood: 'warm',
         lines: ['You found the old church. Most only find the meadow.',
                 'The stave has stood eight hundred winters. It leans, but it stands.'],
-        ask: { q: { no: 'Why did you climb all the way up here?', en: 'Why did you climb all the way up here?' }, opts: [
-          { t: { no: 'Someone I remember.', en: 'Someone I remember.' }, set: { marit: 'minne' }, fr: 2,
+        ask: { q: { no: 'Hvorfor klatret du helt hit opp?', en: 'Why did you climb all the way up here?' }, opts: [
+          { t: { no: 'Noen jeg husker.', en: 'Someone I remember.' }, set: { marit: 'minne' }, fr: 2,
             reply: ['Then pick them a bouquet. One blåklokke, one soleie, one revebjelle.',
                     'Bring the three, and I will know the flowers found the right hands.'] },
-          { t: { no: 'Just the quiet up here.', en: 'Just the quiet up here.' }, set: { marit: 'ro' }, fr: 0,
+          { t: { no: 'Bare stillheten her oppe.', en: 'Just the quiet up here.' }, set: { marit: 'ro' }, fr: 0,
             reply: ['The quiet keeps. Still — pick me three: blåklokke, soleie, revebjelle.',
                     'An old woman likes colour on the sill.'] }
         ] } },
@@ -131,11 +131,11 @@ export const FIELD_TALK = {
     nodes: [
       { id: 's1',
         lines: ['Up here it is goats, brown cheese and weather. In that order.'],
-        ask: { q: { no: 'Milk or wool — what do you keep them for?', en: 'Milk or wool — what do you keep them for?' }, opts: [
-          { t: { no: 'Milk. The brunost is worth the climb.', en: 'Milk. The brown cheese is worth the climb.' }, set: { dairy: 'melk' }, fr: 2,
+        ask: { q: { no: 'Melk eller ull — hva holder du dem for?', en: 'Milk or wool — what do you keep them for?' }, opts: [
+          { t: { no: 'Melk. Brunosten er verdt klatringen.', en: 'Milk. The brown cheese is worth the climb.' }, set: { dairy: 'melk' }, fr: 2,
             reply: [{ no: 'A cheese answer. Bring me five multe and I will feed you well.', en: 'A cheese answer. Bring me five cloudberries and I will feed you well.' },
                     { no: 'The multe grow right here on the setra, gold in the grass.', en: 'The cloudberries grow right here on the dairy meadow, gold in the grass.' }] },
-          { t: { no: 'Wool. The winters are long.', en: 'Wool. The winters are long.' }, set: { dairy: 'ull' }, fr: 0,
+          { t: { no: 'Ull. Vintrene er lange.', en: 'Wool. The winters are long.' }, set: { dairy: 'ull' }, fr: 0,
             reply: [{ no: 'A sensible answer. Five multe, and the vidda stops frightening you.', en: 'A sensible answer. Five cloudberries, and the plateau stops frightening you.' }] }
         ] } },
       { id: 's2', when: S => S.q.multe === 'active',
