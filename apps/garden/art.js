@@ -108,13 +108,13 @@ export function drawPlant(g, cx, baseY, sp, stage, t, s, wig, dark) {
   }
 }
 
-export function gardenSky(W, H, light) {
-  const step = Math.round(light * 22);
+export function gardenSky(W, H, light, bodies = true) {
+  const lvl = Math.round(light * 22), step = lvl + (bodies ? 0 : 100);
   if (SkyCache.step === step && SkyCache.cv) return SkyCache.cv;
   const cv = SkyCache.cv || document.createElement('canvas');
   cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
-  const k = step / 22;
+  const k = lvl / 22;
   /* three keys: night, dusk, noon — interpolated, then dithered into bands */
   const lerp = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
   const NIGHT = [[16, 18, 34], [26, 30, 54], [40, 44, 70]];
@@ -158,8 +158,13 @@ export function gardenSky(W, H, light) {
       g.fillRect(cx - w, cy + dy, w * 2 + 1, 1);
     }
   };
-  /* stars, and one moon, fading in as the light goes */
-  if (k < 0.42) {
+  /* stars, and one moon, fading in as the light goes (a room that draws its own sun and moon leaves the moon and the sun off) */
+  if (!bodies && k < 0.42) {
+    const a = 1 - k / 0.42;
+    g.fillStyle = 'rgba(255,255,255,' + (a * 0.9).toFixed(2) + ')';
+    for (let i = 0; i < 60; i++) { const x = (i * 977) % W, y = (i * 613) % Math.round(H * 0.6); g.fillRect(x, y, 1 + (i % 2), 1 + (i % 2)); }
+  } else if (!bodies) { /* day: nothing more */ }
+  else if (k < 0.42) {
     const a = 1 - k / 0.42;
     g.fillStyle = 'rgba(255,255,255,' + (a * 0.9).toFixed(2) + ')';
     for (let i = 0; i < 60; i++) {

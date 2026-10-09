@@ -622,7 +622,7 @@ it.
 ```
 D    DESECRATING          C    CORRUPTING           B    BLASPHEMOUS
 A    ANNIHILATING         S    SACRILEGIOUS         SS   SSCORCHED EARTH
-SSS  SSSTEFAN BOERUSTORM  !!!  HAPPY BIRTHDAY
+SSS  SSSTEFAN  !!!  HAPPY BIRTHDAY
 ```
 
 Points in, points always bleeding out; the letter follows the points. A delete

@@ -1,12 +1,12 @@
 import { SPECIES } from '../../kernel/cos_data.js';
-import { Mixer } from '../../kernel/mixer.js';
 import { ROOM_DEFS } from './rooms.js';
 import { GardenAir } from './air.js';
 import { describe, POTS_PER_ROOM } from './synergy.js';
-import { paint, createAmbience, potAt, roomTabAt, W, H } from './scene.js';
+import { paint, createAmbience, potAt, roomTabAt, splash, W, H } from './scene.js';
 import { makeWorld, loadState } from './world.js';
 import { createBench } from './bench.js';
 import { createCalls } from './trophy_calls.js';
+import { createReadyChime } from './ready.js';
 import * as M from './model.js';
 import { createFlyover } from './geese.js';  /* Thea's geese */
 
@@ -44,7 +44,6 @@ export default {
       const rd = ROOM_DEFS.find(d => d.id === sp.home), pot = w.pot(sp.kin), mate = w.species(sp.mate);
       return sp.name + ' LIKES THE ' + (rd ? rd.name : '?') + ', THE ' + pot.name + ' AND A ' + (mate ? mate.name : '?') + ' BESIDE IT.';
     };
-
     /* ---- the window ---- */
     const pane = document.createElement('div'); pane.className = 'gamepane gardenpane';
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.className = 'gamecv gardencv'; cv.tabIndex = 0;
@@ -64,7 +63,6 @@ export default {
     l1.className = 'godword gbar'; l2.className = 'godword gl2'; l2.style.whiteSpace = 'normal'; l2.style.color = 'var(--sch-fg, #FFFFFF)';
     tipEl.appendChild(l1); tipEl.appendChild(l2);
     root.appendChild(pane); root.appendChild(bar); root.appendChild(tipEl);
-
     const bench = createBench({
       offers: () => M.offers(w, st, st.active), balance: () => window.Economy.balance(), roomName: () => roomDef().name,
       buy: id => { const ok = M.buy(w, st, st.active, id, (n, s) => window.Economy.spend(n, s)); if (ok) { snd('purchase'); save(); refreshBar(); } else snd('deny'); return ok; },
@@ -72,7 +70,6 @@ export default {
     });
     pane.appendChild(bench.el);
     const g = cv.getContext('2d'); if (g) g.imageSmoothingEnabled = false;
-
     function setMode(m) {
       mode = m;
       canBtn.classList.toggle('on', m === 'can'); canBtn.textContent = m === 'can' ? 'CAN IN HAND' : 'WATER';
@@ -101,7 +98,6 @@ export default {
       bench.isOpen() && bench.refresh();
     }
     refreshBar();
-
     /* ---- what a click does ---- */
     const bump = () => {
       const now = performance.now();
@@ -121,6 +117,7 @@ export default {
         const q = potAt(i);
         amb.pops.push({ x: q.cx, y: q.y, t: 0, n, x2: mult > 1.005 ? mult : 0 });
         snd('pluck', PENTA[w.species(p.sp).note] * Math.pow(2, Math.min(2, (chain.n - 1) / 8)));
+        splash(amb, 'coin', i, 0.6 + Math.min(1.2, chain.n * 0.1)); GardenAir.sfx('sparkle', Math.min(4, chain.n));
       }
       p.wig = 1;
       return n;
@@ -129,7 +126,7 @@ export default {
       const sp = seedNow(), r = room();
       r.pots[i] = { sp: sp.id, planted: Date.now(), watered: Date.now(), grown: 0, acc: 0, tok: 0, wig: 0 };
       st.planted = (st.planted || 0) + 1;
-      snd('dig'); snd('pluck', PENTA[sp.note]);
+      snd('dig'); snd('pluck', PENTA[sp.note]); splash(amb, 'dirt', i); GardenAir.sfx('soil');
     }
     function act(i) {
       const r = room(), p = r.pots[i], now = Date.now();
@@ -137,11 +134,11 @@ export default {
         if (!p) return;
         pick(i);
         r.pots[i] = null;
-        snd('dig');
+        snd('dig'); splash(amb, 'pull', i); GardenAir.sfx('pull');
       } else if (!p) {
         if (mode === 'none') plant(i);
       } else if (mode === 'can') {
-        if (!M.isWet(w, st, st.active, p, now)) { p.watered = now; p.wig = 0.5; snd('water'); }
+        if (!M.isWet(w, st, st.active, p, now)) { p.watered = now; p.wig = 0.5; GardenAir.sfx('water'); splash(amb, 'water', i); }
       } else if (p.tok) {
         pick(i);
       } else {
@@ -167,7 +164,7 @@ export default {
         if (n) rooms++;
         if (n && M.chainMult(n) >= 1 + M.CHAIN.max - 1e-9) tro.chain();
       });
-      if (drank) snd('water');
+      if (drank) { GardenAir.sfx('water'); room().pots.forEach((p, i) => { if (p) splash(amb, 'water', i, 0.5); }); }
       chain.n = 0; chain.t = 0;
       const order = [];
       room().pots.forEach((p, i) => { if (p && p.tok) order.push(i); });
@@ -255,6 +252,7 @@ export default {
     /* ---- the loop ---- */
     const V = { st, w, amb, skin: ri => potOfRoom(ri), mode: 'none', flyover: createFlyover() };
     let scanAt = 0;                                    /* the trophies look at the whole garden about once a second */
+    const readyChime = createReadyChime(() => room().pots, () => st.active, () => GardenAir.sfx('ready'));
     const frame = () => {
       if (!alive || !document.body.contains(cv)) { raf = null; GardenAir.stop(); st.lastTick = Date.now(); save(); return; }
       raf = requestAnimationFrame(frame);
@@ -268,12 +266,14 @@ export default {
       Object.assign(V, { ri: st.active, now, tsec, dt, light, night, hover, mode });
       const dry = paint(g, V);
       lines(dry, now, night);
+      if (V.env) GardenAir.tick(dt, V.env);
+      readyChime(nowMs);
     };
     GardenAir.start(); raf = requestAnimationFrame(frame); saveT = setInterval(save, 20000);
 
     const mixerHandler = ev => {
       if (!document.body.contains(cv)) { window.removeEventListener('mixer-changed', mixerHandler); return; }
-      if (ev.detail && ev.detail.channel === 'garden' && GardenAir.gain && window.Snd.ctx) GardenAir.gain.gain.setTargetAtTime(0.22 * Mixer.get('garden'), window.Snd.ctx.currentTime, 0.3);
+      if (ev.detail && ev.detail.channel === 'garden' && GardenAir.gain) GardenAir.setLevel();
     };
     window.addEventListener('mixer-changed', mixerHandler);
     const stock = () => {

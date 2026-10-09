@@ -1,50 +1,24 @@
 /* GARDEN — one frame of the garden: the sky, the hedge, the rack, twelve pots with what is growing in them, the weather of the
    room, and the tabs over the top. Reads the model; changes nothing in it (it does bounce a plant that was just touched). */
-import { dimCol, drawPot, drawPlant, drawSunToken, gardenSky } from './art.js';
-import { ROOM_DEFS, drawRoomEffects } from './rooms.js';
+import { dimCol, drawPot, drawPlant, drawSunToken } from './art.js';
+import { ROOM_DEFS } from './rooms.js';
 import { POTS_PER_ROOM } from './synergy.js';
+import { stageOf } from './stages.js';
+import { W, H, layer, lighting, seasonOf } from './stage_kit.js';
+import { createFx, rainAt, flashAt, windAt, drawRain, drawBursts, burst, shimmer, vignette, transition } from './fx.js';
 import * as M from './model.js';
 
-export const W = 700, H = 436;
+export { W, H };
 export const potAt = i => { const col = i % 4, row = (i / 4) | 0; return { x: 40 + col * 184, y: 150 + row * 96, cx: 40 + col * 184 + 33, w: 66, h: 46 }; };
 export const roomTabAt = i => { const tw = 74, gap = 4, total = ROOM_DEFS.length * (tw + gap) - gap; return { x: W - total - 10 + i * (tw + gap), y: 6, w: tw, h: 20 }; };
 
 export function createAmbience() {
-  const a = { motes: [], flies: [], leaves: [], pops: [] };
-  for (let i = 0; i < 26; i++) a.motes.push({ x: Math.random() * W, y: Math.random() * H, v: 0.1 + Math.random() * 0.25, s: Math.random() * 6 });
-  for (let i = 0; i < 14; i++) a.flies.push({ x: Math.random() * W, y: 120 + Math.random() * 280, p: Math.random() * 6.3, r: 8 + Math.random() * 20 });
-  return a;
+  return { pops: [], fx: createFx() };
 }
 
 /* the small squares above a pot that say what is helping it: gold for ROOTED, green for its home or its pot, aqua for a bed, pink for mates */
 const PIPS = { 'ROOTED': '#ffd84a', 'HOME ROOM': '#7ad06a', 'KIN POT': '#7ad06a', 'ROOM SET': '#c8a0ff' };
 const pipColour = tag => PIPS[tag] || (/OF ITS KIND/.test(tag) ? '#5ad6d6' : /MATE/.test(tag) ? '#ff8ac8' : '#ffffff');
-
-function ground(g, gk, V) {
-  const D = c => dimCol(c, gk);
-  g.fillStyle = D('#3c5a2c');
-  for (let x = -10; x < W + 20; x += 26) { const h = 26 + ((x * 37) % 18); g.fillRect(x, 118 - h, 30, h + 22); }
-  g.fillStyle = D('#4e7038');
-  for (let x = 4; x < W + 20; x += 26) { const h = 18 + ((x * 53) % 14); g.fillRect(x, 120 - h, 18, 6); }
-  g.fillStyle = D('#2c4420'); g.fillRect(0, 134, W, 8);
-  g.fillStyle = D('#4a6630'); g.fillRect(0, H - 42, W, 42);
-  g.fillStyle = D('#5c7a3c'); g.fillRect(0, H - 42, W, 4);
-  for (let x = 0; x < W; x += 7) { g.fillStyle = D((x % 14) ? '#3e5828' : '#628040'); g.fillRect(x, H - 40 + ((x * 29) % 9), 2, 5); }
-  g.fillStyle = D('#4a3a24'); g.fillRect(14, 132, 12, H - 160); g.fillRect(W - 26, 132, 12, H - 160);
-  g.fillStyle = D('#6b5434'); g.fillRect(14, 132, 3, H - 160); g.fillRect(W - 26, 132, 3, H - 160);
-  const drip = V.st.rooms[V.st.active].drip;
-  for (let row = 0; row < 3; row++) {
-    const y = 150 + row * 96 + 46;
-    g.fillStyle = D('#4a3a24'); g.fillRect(14, y, W - 28, 9);
-    g.fillStyle = D('#7a6038'); g.fillRect(14, y, W - 28, 3);
-    g.fillStyle = D('#2e2416'); g.fillRect(14, y + 9, W - 28, 3);
-    if (drip) {                                          /* a drip line along the shelf: a pipe, and a bead running down it now and then */
-      g.fillStyle = D('#3a6ea8'); g.fillRect(26, y - 38, W - 52, 2);
-      g.fillStyle = D('#8fc8ff');
-      for (let i = 0; i < 4; i++) { const bx = 40 + i * 184 + 33; g.fillRect(bx, y - 36, 2, 3 + ((V.tsec * 8 + i * 3) % 12 | 0)); }
-    }
-  }
-}
 
 function potsAndPlants(g, V, gk, night) {
   const { st, w, ri, now, tsec, dt } = V, room = st.rooms[ri], dry = [];
@@ -53,11 +27,17 @@ function potsAndPlants(g, V, gk, night) {
     const q = potAt(i), p = room.pots[i], isWet = !p || M.isWet(w, st, ri, p, now);
     if (p && !isWet) dry.push(i);
     drawPot(g, q.x, q.y, skin, 1.5, gk);
-    if (V.hover === i) { g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(q.x - 3, q.y - 54, q.w + 6, q.h + 60); }
+    if (V.hover === i) {
+      g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(q.x - 3, q.y - 54, q.w + 6, q.h + 60);
+      g.fillStyle = 'rgba(255,244,160,' + (0.55 + 0.25 * Math.sin(tsec * 6)).toFixed(2) + ')';
+      const x0 = q.x - 3, y0 = q.y - 54, w0 = q.w + 6, h0 = q.h + 60;            /* four corner brackets, breathing */
+      [[x0, y0, 1, 1], [x0 + w0, y0, -1, 1], [x0, y0 + h0, 1, -1], [x0 + w0, y0 + h0, -1, -1]].forEach(([cx0, cy0, dx, dy]) => { g.fillRect(cx0 - (dx < 0 ? 6 : 0), cy0 - (dy < 0 ? 1 : 0), 6, 1); g.fillRect(cx0 - (dx < 0 ? 1 : 0), cy0 - (dy < 0 ? 6 : 0), 1, 6); });
+    }
     if (!p) continue;
     const sp = w.species(p.sp), stage = M.stage(w, p);
     if (p.wig > 0) p.wig = Math.max(0, p.wig - dt * 2.2);
     drawPlant(g, q.cx, q.y + 5, sp, stage, tsec, 1.9, p.wig, night);
+    if (p.tok) shimmer(g, q.cx, q.y - (stage === 3 ? 62 : 30), tsec, i + ri * 12, p.tok);       /* it is holding SUN: it shines */
     const s = M.stats(w, st, ri, i);
     /* what is helping the plant (and that it is thirsty) sits in a little plate at the foot of its pot, not up in the air over the
        leaves: one pip a helper, centred on the pot, and a sand-coloured hollow one at the end when the plant is dry */
@@ -79,38 +59,17 @@ function potsAndPlants(g, V, gk, night) {
   return dry;
 }
 
-function air(g, V, gk, night) {
-  const { motes, flies, leaves, pops } = V.amb, { dt, tsec } = V;
-  if (night) {
-    flies.forEach(f => {
-      f.p += dt * 1.4;
-      const x = f.x + Math.cos(f.p) * f.r, y = f.y + Math.sin(f.p * 1.3) * f.r * 0.5, a = 0.35 + 0.65 * Math.abs(Math.sin(f.p * 0.7));
-      g.fillStyle = 'rgba(180,255,120,' + a.toFixed(2) + ')'; g.fillRect(Math.round(x), Math.round(y), 2, 2);
-      g.fillStyle = 'rgba(180,255,120,' + (a * 0.25).toFixed(2) + ')'; g.fillRect(Math.round(x) - 2, Math.round(y) - 2, 6, 6);
-    });
-  } else {
-    motes.forEach(m => {
-      m.x += m.v * 0.6; m.y += Math.sin(tsec * 0.7 + m.s) * 0.18;
-      if (m.x > W) { m.x = -4; m.y = Math.random() * H; }
-      g.fillStyle = 'rgba(255,248,214,0.5)'; g.fillRect(Math.round(m.x), Math.round(m.y), 2, 2);
-    });
-  }
-  if (leaves.length < 2 && Math.random() < 0.004) leaves.push({ x: -12, y: 60 + Math.random() * 240, r: 0, v: 24 + Math.random() * 30 });
-  for (let i = leaves.length - 1; i >= 0; i--) {
-    const L = leaves[i];
-    L.x += L.v * dt; L.y += Math.sin(L.x * 0.02) * 12 * dt; L.r += dt * 2.4;
-    if (L.x > W + 20) { leaves.splice(i, 1); continue; }
-    const wd = Math.abs(Math.cos(L.r)) * 7 + 2;
-    g.fillStyle = dimCol('#b8783a', gk); g.fillRect(Math.round(L.x), Math.round(L.y), Math.round(wd), 4);
-    g.fillStyle = dimCol('#d89a52', gk); g.fillRect(Math.round(L.x), Math.round(L.y), Math.round(wd), 1);
-  }
-  for (let i = pops.length - 1; i >= 0; i--) {
-    const p = pops[i];
-    p.t += dt;
-    if (p.t > 1.1) { pops.splice(i, 1); continue; }
-    g.fillStyle = 'rgba(255,244,140,' + (1 - p.t / 1.1).toFixed(2) + ')';
-    g.font = '16px "VT323", monospace';
-    g.fillText('+' + p.n + (p.x2 ? '  x' + p.x2.toFixed(2) : ''), p.x, p.y - p.t * 26);
+/* the +N that floats up from a pot you picked, outlined so it reads on every room's picture */
+function pops(g, V) {
+  const list = V.amb.pops;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i];
+    p.t += V.dt;
+    if (p.t > 1.1) { list.splice(i, 1); continue; }
+    const txt = '+' + p.n + (p.x2 ? '  x' + p.x2.toFixed(2) : ''), a = (1 - p.t / 1.1).toFixed(2), y = p.y - p.t * 26;
+    g.font = '16px "VT323", monospace'; g.lineWidth = 3; g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(20,12,0,' + a + ')'; g.strokeText(txt, p.x, y);
+    g.fillStyle = 'rgba(255,244,140,' + a + ')'; g.fillText(txt, p.x, y);
   }
 }
 
@@ -133,20 +92,37 @@ function tabs(g, V) {
 
 /* returns the list of dry pots, for the line under the garden */
 export function paint(g, V) {
-  const { st, now, light, night } = V, rd = ROOM_DEFS[st.active];
-  g.drawImage(gardenSky(W, H, light), 0, 0);
-  if (V.flyover) { V.flyover.step(V.dt); V.flyover.draw(g); }        /* Thea's geese, now and then, over the sky and under everything else */
-  const gk = 0.35 + light * 0.65;
-  ground(g, gk, V);
+  const { st, light, night } = V, rd = ROOM_DEFS[st.active], S = stageOf(rd.id), fx = V.amb.fx;
+  const gk = S.gk(light), L = lighting(gk), now = V.now;
+  const rain = (V.rainOverride != null ? V.rainOverride : rainAt(now)) * S.rain, K = { V, g, L, gk, light, night, tsec: V.tsec, dt: V.dt, rain, wind: windAt(V.tsec, now) * S.wind, drip: st.rooms[st.active].drip, now, season: V.season || seasonOf() };
+  V.wind = K.wind;
+  /* the room itself, painted once for the light it is in */
+  if (S.under) {                                                     /* what is seen through the room's windows: sky, clouds, the world outside */
+    g.fillStyle = '#05060a'; g.fillRect(0, 0, W, H);
+    S.under(g, K);
+  }
+  g.drawImage(layer(rd.id + ':' + (S.still ? 0 : Math.round(light * 22)) + ':' + (rain > 0.1 ? 'w' : 'd') + ':' + K.season, lg => S.back(lg, Object.assign({}, K, { rain: rain > 0.1 ? 1 : 0 }))), 0, 0);
+  if (S.sky && V.flyover) { V.flyover.step(V.dt); V.flyover.draw(g); }        /* Thea's geese, now and then, over the sky and under everything else */
+  else if (V.flyover) V.flyover.step(V.dt);
+  S.live(g, K);
   const dry = potsAndPlants(g, V, gk, night);
-  air(g, V, gk, night);
+  pops(g, V);
+  S.front(g, K);
+  if (S.rain) drawRain(fx, g, K, S.floor);
   if (night) {
-    const a = rd.buff.night ? Math.max(0.3, (0.34 - light) / 0.34 * 0.45) : (0.34 - light) / 0.34 * 0.45;
+    const a = S.dark ? S.dark(light) : (0.34 - light) / 0.34 * 0.45;
     g.fillStyle = 'rgba(6,8,24,' + Math.max(0, a).toFixed(2) + ')'; g.fillRect(0, 0, W, H);
   }
-  drawRoomEffects(g, W, H, rd.id, V.tsec, V.dt);
-  if (rd.tint) { g.fillStyle = rd.tint; g.fillRect(0, 0, W, H); }
+  S.lights(g, K);                                                    /* lamps, windows, the moon: light is added after the dark is laid */
+  drawBursts(fx, g, V.dt);
+  const fl = flashAt(now, rain);
+  if (fl > 0.02) { g.fillStyle = 'rgba(220,230,255,' + (fl * 0.32).toFixed(2) + ')'; g.fillRect(0, 0, W, H); }
+  vignette(g, 0.55 + (night ? 0.4 : 0) + rain * 0.2);
+  V.env = { room: rd.id, rain, wind: K.wind, night: light < 0.34, light, season: K.season, flash: fl, tsec: V.tsec };
+  transition(fx, g, st.active, V.dt, S.tint);
   tabs(g, V);
-  void now;
   return dry;
 }
+
+/* a puff of what you just did, over pot `i`: kind is water, dirt, leaf, coin or pull */
+export function splash(amb, kind, i, scale) { const q = potAt(i); burst(amb.fx, kind, q.cx, kind === 'water' ? q.y + 6 : q.y - 10, scale); }

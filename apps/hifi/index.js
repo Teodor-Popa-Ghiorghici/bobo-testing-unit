@@ -14,6 +14,7 @@ import { scopedListeners, whenGone } from '../lifecycle.js';
 import { Studio } from '../../kernel/studio.js';
 import { loadTrack } from '../../kernel/style_track.js';
 import { createCalls } from './trophy_calls.js';
+import { plan, evictions, XFADE, PRELOAD } from './keep.js';
 
 export default {
   id: 'hifi',
@@ -201,7 +202,7 @@ export default {
       /* ---- state ---------------------------------------------------------- */
       /* declared up here because the disc presses start before the loop does
          and need to know whether the window is still open */
-      let alive = true, raf = null, last = 0, playSave = null, modeKey = '';
+      let alive = true, raf = null, last = 0, playSave = null, modeKey = '', watch = null;
       const SAVE = 'templeos.stack.v1';
       const S = {
         list: [], ix: -1, playing: false, voices: [],
@@ -211,7 +212,7 @@ export default {
         texture: 'off', scan: false, style: 0, repeat: 0, shuffle: false,
         tray: 0, trayDir: 0, disc: 0, spin: 0, sheen: 0, touched: false,
         vuL: 0, vuR: 0, vuLv: 0, vuRv: 0, peakL: 0, peakR: 0, corr: 0,
-        glow: 0, marquee: 0, drag: null, note: '', noteT: 0, loading: 0, xfaded: false,
+        glow: 0, marquee: 0, drag: null, note: '', noteT: 0, loading: 0, xfaded: false, upT: null, upKey: '', failRun: 0, gapUntil: 0,
         filter: '', sort: 0, scroll: 0, folder: null,
         queue: [], order: null, userDirs: [], tab: 'player', view: 'list', labelMode: 'fill', resume: null, hover: -1, hoverT: 0
       };
@@ -332,14 +333,18 @@ export default {
         S, say, ctx, EQ_BANDS, alive: () => alive, store, keyOf, analysePeaks, makeArt, addTrack, loadDisc, stop,
         changed: () => { if (lib) lib.refresh(); }, trayIn: on => { S.trayDir = on ? 1 : -1; }
       });
-      async function ensureBuf(t) {
-        if (!t || t.buf) return t && t.buf;
-        if (t.decoding) return null;
+      /* one job per disc, shared by whoever asks: the preload, the play button and the end of the last disc used to start (or refuse to wait for) their own */
+      function ensureBuf(t) {
+        if (!t || t.buf) return Promise.resolve(t && t.buf);
+        if (!t.job) t.job = readBuf(t).then(b => { t.job = null; if (b) { t.used = performance.now(); trim(); } return b; }, () => { t.job = null; return null; });
+        return t.job;
+      }
+      async function readBuf(t) {
         t.decoding = true;
         if (t.spec) {                                   /* a folder disc: press it now */
           try {
             const buf = t.spec.mp3 ? await loadTrack() : t.spec.song ? await Studio.render(t.spec.song, { repeat: t.spec.reps, level: t.spec.level, limit: t.spec.limit }) : await hifiPress(t.spec, ctx.sampleRate);
-            if (buf) { t.buf = buf; t.dur = buf.duration; t.peaks = analysePeaks(buf, 480); }
+            if (buf) { t.buf = buf; t.missing = false; t.dur = buf.duration; t.peaks = analysePeaks(buf, 480); }
             else t.missing = true;
           } catch (e) { t.missing = true; say('COULD NOT PRESS ' + t.name); }
           t.decoding = false;
@@ -350,7 +355,7 @@ export default {
           if (!blob) { t.decoding = false; t.missing = true; say(t.name + ' IS NOT ON THE DISK ANY MORE.'); return null; }
           const ab = await blob.arrayBuffer();
           const buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));
-          t.buf = buf; t.dur = buf.duration;
+          t.buf = buf; t.missing = false; t.dur = buf.duration;
           if (!t.peaks) { t.peaks = analysePeaks(buf, 480); t.pk = peaksPack(t.peaks); io.saveLibrary(); }
         } catch (e) { t.missing = true; say('COULD NOT READ ' + t.name); }
         t.decoding = false;
@@ -424,16 +429,21 @@ export default {
         if (i < 0 || i >= S.list.length) return;
         const wasPlaying = S.playing || autoplay;
         S.voices.slice().forEach(v => killVoice(v, 0.12));
-        S.ix = i;
+        S.ix = i; S.upT = null; S.gapUntil = performance.now() + 900;
         const t = S.list[i];
         if (S.order && S.order.indexOf(t) < 0) S.order = null;
-        if (!t.buf && !t.decoding) {
-          if (t.spec) say('PRESSING ' + t.name + '...');
+        if (!t.buf) {
+          if (t.spec && !t.decoding) say('PRESSING ' + t.name + '...');
           ensureBuf(t).then(() => {
             if (S.list[S.ix] !== t) return;
             S.dur = t.dur;
             /* a disc that took a moment to press still starts when it is ready */
             if (wasPlaying && t.buf && !curVoice()) play();
+            /* one that will not read must not stop the music: on to the next, unless the whole shelf is like that */
+            else if (wasPlaying && !t.buf && alive) {
+              if (++S.failRun < S.list.length) { const n = peekNext(); const j = n ? S.list.indexOf(n) : -1; if (j >= 0 && j !== S.ix) { loadDisc(j, true); return; } }
+              S.failRun = 0; S.playing = false; say('NOTHING ON THE SHELF WILL PLAY.');
+            }
           });
         }
         S.dur = t.dur; S.seekBase = 0; S.pos = 0;
@@ -445,14 +455,14 @@ export default {
       }
       function play() {
         const t = S.list[S.ix]; if (!t) return;
-        if (ctx.state === 'suspended') ctx.resume();
+        wake();
         if (!t.buf) {                       /* off the shelf: read it, then start */
           if (!t.decoding) { say('READING ' + t.name + '...'); ensureBuf(t).then(b => { if (b && S.list[S.ix] === t) { S.dur = t.dur; play(); } }); }
           S.playing = false; return;
         }
         S.voices.slice().forEach(v => killVoice(v, 0.05));
         const v = startVoice(t, S.seekBase, 0.04);
-        S.startedAt = ctx.currentTime; S.playing = true; tro.play(t);
+        S.startedAt = ctx.currentTime; S.playing = true; S.failRun = 0; t.used = performance.now(); tro.play(t);
         if (S.seekBase < 0.5 && !t.builtin) { t.plays = (t.plays || 0) + 1; clearTimeout(playSave); playSave = setTimeout(() => io.saveLibrary(), 2500); }
         S.xfaded = false;
         return v;
@@ -488,11 +498,34 @@ export default {
         if (S.shuffle) { if (sib.length === 1) return S.ix; let n; do { n = sib[Math.floor(Math.random() * sib.length)]; } while (n === S.ix); return n; }
         return sib[(sib.indexOf(S.ix) + 1) % sib.length];
       }
+      /* what plays after this disc is decided once, so the preload reads the disc that will really come (a shuffle or a queue is not asked twice) */
+      function peekNext() {
+        const key = S.ix + ':' + S.shuffle + ':' + (S.order ? S.order.length : 0);
+        if (S.upT && S.upKey === key && S.list.indexOf(S.upT) >= 0 && !S.upT.missing && !(S.queue.length && !S.upQ)) return S.upT;
+        S.upT = null;
+        for (let k = 0; k < 8; k++) {
+          const fromQ = S.queue.length > 0, n = nextIx();
+          if (n < 0) return null;
+          const t = S.list[n];
+          if (t.missing && S.list.length > 1) continue;
+          S.upT = t; S.upKey = key; S.upQ = fromQ; return t;
+        }
+        return null;
+      }
       function skip(d) {
         if (!S.list.length) return;
         const sib = siblings();
-        const n = d > 0 ? nextIx() : sib[(sib.indexOf(S.ix) - 1 + sib.length) % sib.length];
-        loadDisc(n, S.playing);
+        let n;
+        if (d > 0) { const t = peekNext(); n = t ? S.list.indexOf(t) : -1; }
+        else n = sib[(sib.indexOf(S.ix) - 1 + sib.length) % sib.length];
+        if (n >= 0) loadDisc(n, S.playing);
+      }
+      /* the audio context can be put to sleep (a long evening, a laptop lid, the system's own idea of saving power) */
+      function wake() { try { if (ctx.state !== 'running') { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } } catch (e) {} }
+      /* let go of decoded discs that are not on or coming, oldest first, so an evening of songs does not fill the page */
+      function trim() {
+        const keep = [S.list[S.ix], S.upT].concat(S.voices.map(v => v.track));
+        evictions(S.list, keep).forEach(t => { t.buf = null; });
       }
 
       /* ---- drawing the face -------------------------------------------------
@@ -1050,14 +1083,48 @@ export default {
       }
 
       /* ---- the loop ---------------------------------------------------------- */
-      const XFADE = 1.6;
+      /* ---- the music's own clock ------------------------------------------------
+         What happens at the end of a disc must not hang on the picture being drawn: a frame loop is slowed or stopped by a window that is hidden, covered or
+         minimised, and then the disc ran out in silence and nothing came after it. This runs from the frame loop and from a timer of its own (alive while the
+         window is), and either may be the one that notices; it does the same thing twice harmlessly. */
+      function transport() {
+        const v = curVoice();
+        if (S.playing && v) S.pos = Math.min(S.dur, (ctx.currentTime - v.at) * S.speed + v.off);
+        if (!S.playing) return;
+        const now = performance.now(), cur = S.list[S.ix];
+        if (ctx.state !== 'running') wake();
+        /* playing, with a disc that is read and no voice to hear it: something ended it without telling us */
+        if (!v && cur && cur.buf && now > S.gapUntil) { play(); return; }
+        /* the next disc is read well before it is needed (a long song can take a while to press) */
+        if (S.dur && S.list.length > 1 && (S.dur - S.pos) / S.speed < PRELOAD && S.repeat !== 2) {
+          const pt = peekNext();
+          if (pt && !pt.buf && !pt.job && !pt.decoding) ensureBuf(pt);
+        }
+        const nt = S.list.length > 1 && S.repeat !== 2 ? S.upT : null;
+        const act = plan({ playing: S.playing, pos: S.pos, dur: S.dur, repeat: S.repeat, count: S.list.length, crossed: S.xfaded, nextReady: !!(nt && nt.buf && nt !== cur) });
+        if (act === 'xfade') {
+          tro.ended(S.dur);
+          const n = S.list.indexOf(nt);
+          { const q2 = eqFor(nt); for (let b2 = 0; b2 < EQ_BANDS.length; b2++) eqGains[b2] = q2[b2] || 0; }
+          applyEQ();
+          const old = curVoice();
+          startVoice(nt, 0, XFADE * 0.8);
+          if (old) killVoice(old, XFADE * 0.8);
+          nt.used = now; S.failRun = 0; tro.play(nt);
+          if (!nt.builtin) { nt.plays = (nt.plays || 0) + 1; clearTimeout(playSave); playSave = setTimeout(() => io.saveLibrary(), 2500); }
+          S.ix = n; S.upT = null; S.dur = nt.dur; S.seekBase = 0; S.pos = 0; S.disc = 1; S.marquee = 0; S.xfaded = false;
+          trim();
+        } else if (act === 'again') { tro.ended(S.dur); S.seekBase = 0; play(); }
+        else if (act === 'next') { tro.ended(S.dur); skip(1); }
+        else if (act === 'stop') { tro.ended(S.dur); stop(); }
+      }
+
       function frame(ts) {
         if (!alive || !document.body.contains(cv)) { alive = false; teardown(); return; }
         raf = requestAnimationFrame(frame);
         const dt = Math.min(0.1, (ts - last) / 1000 || 0); last = ts;
 
-        const v = curVoice();
-        if (S.playing && v) S.pos = Math.min(S.dur, (ctx.currentTime - v.at) * S.speed + v.off);
+        transport();
         if (S.noteT > 0) { S.noteT -= dt; if (S.noteT <= 0) S.note = ''; }
         S.marquee += dt * 26;
         if (S.playing) { S.spin += dt * 3.4 * S.speed; S.sheen -= dt * 1.1; }
@@ -1067,27 +1134,6 @@ export default {
         S.tray += (wantTray - S.tray) * Math.min(1, dt * 5);
         if (S.trayDir > 0 && S.tray > 0.98) S.trayDir = 0;
 
-        /* the crossfade into the next disc, started before this one runs out */
-        if (S.playing && S.dur && !S.xfaded && S.repeat !== 2 && S.pos > S.dur - XFADE && S.list.length > 1) {
-          S.xfaded = true; tro.ended(S.dur);
-          const n = nextIx();
-          if (n >= 0 && n !== S.ix && S.list[n].buf) {
-            const nt = S.list[n];
-            { const q2 = eqFor(nt); for (let b2 = 0; b2 < EQ_BANDS.length; b2++) eqGains[b2] = q2[b2] || 0; }
-            applyEQ();
-            const old = curVoice();
-            startVoice(nt, 0, XFADE * 0.8);
-            if (old) killVoice(old, XFADE * 0.8);
-            S.ix = n; S.dur = nt.dur; S.seekBase = 0; S.disc = 1; S.marquee = 0;
-          }
-        }
-        /* the end of the last disc, or of a track on repeat-one */
-        if (S.playing && S.dur && S.pos >= S.dur - 0.03) {
-          tro.ended(S.dur);
-          if (S.repeat === 2) { S.seekBase = 0; play(); }
-          else if (S.list.length <= 1) { if (S.repeat === 1) { S.seekBase = 0; play(); } else stop(); }
-          else if (!S.xfaded) { skip(1); }
-        }
         applyAll();
         theme(dt);
         { const cur = S.list[S.ix], mk = S.ix + ':' + (cur && cur.artMode) + ':' + S.labelMode; if (mk !== modeKey) { modeKey = mk; showMode(); } }
@@ -1097,6 +1143,8 @@ export default {
       function teardown() {
         if (raf) cancelAnimationFrame(raf);
         raf = null;
+        if (watch) { clearInterval(watch); watch = null; }
+        try { ctx.removeEventListener('statechange', onState); } catch (e) {}
         S.voices.slice().forEach(v => killVoice(v, 0.05));
         if (texSrc) { try { texSrc.stop(); } catch (e) {} texSrc = null; }
         try { N.master.disconnect(); } catch (e) {}
@@ -1373,6 +1421,9 @@ export default {
       });
       applyAll();
       raf = requestAnimationFrame(frame);
+      watch = setInterval(() => { if (!alive) { clearInterval(watch); watch = null; return; } try { transport(); } catch (e) {} }, 500);
+      const onState = () => { if (alive && S.playing) wake(); };
+      try { ctx.addEventListener('statechange', onState); } catch (e) {}
       whenGone(cv, () => { alive = false; teardown(); });
       info.textContent = 'SPACE · ARROWS · N/P · 1-9 EQ · B BYPASS · TAB LIBRARY · DROP FILES ON IT';
   }

@@ -7,7 +7,7 @@
    the last line is the one the crawl stops on. */
 export const BIRTHDAY_TEXT = [
   ['h', '[ WHAT THIS MACHINE IS FOR ]'],
-  ['',  'Aparatul ăsta este pentru domnul Boeru Ștefan,'],
+  ['',  'Aparatul ăsta este pentru domnul Ștefan,'],
   ['',  'care a împlinit, la un moment dat, un număr de ani.'],
   ['',  'Dar ce să facem? Vorba aia: poți să faci ceva bine,'],
   ['',  'repede și ieftin, dar poți alege doar două dintre ele.'],
@@ -27,7 +27,7 @@ export const BIRTHDAY_TEXT = [
   ['',  'și să treci prin tot felul de alte emoții cât timp joci.'],
   ['',  'Much love. Keep up the good work.'],
   ['',  ''],
-  ['c', 'THIS IS A HAPPY BIRTHDAY GIFT FOR BOERU.'],
+  ['c', 'THIS IS A HAPPY BIRTHDAY GIFT FOR STEFAN.'],
   ['',  ''],
-  ['y', 'HAPPY BIRTHDAY, BOERU.']
+  ['y', 'HAPPY BIRTHDAY, STEFAN.']
 ];

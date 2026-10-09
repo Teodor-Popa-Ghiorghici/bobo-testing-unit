@@ -44,7 +44,7 @@ of player against the model, so the `sim` rows are proved by extending it.
 |---|---|---|---|---|---|---|
 | sys_rank_b | BLASPHEMOUS | Reach rank B on the style meter. | P | B | - | style{tier>=2} |
 | sys_rank_s | SACRILEGIOUS | Reach rank S. | P | S | - | style{tier>=4} |
-| sys_rank_sss | SSSTEFAN BOERUSTORM | Reach rank SSS. | P | S | - | style{tier>=6} |
+| sys_rank_sss | SSSTEFAN | Reach rank SSS. | P | S | - | style{tier>=6} |
 | sys_rank_top | HAPPY BIRTHDAY | Reach the top rank. | P | G | - | style{tier:7} |
 | sys_pile20 | PILE DRIVER | Delete twenty or more files in one go. | S | S | - | delete{n>=20} |
 | sys_pile100 | AVALANCHE | Delete a hundred or more files in one go. | S | G | sim | delete{n>=100} |

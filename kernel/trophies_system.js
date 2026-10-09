@@ -29,7 +29,7 @@ export const SYSTEM_A = [
   /* ---- the style meter ---- */
   t('sys_rank_b', 'BLASPHEMOUS', 'B', 'P', 'Reach rank B on the style meter.', on('style', p => p.tier >= 2)),
   t('sys_rank_s', 'SACRILEGIOUS', 'S', 'P', 'Reach rank S.', on('style', p => p.tier >= 4)),
-  t('sys_rank_sss', 'SSSTEFAN BOERUSTORM', 'S', 'P', 'Reach rank SSS.', on('style', p => p.tier >= 6)),
+  t('sys_rank_sss', 'SSSTEFAN', 'S', 'P', 'Reach rank SSS.', on('style', p => p.tier >= 6)),
   t('sys_rank_top', 'HAPPY BIRTHDAY', 'G', 'P', 'Reach the top rank.', on('style', p => p.tier >= 7)),
   t('sys_pile20', 'PILE DRIVER', 'S', 'S', 'Delete twenty or more files in one go.', on('delete', p => p.n >= 20)),
   t('sys_pile100', 'AVALANCHE', 'G', 'S', 'Delete a hundred or more files in one go.', on('delete', p => p.n >= 100)),

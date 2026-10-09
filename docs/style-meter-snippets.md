@@ -11,7 +11,7 @@ reference for the design and the tuning knobs; the code below matches what shipp
 - **True drain.** `GRACE` seconds after the last delete the meter starts bleeding,
   and the rank falls back down through the letters. Stop deleting and you lose it.
 - **Ranks:** D DESECRATING · C CORRUPTING · B BLASPHEMOUS · A ANNIHILATING ·
-  S SACRILEGIOUS · SS SSCORCHED EARTH · SSS SSSTEFAN BOERUSTORM · **HAPPY BIRTHDAY**.
+  S SACRILEGIOUS · SS SSCORCHED EARTH · SSS SSSTEFAN · **HAPPY BIRTHDAY**.
 - **Music** layers *on top of* the lobby hymn: same key (D minor), double time, one
   more instrument per rank, filter opening as you climb. It rides the MUS pot and
   goes quiet with the power switch.
@@ -210,7 +210,7 @@ const STYLE_RANKS = [
   { key: 'A',   name: 'ANNIHILATING',         at: 2500, col: '#FFFF55' },
   { key: 'S',   name: 'SACRILEGIOUS',         at: 3800, col: '#AA5500' },
   { key: 'SS',  name: 'SSCORCHED EARTH',      at: 5400, col: '#FF5555' },
-  { key: 'SSS', name: 'SSSTEFAN BOERUSTORM',  at: 7300, col: '#FF55FF' },
+  { key: 'SSS', name: 'SSSTEFAN',  at: 7300, col: '#FF55FF' },
   { key: '!!!', name: 'HAPPY BIRTHDAY',       at: 9500, col: '#FFFFFF' }
 ];
 

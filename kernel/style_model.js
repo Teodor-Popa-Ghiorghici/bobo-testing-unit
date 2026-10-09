@@ -22,7 +22,7 @@ export const RANKS = [
   { key: 'A',   name: 'ANNIHILATING',        at: 3500,  col: '#FFFF55', grace: 1.7,  drain: 340,  gain: 0.84, chain: 3.0 },
   { key: 'S',   name: 'SACRILEGIOUS',        at: 5800,  col: '#AA5500', grace: 1.4,  drain: 500,  gain: 0.76, chain: 2.7 },
   { key: 'SS',  name: 'SSCORCHED EARTH',     at: 8800,  col: '#FF5555', grace: 1.1,  drain: 720,  gain: 0.68, chain: 2.4 },
-  { key: 'SSS', name: 'SSSTEFAN BOERUSTORM', at: 12600, col: '#FF55FF', grace: 0.85, drain: 1000, gain: 0.55, chain: 2.1 },
+  { key: 'SSS', name: 'SSSTEFAN', at: 12600, col: '#FF55FF', grace: 0.85, drain: 1000, gain: 0.55, chain: 2.1 },
   { key: '!!!', name: 'HAPPY BIRTHDAY',      at: 17500, col: '#FFFFFF', grace: 0.6,  drain: 1600, gain: 0.40, chain: 1.8 }
 ];
 export const TOP = RANKS.length - 1;
