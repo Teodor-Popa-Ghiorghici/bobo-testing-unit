@@ -13,7 +13,15 @@ import { drawWear } from './wear.js';
 import { LIFT_MORE } from './wear_more.js';
 import { scopedListeners, whenGone } from '../lifecycle.js';
 import { talked, heard, placed } from './trophy_calls.js';
-import { eatPose, EAT_SECS, PICK_AT, CHEW_FROM, drawPile, drawWedge, nextEatIn } from '../cheese_art.js';
+import { drawPile, drawWedge } from '../cheese_art.js';
+import { poseAt, events as eatEvents, eventsBetween, EAT_TOTAL, PILE, MOUTH, BODY_X } from './eat_seq.js';
+import { solveTrunk, LEN } from './trunk.js';
+import { drawTube } from './trunk_draw.js';
+import { eatSound } from './eat_sfx.js';
+import { runOf, SLIDE_AT, hear as hearQuote, heardSet, slideOpen } from './slide_plan.js';
+import { soundPlan } from './slide_sound.js';
+import { playSlide } from './slide_sfx.js';
+import { createSlideFx } from './slide_fx.js';
 import { createGeese } from './geese.js';
 
 export default {
@@ -34,9 +42,10 @@ export default {
       const bTalk  = document.createElement('button'); bTalk.className  = 'appbtn'; bTalk.textContent  = 'TALK';
       const bPlace = document.createElement('button'); bPlace.className = 'appbtn'; bPlace.textContent = 'PLACE';
       const bWear  = document.createElement('button'); bWear.className  = 'appbtn'; bWear.textContent  = 'WARDROBE';
+      const bSlide = document.createElement('button'); bSlide.className = 'appbtn';
       const bOut   = document.createElement('button'); bOut.className   = 'appbtn';
       const info   = document.createElement('span');   info.className   = 'godword';
-      bar.appendChild(bTalk); bar.appendChild(bPlace); bar.appendChild(bWear); bar.appendChild(bOut); bar.appendChild(info);
+      bar.appendChild(bTalk); bar.appendChild(bPlace); bar.appendChild(bWear); bar.appendChild(bSlide); bar.appendChild(bOut); bar.appendChild(info);
       body.appendChild(wrap); body.appendChild(bar);
 
       const g = cv.getContext('2d');
@@ -49,6 +58,7 @@ export default {
         g.fillStyle = C(c);
         g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
       };
+      const lerp = (a, b, k) => a + (b - a) * k;
       /* A block with its corners knocked off. Two overlapping rectangles is
          as round as a machine with no anti-aliasing is allowed to get, and
          every curved thing on this canvas — him, the clouds, the bubble, the
@@ -477,10 +487,11 @@ export default {
          into a tic. When he is thinking he curls the end of his trunk up and
          looks past you; when he is talking the tip bobs on the syllables.
          ========================================================================== */
-      /* `eat` (apps/cheese_art.js eatPose): the trunk goes down to the pile of cheese beside him, comes up with a wedge, brings it to his mouth, and he chews */
-      function drawEle(t, phase, eat) {
+      /* `eat` is a pose from apps/elephant/eat_seq.js (poseAt): the trunk is solved from where its tip must be (trunk.js) and painted as one tube (trunk_draw.js), so it can reach the pile
+         in front of his feet, curl round a wedge, swing up to his mouth and rest aside while he chews. `pile` draws the cheese: it stands in front of him and the trunk is over it. */
+      function drawEle(t, phase, eat, pile) {
         const E = eat || null;
-        const br   = Math.round(Math.sin(t * 0.7) * 1.6) + (E && E.chew ? Math.round(Math.sin(t * 22) * 1.5) : 0);
+        const br   = Math.round(Math.sin(t * 0.7) * 1.6) + (E ? E.bob + E.dip : 0);
         /* the ears do not slide, they fan: what changes is how wide they are,
            which is what an ear actually does when it moves towards you */
         const ear  = Math.round(Math.sin(t * 0.57) * 4);
@@ -526,34 +537,37 @@ export default {
            before the head so the head sits over the join, and kept mostly
            light: a dark inner ear filling the whole shape reads as a hole. */
         [[184, -1], [296, 1]].forEach(v => {
-          const cx = v[0] - v[1] * ear, d = v[1];
-          limb(cx, 152 + br, 36 + ear, 44, 7, 15);
-          limb(cx + d * 4, 156 + br, 22 + ear, 30, 8);
+          const cx = v[0] - v[1] * (ear + (E ? E.ears : 0)), d = v[1], ea = ear + (E ? E.ears : 0);
+          limb(cx, 152 + br, 36 + ea, 44, 7, 15);
+          limb(cx + d * 4, 156 + br, 22 + ea, 30, 8);
         });
 
         /* the head, and the dome on top of it */
-        limb(240, 154 + br, 54, 50, 7, 15, 8);
+        limb(240, 154 + br, 54 + (E ? E.cheek : 0), 50, 7, 15, 8);
         limb(240, 122 + br, 40, 26, 7, 15);
         drawWear('neck', wear, kit, { br });
 
-        /* The trunk: eight slabs, tapering, each leaning a little further than
-           the one above it, so the end of it moves and the root does not. */
-        let tipX = 240, tipY = 270;
-        for (let i = 0; i < 8; i++) {
-          const k = i / 7;
-          const w = Math.round(30 - k * 16);
-          const curl = think ? -Math.max(0, i - 3) * 9 : 0;
-          const y = 184 + br + i * 11 + curl - (E ? Math.round(E.curl * Math.max(0, i - 2) * 14) : 0);
-          const off = Math.round(sway * k * k) + (think ? Math.round(Math.max(0, i - 3) * 5) : 0) + (E ? Math.round(E.lean * 128 * k * k + E.curl * 14 * k) : 0);
-          const x = Math.round(240 - w / 2 + off);
-          R(x - 1, y, w + 2, 12, 0);
-          R(x, y, w, 11, 7);
-          R(x, y + 8, w, 3, 8);
-          if (i < 4) R(x + 2, y + 1, 4, 6, 15);
-          tipX = x + w / 2; tipY = y + 6;
+        /* his mouth is under the base of the trunk: it shows when the trunk is out of the way (eating), open for a wedge and working for the chew */
+        if (E && E.mouth > 0.04) {
+          const mo = Math.round(2 + E.mouth * 5), mx = MOUTH.x - 3 * E.mirror * E.w;     /* a little to the side the trunk is not on */
+          oval(mx, MOUTH.y + br, 10, mo + 1, 0); oval(mx, MOUTH.y + br + 1, 8, mo, 4);
+          if (E.mouth > 0.3) oval(mx, MOUTH.y + br + mo - 1, 5, 2, 12);
         }
-        if (E && E.wedge) drawWedge(R, Math.round(tipX - 7), Math.round(tipY - 8), 1);                       /* the piece he is holding */
-        if (E && E.chew) for (let i = 0; i < 4; i++) R(224 + ((t * 70 + i * 41) % 30), 200 + ((t * 45 + i * 17) % 44), 2, 2, 14);          /* crumbs */
+        if (pile) pile();
+
+        /* The trunk, one curve from its root to its tip. Idle it hangs and sways a little (more as he talks); thinking, its end curls up and to the side; eating, the pose
+           says where the tip must be and how long the trunk is (stretched to reach the pile, short when it is turned in to his mouth), and the two are blended. */
+        const idleTip = think ? { x: 240 + 17 + sway * 0.5, y: 236 } : { x: 240 + sway, y: 266 - Math.abs(sway) * 0.6 };
+        const idleFore = think ? 0.96 : 1;
+        const w = E ? E.w : 0;
+        const aim = E ? { x: lerp(idleTip.x, E.tip.x - E.dx, w), y: lerp(idleTip.y, E.tip.y, w) } : idleTip;
+        const fore = E ? lerp(idleFore, E.fore, w) : idleFore;
+        const bend = E ? lerp(-1, E.bend, w) : -1;
+        const tube = solveTrunk({ x: 240, y: 190 + br }, LEN * fore, aim, bend);
+        drawTube(R, tube, { clipTop: 183 + br });
+        const tipX = tube.tip.x, tipY = tube.tip.y;
+        if (E && E.held) drawWedge(R, Math.round(tipX - 7), Math.round(tipY - 6), 1);                         /* the piece he is holding */
+        if (E) E.crumbs.forEach(c => R(c.x - E.dx, c.y, 2, 2, c.c));                                           /* crumbs */
         /* the tusks: two short white curves outside the trunk. They are the
            one part of him that never moves at all. */
         [[226, -1], [254, 1]].forEach(v => {
@@ -571,10 +585,14 @@ export default {
         R(250, 130 + br + look, 24, 5, 8);
         [218, 262].forEach(x => {
           limb(x, 148 + br, 13, 11, 15);
-          if (blink) { limb(x, 148 + br, 13, 11, 7); R(x - 12, 149 + br, 24, 3, 8); }
+          if (E && E.happy) {                                  /* pleased: shut, as a curve that rises in the middle */
+            limb(x, 148 + br, 13, 11, 7);
+            R(x - 10, 152 + br, 6, 2, 8); R(x - 6, 150 + br, 4, 2, 8); R(x - 3, 148 + br, 6, 2, 8); R(x + 2, 150 + br, 4, 2, 8); R(x + 4, 152 + br, 6, 2, 8);
+          } else if (blink) { limb(x, 148 + br, 13, 11, 7); R(x - 12, 149 + br, 24, 3, 8); }
           else {
-            limb(x, 150 + br + look, 7, 7, 0);
-            R(x - 4, 147 + br + look, 3, 3, 15);
+            const lx = E ? E.lookX : 0, ly = E ? E.lookY : 0;
+            limb(x + lx, 150 + br + look + ly, 7, 7, 0);
+            R(x - 4 + lx, 147 + br + look + ly, 3, 3, 15);
           }
         });
         drawWear('front', wear, kit, { br });
@@ -794,10 +812,12 @@ export default {
           }
         }
         const i = bag.pop(); tro.heard(i);
+        const h = hearQuote(i);
+        if (h.fresh) { syncSlide(); if (h.opened) slideUnlocked(); }
         return ELE_QUOTES[i];
       }
 
-      let place = 0, placeT = 0, eatT = -1, eatAt = nextEatIn(), ate = false, chewTick = -1;
+      let place = 0, placeT = 0, eatT = -1, eatAt = 5 + Math.random() * 4, eatN = 0, eatEv = [], seenBites = 0;
       let phase = 'think', pT = 0, wait = 1.4;      /* he notices you arrive */
       let msg = ELE_HELLO, shown = 0, spoke = 0, first = true, openStep = 0;
 
@@ -823,7 +843,39 @@ export default {
       cv.addEventListener('keydown', ev => {
         if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); talk(); }
         if (ev.key === 'Tab') { ev.preventDefault(); goPlace(place + 1); }
+        if (ev.key === 's' || ev.key === 'S') { ev.preventDefault(); startSlide(); }
       });
+
+      /* ---- the slide ----------------------------------------------------------------------------------------------------
+         Earned: a hundred different things heard (apps/elephant/slide_plan.js keeps the count). He goes out to one side and
+         back, as a block of concrete goes over rock: in jerks, slowly, with the sound of it (slide_sound.js, slide_sfx.js)
+         and the grit it throws (slide_fx.js). He is stiff for it: nothing about him moves but where he is. */
+      const fx = createSlideFx(R, wash);
+      let slide = null, slideSeed = (Date.now() >>> 0) % 100000, slideDir = 1;
+      const calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      function syncSlide() {
+        const n = heardSet().length, open = n >= SLIDE_AT;
+        bSlide.textContent = open ? 'SLIDE' : 'SLIDE ' + Math.min(n, SLIDE_AT) + '/' + SLIDE_AT;
+        bSlide.disabled = !open || !!slide;
+        bSlide.title = open ? 'HE SLIDES OUT AND BACK, SLOWLY, THE WAY A BLOCK OF CONCRETE DOES. (S)' : 'HE LEARNS TO SLIDE WHEN HE HAS TOLD YOU ' + SLIDE_AT + ' DIFFERENT THINGS.';
+      }
+      function slideUnlocked() { toast('HE CAN SLIDE NOW: A HUNDRED THINGS TOLD. IT IS LOUD.'); sfx.done(); }
+      function startSlide() {
+        if (!slideOpen() || slide || Pet.isOut() || Pet.arriving() || eatT >= 0 || !CRT.on) return;
+        const run = runOf(++slideSeed, slideDir);
+        slideDir = -slideDir;
+        slide = { run: run, t: 0, froze: performance.now() / 1000, snd: null, lo: 0, hi: 0 };
+        if (Vol.sfx > 0) slide.snd = playSlide(Snd, soundPlan(run));
+        info.textContent = 'HE IS SLIDING.';
+        syncSlide();
+      }
+      function endSlide() {
+        fx.release(); slide = null;
+        info.textContent = ELE_PLACES[place].name + '  ·  CLICK HIM, OR PRESS TALK';
+        syncSlide();
+      }
+      bSlide.addEventListener('mousedown', ev => { ev.stopPropagation(); startSlide(); });
+      syncSlide();
 
       /* ---- the wardrobe, and the door ----------------------------------------------------------------------------------
          What Dave sells for him goes on here, one of each kind at a time; the pet on the desktop wears the same. And once
@@ -916,7 +968,7 @@ export default {
         if (!arr && lastStep !== -1) lastStep = -1;
         pT += step;
         if (arr) pT = 0;                                   /* he does not speak until he is in */
-        if (phase === 'think' && pT >= wait) {
+        if (phase === 'think' && pT >= wait && !slide) {
           phase = 'speak'; pT = 0; shown = 0; spoke = 0; openStep = 0;
           msg = first ? ELE_HELLO : nextQuote();
           first = false;
@@ -936,27 +988,59 @@ export default {
         }
 
         const away = Pet.isOut();
-        /* Gheghe's cheese (kernel/cheese.js): while there is any in his window he eats a wedge of it now and then (he goes on talking: his words stay up until you ask for others) */
-        const CH = window.Cheese;
-        if (CH && CH.appBites() > 0 && !away && !arr) {
-          if (eatT < 0) { eatAt -= step; if (eatAt <= 0) { eatT = 0; ate = false; chewTick = -1; } }
+        /* Gheghe's cheese (kernel/cheese.js): while there is any in his window he eats a wedge of it now and then (apps/elephant/eat_seq.js is how; he goes on talking: his words stay up
+           until you ask for others). A pile that has just been put down is noticed in a couple of seconds, not in the middle of the usual wait. */
+        const CH = window.Cheese, bites = CH ? CH.appBites() : 0;
+        if (bites > 0 && seenBites === 0) eatAt = Math.min(eatAt, 1.8 + Math.random() * 1.2);
+        seenBites = bites;
+        if ((bites > 0 || eatT >= 0) && !away && !arr && !slide) {
+          if (eatT < 0) { eatAt -= step; if (eatAt <= 0) { eatT = 0; eatN = bites; eatEv = eatEvents(bites); } }
           else {
-            eatT += step;
-            const k = eatT / EAT_SECS;
-            if (!ate && k >= PICK_AT) { ate = true; CH.eat('app'); Snd.tone(210, 70, { type: 'triangle', to: 150, vol: 0.03 }); }
-            if (k >= CHEW_FROM && k < 0.96 && Math.floor(eatT * 6) !== chewTick) { chewTick = Math.floor(eatT * 6); Snd.tone(150 + Math.random() * 40, 45, { type: 'triangle', vol: 0.012 }); }
-            if (eatT >= EAT_SECS) { eatT = -1; eatAt = nextEatIn(); }
+            const was = eatT; eatT += step;
+            eventsBetween(eatEv, was, eatT).forEach(e => { if (e.ev === 'take') CH.eat('app'); eatSound(Snd, e.ev, e.n); });
+            if (eatT >= EAT_TOTAL) { eatT = -1; eatAt = 6 + Math.random() * 6; }
           }
-        } else if (eatT >= 0 && !(CH && CH.appBites() > 0)) eatT = -1;
+        } else if (eatT >= 0) eatT = -1;
+        /* the slide: where he is, the grit, and the picture shaking a pixel at every jerk and trembling a little before it gives */
+        let sx = 0, gx = 0, gy = 0;
+        if (slide) {
+          const r = slide.run, prev = slide.t;
+          slide.t = Math.min(r.total, slide.t + step);
+          sx = r.x(slide.t);
+          r.slips.forEach(sl => { if (sl.at > prev && sl.at <= slide.t) fx.burst(BODY_X + sx - Math.sign(sl.d) * 64, Math.sign(sl.d), sl.hard, calm); });
+          const vd = slide.t < r.rest[1] ? r.dir : -r.dir;
+          fx.air(BODY_X + sx - vd * 56, r.speed(slide.t));
+          slide.lo = Math.min(slide.lo, sx); slide.hi = Math.max(slide.hi, sx);
+          fx.mark(BODY_X + slide.lo, BODY_X + slide.hi);
+          if (!calm) {
+            const j = r.jolt(slide.t), q = r.tremble(slide.t);
+            gx = Math.round(j * 1.6 * (Math.sin(slide.t * 131) > 0 ? 1 : -1) + q * 0.9 * Math.sin(slide.t * 73));
+            gy = Math.round(j * 1.2 * (Math.sin(slide.t * 97) > 0 ? 1 : -1));
+          }
+          if (slide.t >= r.total) { sx = 0; endSlide(); }
+        }
+        fx.step(step);
+        g.save(); g.translate(gx, gy);
         stepMotes(step);
         geese.step(step, P.id);
         (PLACE_FN[P.id] || placeSun)(t);
-        if (CH && CH.appBites() > 0 && !away) drawPile(R, 338, 230, CH.appBites(), 2);                  /* his cheese, beside him on the ground */
-        if (!away) { if (arr) drawArriving(t, arr); else drawEle(t, phase, eatT >= 0 ? eatPose(eatT / EAT_SECS) : null); }
+        fx.drawGround();
+        if (!away) {
+          if (arr) { if (bites > 0) drawPile(R, PILE.x, PILE.y, bites, PILE.s); drawArriving(t, arr); }
+          else {
+            const E = eatT >= 0 ? poseAt(eatT, eatN) : null, ox = Math.round((E ? E.dx : 0) + sx), left = CH ? CH.appBites() : 0;
+            g.save(); g.translate(ox, 0);
+            /* sliding he is stiff as a block: time stands still for his ears, his breath and his tail */
+            drawEle(slide ? slide.froze : t, slide ? 'slide' : phase, E, left > 0 ? () => { g.save(); g.translate(-ox, 0); drawPile(R, PILE.x, PILE.y, left, PILE.s); g.restore(); } : null);
+            g.restore();
+          }
+        }
+        fx.drawAir();
         drawMotes(P.mote);
         overlay(P.id, t);
+        g.restore();
         if (away) awayNote();
-        else if (!arr) { if (phase === 'think') dots(pT); if (phase === 'speak') bubble(msg, shown, openStep); }
+        else if (!arr && !slide) { if (phase === 'think') dots(pT); if (phase === 'speak') bubble(msg, shown, openStep); }
       }
       raf = requestAnimationFrame(frame);
 
@@ -965,6 +1049,7 @@ export default {
         if (document.body.contains(cv)) return;
         clearInterval(watch);
         alive = false;
+        if (slide && slide.snd) slide.snd.stop();
         Song.stop();
         if (raf) cancelAnimationFrame(raf);
       }, 900);

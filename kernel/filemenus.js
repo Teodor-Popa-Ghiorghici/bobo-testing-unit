@@ -1,6 +1,7 @@
 /* The right-click menus for files. One for "these things are selected", one
    for "the empty part of this folder", both the same on the desktop and in a
    folder window; the caller adds whatever is only true where it is. */
+import { BinLook } from './bin_look.js';
 import { Clip, openItem, openAsText, copyPaths, pasteInto, duplicate, deletePaths, renamePrompt,
          newFolderPrompt, newFilePrompt, showProps, undoDelete } from './fileops.js';
 import { pickUpload } from './importer.js';
@@ -78,6 +79,6 @@ export function editMenu(env) {
     { label: 'DELETE', key: 'Del', off: !have, run: () => deletePaths(paths) },
     { label: 'PROPERTIES', off: paths.length !== 1, run: () => showProps(paths[0]) },
     { sep: true },
-    { label: 'RECYCLE BIN...', run: () => openWindow('trash').catch(console.error) }
+    { label: BinLook.name() + '...', run: () => openWindow('trash').catch(console.error) }
   ];
 }

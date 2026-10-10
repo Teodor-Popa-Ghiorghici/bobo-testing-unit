@@ -62,8 +62,18 @@ export function makeSfx(Snd) {
       o.connect(gn); gn.connect(bus(c));
       o.start(t); o.stop(t + 0.2);
     },
-    /* the breath out, and the glass going down */
-    ahh() { Snd.noise(260, { freq: 700, q: 0.8, vol: 0.04 }); },
+    /* a strong one going down: a hiss in the throat, harsher the stronger it is (b is 0 to 1; nothing below a third: mead and the Jägermeister's own sip are not a hiss) */
+    sear(b, n) {
+      if (b < 0.3) return;
+      Snd.noise(150 + 170 * b, { freq: 2200 + 1800 * b, q: 0.9, vol: 0.02 + 0.05 * b });
+      if (b > 0.6) Snd.tone(340 + (n || 1) * 20, 90, { type: 'sawtooth', to: 190, vol: 0.02 * b });
+    },
+    /* the breath out, and the glass going down: a quiet sigh for something mild, the usual one, a gasp and a cough for raw spirit */
+    ahh(b) { b = b || 0; if (b < 0.12) { Snd.noise(170, { freq: 600, q: 0.8, vol: 0.022 }); return; } Snd.noise(260, { freq: 700, q: 0.8, vol: 0.04 + 0.03 * b }); },
+    cough(b) {
+      Snd.noise(300, { freq: 1600, q: 0.7, vol: 0.05 + 0.04 * b });
+      for (let i = 0; i < 3; i++) { Snd.noise(70, { freq: 900 + i * 120, q: 1.1, vol: 0.07 * b, delay: 0.3 + i * 0.14 }); Snd.tone(210 - i * 25, 80, { type: 'sawtooth', to: 120, vol: 0.03 * b, delay: 0.3 + i * 0.14 }); }
+    },
     down() { Snd.tone(150, 90, { type: 'triangle', to: 70, vol: 0.07 }); Snd.noise(40, { freq: 900, q: 1.5, vol: 0.03 }); },
     cork() { Snd.tone(300, 60, { type: 'sine', to: 900, vol: 0.10 }); Snd.noise(50, { freq: 2200, q: 2, vol: 0.05, delay: 0.05 }); },
     cap()  { Snd.tone(420, 40, { type: 'square', to: 300, vol: 0.05 }); Snd.noise(30, { freq: 3000, q: 2, vol: 0.04 }); },

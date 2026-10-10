@@ -61,7 +61,7 @@ export const rooftop = {
     rect(g, 0, H - 42, W, 42, L('#2e3038')); rect(g, 0, H - 42, W, 3, L('#4a4e5a'));
     for (let x = 0; x < W; x += 70) rect(g, x, H - 40, 1, 40, L('#1c1e24'));
     rect(g, 590, H - 26, 56, 16, L('#1c1e24')); for (let k = 0; k < 7; k++) rect(g, 592 + k * 8, H - 24, 5, 12, L('#4a4e5a'));
-    drawRack(g, L, 'rooftop');
+    if (!K.wall) drawRack(g, L, 'rooftop');                       /* no rack in the wallpaper: there are no pots to stand on it */
     /* the wire for the coloured bulbs, three swags across */
     for (let sw = 0; sw < 3; sw++) { const x0 = sw * 233; for (let x = 0; x <= 233; x += 2) rect(g, x0 + x, 10 + Math.sin(x / 233 * Math.PI) * 22, 2, 1, L('#14121c')); }
   },
@@ -74,6 +74,7 @@ export const rooftop = {
     /* the neon sign: a pink strip and a cyan one that stutter, mostly steady */
     const st = hash(Math.floor(tsec * 9)) < 0.07;
     rect(g, 437, 160, 58, 6, st ? '#4a2a3a' : '#ff6ab4'); rect(g, 437, 174, 40, 5, st ? '#2a3a4a' : '#5ae0ff'); rect(g, 437, 184, 52, 3, '#ffd84a');
+    if (!K.wall) {                                                    /* (not in the wallpaper: there is no shelf for it to sit on) */
     /* the black cat on the middle shelf: sits, the tail swaying, an ear flicks, it blinks, and now and then it turns its head to look */
     const cx = 572, cy = ROWS[1] - 1, tail = Math.sin(tsec * 1.6) * 5, look = Math.floor(tsec / 7) % 3 === 2 ? 1 : 0, blink = (tsec % 5) > 4.8, ear = (tsec % 9) > 8.7;
     rect(g, cx, cy - 12, 12, 12, 'rgb(14,14,20)'); rect(g, cx + 1, cy - 14, 10, 4, 'rgb(14,14,20)');
@@ -81,6 +82,7 @@ export const rooftop = {
     rect(g, cx + 1 + look, cy - 19, 2, blink ? 1 : 2, light < 0.4 ? '#c8ff60' : '#8ac840'); rect(g, cx + 5 + look, cy - 19, 2, blink ? 1 : 2, light < 0.4 ? '#c8ff60' : '#8ac840');
     for (let k = 0; k < 7; k++) rect(g, cx + 12 + k * 1.4, cy - 2 - Math.sin(k * 0.5) * 4 + tail * (k / 7), 2, 2, 'rgb(14,14,20)');
     rect(g, cx - 1, cy - 2, 14, 2, 'rgb(10,10,14)');
+    }
   },
 
   front(g, K) {
@@ -101,7 +103,7 @@ export const rooftop = {
       glow(g, x, y, 14, ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255), (0.12 + 0.55 * dark) * tw);
     }
     if (dark > 0.1) { glow(g, 466, 170, 60, '255,106,180', 0.3 * dark); glow(g, 466, 180, 40, '90,224,255', 0.15 * dark); }
-    if (dark > 0.2) { glow(g, 575, ROWS[1] - 19, 5, '200,255,96', 0.5 * dark); glow(g, 580, ROWS[1] - 19, 5, '200,255,96', 0.5 * dark); }
+    if (dark > 0.2 && !K.wall) { glow(g, 575, ROWS[1] - 19, 5, '200,255,96', 0.5 * dark); glow(g, 580, ROWS[1] - 19, 5, '200,255,96', 0.5 * dark); }
   }
 };
 void TAU; void disc;

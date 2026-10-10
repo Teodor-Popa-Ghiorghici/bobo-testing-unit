@@ -7,6 +7,7 @@
 import { geometry } from './shapes.js';
 import { drawCap, drawCapOnBar } from './caps.js';
 import { drawLabel } from './labels.js';
+import { layout, drawLayout, SMALL_TIERS } from '../pixtext.js';
 
 export const BW = 380, BH = 360;
 export const C = {
@@ -44,7 +45,11 @@ export function makeArt(g, D) {
         if (w.kind !== 'body' || w.hw < 14) return;
         r(-w.hw + 2, -(w.y + 2), 3, 2, K.glassMid); r(w.hw - Math.min(9, w.hw / 3), -(w.y + 2), Math.min(9, w.hw / 3) - 1, 2, K.glassLo);
       });
-      if (G.emboss) { g2.fillStyle = K.glassMid; g2.font = '6px monospace'; g2.textAlign = 'center'; g2.fillText(X.emboss, 0, -G.emboss); }
+      /* the maker's name moulded in the glass, in pixel type, and only if it fits the body where it sits */
+      if (G.emboss && X.emboss) {
+        const row = G.rows.find(w => w.y <= G.emboss && w.y + 2 > G.emboss), room = row ? row.hw * 2 - 8 : 0, E = layout(X.emboss, room, [SMALL_TIERS[0]]);
+        if (!E.cut) drawLayout(r, E, 0, -G.emboss - 5, K.glassMid, {});
+      }
     }),
     inner: mk(0, 0, g2 => {
       const r = Rf(g2); g2.translate(BOT.ox, BOT.oy);
@@ -65,15 +70,23 @@ export function makeArt(g, D) {
     liquid: (D && D.bottleLiquid) || { base: '#2a180a', mid: '#3c2410', hi: '#8a5a24', edge: '#180e06', foam: '#e9c98a' }
   };
 
-/* ---- the room --------------------------------------------------------- */
-  function table() {
-    R(0, 0, BW, BH, C.wood);
-    for (let y = 0; y < BH; y += 7) R(0, y, BW, 1, y % 14 ? C.woodHi : C.wood);
-    R(0, 250, BW, 3, '#221407'); R(0, 253, BW, 107, '#2c1b0f');
-    for (let y = 255; y < BH; y += 6) R(0, y, BW, 1, '#33200f');
+/* ---- the room's own things (the room itself is room.js) ----------------- */
+  /* the coaster (HOLYC.EXE's quiet gift, kernel/buffs_core.js 'jager_coaster'): a cork disc under the glass, seen from the front and a little above, with the drink's own colour printed in a ring
+     round it and the thick edge in shade. Whole pixels; the glass stands on it and it stays when the glass is lifted away. */
+  function coaster() {
+    const cx = GLS.rest[0], cy = GLS.rest[1] + 1, rx = 47, ry = 9, th = 4;
+    const disc = (dy, rr, c) => { for (let y = -ry * rr; y <= ry * rr; y++) { const w = Math.round(rx * rr * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * rr * ry * rr)))); if (w > 0) R(cx - w, cy + dy + y, w * 2, 1, c); } };
+    disc(th + 1, 1.04, '#120a04');                                       /* the dark under its edge */
+    disc(th, 1, K.corkLo);                                               /* the thick of the edge */
+    for (let d = th - 1; d >= 0; d--) disc(d + 0.01, 1, d === 0 ? K.cork : K.corkLo);
+    disc(0, 0.94, K.cork);
+    disc(0, 0.78, K.corkHi);
+    disc(0, 0.72, K.label);                                              /* the printed ring ... */
+    disc(0, 0.64, K.cork);                                               /* ... and the cork inside it */
+    for (let i = 0; i < 14; i++) { const a = i * 2.4, px = Math.round(Math.cos(a) * rx * 0.52 * (0.5 + (i % 3) * 0.25)), py = Math.round(Math.sin(a) * ry * 0.55); R(cx + px, cy + py, 2, 1, K.corkLo); }
   }
   const shadow = (x, y, w) => { g.globalAlpha = 0.35; R(x - w / 2, y, w, 4, '#000'); g.globalAlpha = 1; };
   function capOnBar() { drawCapOnBar(R, K, G, 104, 246); }
 
-  return { R, T, table, shadow, capOnBar, bottleSpec, geo: G };
+  return { R, T, shadow, coaster, capOnBar, bottleSpec, geo: G };
 }

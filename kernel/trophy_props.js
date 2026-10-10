@@ -6,6 +6,7 @@
 import { fs } from './vfs.js';
 import './vfs_ops.js';
 import { render } from '../apps/prop_kit.js';
+import { handedOver } from './handed.js';
 
 const KEY = 'templeos.props.v1';
 export const GAMES = {
@@ -61,3 +62,5 @@ export async function sync(T) {
   } catch (e) { /* never into the machine */ }
 }
 export const folders = () => made();
+/* a folder that was made and is gone (thrown away, the bin emptied) is owed: RESTORE SYSTEM FILES makes it again */
+handedOver(() => Object.keys(made()).filter(g => FOLDER_OF[g]).map(g => ({ path: '::/' + FOLDER_OF[g][0], folder: true, make: () => makeProps(g, { quiet: true }) })));

@@ -27,7 +27,7 @@ export function makePuzzleTutor(host, o) {
     panel.appendChild(h);
     const body = el('div', 'hc-cbody');
     const t = el('div', 'hc-ptitle'); t.append(el('span', '', p.title), el('span', 'hc-pstars', stars(p.stars))); body.appendChild(t);
-    const price = el('div', 'hc-price', pr.solved ? 'SOLVED' + (pr.seen ? ' (WITH THE ANSWER)' : '') + (pr.paid ? '  +' + pr.paid + ' SUN' : '') : 'SOLVE IT: +' + puzzleSun(p.stars, false) + ' SUN'); price.classList.toggle('on', pr.solved); body.appendChild(price);
+    const price = el('div', 'hc-price', pr.solved ? 'SOLVED' + (pr.seen ? ' (WITH THE ANSWER)' : pr.helped ? ' (WITH A HINT)' : ' (UNAIDED)') + (pr.paid ? '  +' + pr.paid + ' SUN' : '') : 'SOLVE IT: +' + puzzleSun(p.stars, false) + ' SUN'); price.classList.toggle('on', pr.solved); body.appendChild(price);
     p.brief.forEach(b => body.appendChild(para(b)));
     if (PICS[p.id]) { const w = el('div', 'hc-picw'); w.append(picture(PICS[p.id]), el('span', 'hc-piccap', 'THE PICTURE TO MAKE')); body.appendChild(w); }
     body.appendChild(el('div', 'hc-sub', 'IT IS SOLVED WHEN:'));
@@ -72,14 +72,14 @@ export function makePuzzleTutor(host, o) {
       c.append(button('SHOW IT', 'go', () => { T.confirm = false; reveal(); }, snd), button('NO', 'sm', () => { T.confirm = false; renderHints(); }, snd)); T.hintEl.appendChild(c);
     }
   }
-  const hint = () => { if (T.hints < 3) { T.hints++; snd.step(); renderHints(); } };
+  const hint = () => { if (T.hints < 3) { T.hints++; const pr = P.puzzle(T.p.id); if (!pr.helped) { pr.helped = true; P.save(); } snd.step(); renderHints(); } };
   const solution = () => { if (P.solved(T.p.id)) { reveal(true); return; } T.confirm = true; renderHints(); };
   function reveal(free) {
-    const pr = P.puzzle(T.p.id); if (!free) { pr.seen = true; P.save(); }
+    const pr = P.puzzle(T.p.id); if (!free) { pr.seen = true; pr.helped = true; P.save(); }
     lab.editor.typeIn(T.p.model, { replace: true, cps: 160, tick: () => snd.type(), done: () => { lab.editor.focus(); renderList(); } });
     render2();
   }
-  const render2 = () => { const pr = P.puzzle(T.p.id); const e = panel.querySelector('.hc-price'); if (e) e.textContent = pr.solved ? 'SOLVED' + (pr.seen ? ' (WITH THE ANSWER)' : '') + (pr.paid ? '  +' + pr.paid + ' SUN' : '') : 'SOLVE IT: +' + puzzleSun(T.p.stars, pr.seen) + ' SUN' + (pr.seen ? '  (ANSWER SEEN)' : ''); };
+  const render2 = () => { const pr = P.puzzle(T.p.id); const e = panel.querySelector('.hc-price'); if (e) e.textContent = pr.solved ? 'SOLVED' + (pr.seen ? ' (WITH THE ANSWER)' : pr.helped ? ' (WITH A HINT)' : ' (UNAIDED)') + (pr.paid ? '  +' + pr.paid + ' SUN' : '') : 'SOLVE IT: +' + puzzleSun(T.p.stars, pr.seen) + ' SUN' + (pr.seen ? '  (ANSWER SEEN)' : ''); };
 
   T.open = p => {
     T.p = p; T.results = null; T.hints = 0; T.confirm = false; T.active = true; T.justSolved = false;
@@ -112,6 +112,7 @@ export function makePuzzleTutor(host, o) {
       const ch = chapterOf(p), all = ch.list.every(x => P.solved(x.id));
       if (all && !P.data.chapters[ch.id]) { P.data.chapters[ch.id] = true; P.save(); setTimeout(() => { o.pay(CHAPTER_SUN, 'HOLYC: ' + ch.title + ' COMPLETE'); banner(panel, ch.title + ' COMPLETE  +' + CHAPTER_SUN + ' SUN', 'big', 4200); snd.done(); }, 1500); }
       solvedCall(P, p, { tries: pr.tries, hints: T.hints, seen: pr.seen });
+      try { if (window.Buffs) window.Buffs.sync(P.buffView()); } catch (e) { /* the buffs are somebody else's business */ }
       o.solved(p);
     }
     renderList(); renderHints(); render2();

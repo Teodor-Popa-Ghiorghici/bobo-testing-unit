@@ -9,7 +9,11 @@ import { attachFit } from './canvas_fit.js';
 import { Studio } from './studio.js';
 import { sys } from './trophy_hook.js';
 import { TITLE_COLORS } from './win_skins.js';
+import { remembers, place as placeOf, load as loadPlaces, write as writePlaces, remember as rememberPlace } from './win_place.js';
 import { link as linkPalette, unlink as unlinkPalette, group as paletteGroup, follow as paletteFollow, closeAll as closePalettes } from './palette.js';
+
+/* every window goes back to the cascade (the launcher's FORGET WHERE WINDOWS WERE LEFT) */
+export function forgetPlaces() { writePlaces({}); }
 
 let zTop = 100;
 let cascadeN = 0;
@@ -56,17 +60,20 @@ export function raise(win) {
 
 export function createWindow(opts) {
   const desk = document.getElementById('desktop');
-  const w = Math.min(opts.w || 640, desk.clientWidth  - 20);
-  const h = Math.min(opts.h || 480, desk.clientHeight - 20);
+  let w = Math.min(opts.w || 640, desk.clientWidth  - 20);
+  let h = Math.min(opts.h || 480, desk.clientHeight - 20);
+  /* a palette (opts.owner: the element of the window it belongs to) is put where it is asked, never in the cascade */
+  const palette = !!opts.owner;
+  /* an app that opens once goes where it was last left, at the size it was last made (kernel/win_place.js) */
+  const kept = !palette && !opts.at && remembers(opts.appId) ? placeOf(loadPlaces()[opts.appId], { w: desk.clientWidth, h: desk.clientHeight }, { w, h }, opts.resizable !== false) : null;
+  if (kept) { w = kept.w; h = kept.h; }
 
   const win = document.createElement('div');
   win.className = 'win';
   win.style.width = w + 'px';
   win.style.height = h + 'px';
 
-  /* a palette (opts.owner: the element of the window it belongs to) is put where it is asked, never in the cascade */
-  const palette = !!opts.owner;
-  const pos = opts.at || nextCascade(w, h);
+  const pos = opts.at || (kept ? { x: kept.x, y: kept.y } : nextCascade(w, h));
   win.style.left = pos.x + 'px';
   win.style.top  = pos.y + 'px';
 
@@ -74,7 +81,7 @@ export function createWindow(opts) {
   /* a game's window (the mixer, the trophies and a few checks ask which are games) */
   if (opts.appId && GAME_IDS.has(opts.appId)) win.dataset.game = '1';
 
-  /* a colour scheme dresses a window's frame and nothing inside it: the bar is filtered by theme.css, the edge is coloured by Cos.dressFrame from this VGA colour */
+  /* a colour scheme dresses NOTES and nothing else: on a Notes window the bar is filtered by theme.css and the edge coloured by Cos.dressFrame from this VGA colour; every other window keeps it */
   const skin = TITLE_COLORS[opts.kind] || TITLE_COLORS.text;
   win.style.borderColor = skin.border;
   win.dataset.edge = skin.border;
@@ -115,11 +122,12 @@ export function createWindow(opts) {
     if (app) { const m = themes(); if (winScheme) m[app] = winScheme; else delete m[app]; try { localStorage.setItem(THEME_KEY, JSON.stringify(m)); } catch (e) { /* kept for this sitting */ } }
   };
   let th = null;
-  if (opts.appId && !palette) {
+  if (opts.appId) win.dataset.app = opts.appId;
+  if (opts.appId === 'notes' && !palette) {          /* a colour scheme dresses Notes and nothing else (kernel/theme_fx.js): [T] is Notes' own */
     th = document.createElement('span');
     th.className = 'th';
     th.textContent = '[T]';
-    th.title = 'WINDOW FRAME. Dress just this window\'s title bar and edge in one of your colour schemes (what is inside it is never recoloured). It remembers.';
+    th.title = 'NOTES: wear one of your colour schemes in just this window (its frame and its page). It remembers. Notes is the only thing a scheme dresses.';
     th.addEventListener('mousedown', async ev => {
       ev.stopPropagation();
       if (ev.button !== 0) return;
@@ -159,9 +167,13 @@ export function createWindow(opts) {
   win.appendChild(grip);
   desk.appendChild(win);
 
+  /* a picture (put on by kernel/taskbar.js once the app is known), then the name: crowded, the name goes and the picture stays */
   const btn = document.createElement('div');
   btn.className = 'tbtn';
-  btn.textContent = opts.title;
+  const tico = document.createElement('i'); tico.className = 'tico';
+  const tlbl = document.createElement('span'); tlbl.className = 'tl'; tlbl.textContent = opts.title;
+  btn.title = opts.title;
+  btn.append(tico, tlbl);
   if (!palette) document.getElementById('tasks').appendChild(btn);        /* a palette is not on the taskbar: its owner is */
 
   function minimize() {
@@ -170,6 +182,7 @@ export function createWindow(opts) {
     btn.classList.add('min');
     btn.classList.remove('active');
     Snd.min();
+    announceWins();                                  /* the Stack's control on the desktop (stack_hud.js) shows while it is put away */
   }
 
   function unminimize() {
@@ -178,6 +191,7 @@ export function createWindow(opts) {
     btn.classList.remove('min');
     raise(win);
     Snd.open();
+    announceWins();
   }
 
   /* ---- fullscreen -------------------------------------------------------
@@ -267,7 +281,8 @@ export function createWindow(opts) {
   document.addEventListener('keydown', onKey);
 
   mbtn.addEventListener('mousedown', ev => { ev.stopPropagation(); minimize(); });
-  btn.addEventListener('mousedown', () => {
+  btn.addEventListener('mousedown', ev => {
+    if (ev.button !== 0) return;                       /* a right or middle press is the taskbar's menu and close (kernel/taskbar.js), not a click */
     if (win.classList.contains('hidden')) unminimize();
     else if (btn.classList.contains('active')) minimize();
     else { raise(win); Snd.select(); }
@@ -275,7 +290,9 @@ export function createWindow(opts) {
 
   rec = { win: win, btn: btn, title: opts.title, kind: opts.kind || 'text', palette: palette,
           appId: opts.appId || null, id: nextTaskId(), born: Date.now(), close: null,
-          setFull: setFull, toggleFull: toggleFull, rightClick: !!opts.rightClick };
+          setFull: setFull, toggleFull: toggleFull, rightClick: !!opts.rightClick,
+          restore: () => { if (win.classList.contains('hidden')) unminimize(); else raise(win); },      /* what the taskbar button does to a window that is put away, for whoever else wants it back */
+          minimize: () => { if (!win.classList.contains('hidden')) minimize(); }, unminimize: () => { if (win.classList.contains('hidden')) unminimize(); } };
   openWins.push(rec);
   announceWins();
 
@@ -313,6 +330,12 @@ export function createWindow(opts) {
 
   x.addEventListener('mousedown', ev => { ev.stopPropagation(); closeWin(); });
 
+  /* where it was left, for next time */
+  function keepPlace() {
+    const app = (rec && rec.appId) || opts.appId;
+    if (palette || full || opts.at || !remembers(app)) return;
+    writePlaces(rememberPlace(loadPlaces(), app, { x: win.offsetLeft, y: win.offsetTop, w: win.offsetWidth, h: win.offsetHeight }));
+  }
   let dragging = false, offX = 0, offY = 0;
   bar.addEventListener('mousedown', ev => {
     if (ev.target === x || ev.target === mbtn || ev.target === fbtn || full) return;
@@ -354,7 +377,7 @@ export function createWindow(opts) {
   };
   const onUp = () => {
     if (sizing) sys.sit('resize');
-    if (dragging || sizing) Snd.drop();
+    if (dragging || sizing) { Snd.drop(); keepPlace(); }
     dragging = false;
     sizing = false;
   };
@@ -405,7 +428,7 @@ async function openNew(appId, args) {
        so the mixer knows who is running */
     const before = openWins.slice();
     const res = await app.open(args);
-    openWins.forEach(r => { if (before.indexOf(r) < 0 && !r.appId && !r.palette) { r.appId = appId; r.rightClick = r.rightClick || !!app.rightClick; } });
+    openWins.forEach(r => { if (before.indexOf(r) < 0 && !r.appId && !r.palette) { r.appId = appId; r.rightClick = r.rightClick || !!app.rightClick; if (r.win && r.win.dataset) r.win.dataset.app = appId; } });
     announceWins();
     return res;
   }
@@ -435,19 +458,20 @@ async function openNew(appId, args) {
     trophy: window.Trophies ? window.Trophies.scope(appId) : null,
     toast,
     ask: (title, def, cb) => askName(title, def, cb),
-    setTitle: t => { made.title.textContent = t; made.btn.textContent = t; },
-    close: () => {
-      if (app.unmount) app.unmount();
-      made.close();
-    }
+    setTitle: t => { made.title.textContent = t; const l = made.btn.querySelector('.tl'); if (l) l.textContent = t; made.btn.title = t; },
+    close: () => made.close()
   };
-  
-  // Override close behavior to trigger unmount
+
+  /* closing is one thing, however it is asked for (the X, ctx.close, the Tasks window, a middle click on the taskbar): unmount() once, then the window goes */
   const oldClose = made.close;
-  made.close = () => {
+  let closed = false;
+  made.close = w => {
+    if (closed) return;
+    closed = true;
     if (app.unmount) app.unmount();
-    oldClose();
+    oldClose(w);
   };
+  { const mine = openWins.find(r => r.win === made.win); if (mine) mine.close = made.close; }
   // Hook the close button again to ensure unmount runs if user clicks X
   made.win.querySelector('.x').addEventListener('mousedown', ev => { 
     ev.stopPropagation(); 

@@ -1,3 +1,4 @@
+import { setCalm } from './calm.js';
 import { Style, Rage } from "./style.js";
 import { Snd } from "./snd.js";
 import { degauss, paintPurity } from "./degauss.js";
@@ -22,7 +23,7 @@ export const CRT = {
 export const Vol = CRT;
 window.CRT = CRT;
 
-export const DISP = { scan: true, band: true, vig: true };
+export const DISP = { scan: true, band: true, vig: true, read: true, calm: false };
 window.DISP = DISP;
 
 const PHOS_NAME = ['P1', 'P4', 'P7'];
@@ -69,6 +70,7 @@ function loadDisp() {
     const raw = localStorage.getItem('templeos.display.v1');
     if (raw) Object.assign(DISP, JSON.parse(raw));
   } catch (e) {}
+  setCalm(!!DISP.calm);                          /* REDUCE MOTION (kernel/calm.js) */
 }
 
 /* the refresh band: one pale bar crawling down the tube every twelve
@@ -87,7 +89,9 @@ function applyBand() {
 }
 
 export function applyDisplay() {
+  setCalm(!!DISP.calm);
   applyBand();
+  try { window.dispatchEvent(new Event('wallpaper-changed')); } catch (e) { /* nobody listens */ }     /* READABILITY is a display setting too (kernel/readable.js) */
   paintGlass();
   try { localStorage.setItem('templeos.display.v1', JSON.stringify(DISP)); } catch (e) {}
 }

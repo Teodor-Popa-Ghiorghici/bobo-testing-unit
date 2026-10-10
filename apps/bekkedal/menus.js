@@ -178,7 +178,8 @@ export function createMenus(A, GG, C) {
     cloth(BAG_X, BAG_Y, BAG_W, BAG_H);
     const bx = BAG_X + PAD_SM;
     let y = BAG_Y + PAD_SM;
-    text(T(UI.bag), bx, y, 14, FONT_SM);
+    const use = A.bagUse ? A.bagUse() : null;
+    text(T(UI.bag) + (use ? '  ' + use[0] + '/' + use[1] : ''), bx, y, use && use[0] >= use[1] ? 12 : 14, FONT_SM);       /* how full it is, and red when it is full */
     y += LINE_SM;
     const ids = Object.keys(S.bag).filter(id => S.bag[id] > 0);
     if (!ids.length) text(T(UI.empty), bx, y, 8, FONT_SM);

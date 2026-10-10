@@ -9,6 +9,7 @@ import { planReel, chunkItems, melody } from './delete_reel.js';
 import { openWindow, createWindow, toast, askName } from './wm.js';
 import { baseName, dirOf, joinPath, changed, TRASH } from './vfs_ops.js';
 import { sys } from './trophy_hook.js';
+import { BinLook } from './bin_look.js';
 
 export const Clip = { mode: null, paths: [] };
 const undo = [];                                   /* what was put in the bin, newest last: one entry (a list of ids) per delete */
@@ -113,7 +114,7 @@ export function deletePaths(paths) {
     await reel(g);
     sys.emit('delete', { n: Math.max(n, g.files || 0) });
     undo.push(g.items.map(i => i.id));
-    say(n > 1 ? n + ' ITEMS IN THE RECYCLE BIN.' : baseName(g.items[0].path) + ' IS IN THE RECYCLE BIN.');
+    say(n > 1 ? n + ' ITEMS IN THE ' + BinLook.name() + '.' : baseName(g.items[0].path) + ' IS IN THE ' + BinLook.name() + '.');
     return n;
   });
   reeling = job.catch(() => {});

@@ -2,8 +2,9 @@
    favourites, what came last, what is played most, what is next, your folders, the games'), a search that takes Japanese and Korean through the input method, discs picked
    several at a time with the mouse and the keys, dragged into folders or into the order wanted, labels dropped on by the dozen, and a small player along the bottom so
    the music is never out of reach. It reads and writes the player's own records through `api` (see index.js) and never touches the audio. */
-import { el, row, head, tile, album as albumEl, source, mmss, clock } from './lib_rows.js';
-import { albums as makeAlbums, matches, SORTS, pick, follow, emptyPick, sorted, reorder, shift, toEnd, sortUser } from './shelf.js';
+import { el, row, head, tile, source, mmss } from './lib_rows.js';
+import { renderAlbums, albumList, editThis, bookOf } from './lib_albums.js';
+import { matches, SORTS, pick, follow, emptyPick, sorted, reorder, shift, toEnd, sortUser } from './shelf.js';
 import * as O from './lib_ops.js';
 import { MODES, MODE_NAME } from './art.js';
 import { filesFromDrop, kinds, hasFiles } from './lib_dnd.js';
@@ -14,7 +15,7 @@ export function createLibrary(host, api) {
   const { S, io } = api;
   const st = { src: S.list.some(t => !t.builtin) ? 'mine' : 'all', view: S.view || 'list', sort: 'shelf', desc: false, q: '', pk: emptyPick(), album: null, cur: null };
   const root = el('div', 'stl'); root.tabIndex = 0; root.style.display = 'none'; host.appendChild(root);
-  const L = { root, S, io, api, st, refresh, focus: () => root.focus() };
+  const L = { root, S, io, api, st, refresh, focus: () => root.focus(), book: bookOf() };
   let pending = 0, dirty = true, drag = null, dead = false, sawUser = false;
   const top = el('div', 'stl-top'), body = el('div', 'stl-body'), side = el('div', 'stl-side'), main = el('div', 'stl-main'), selbar = el('div', 'stl-sel'), mini = el('div', 'stl-mini');
   body.append(side, main); root.append(top, body, selbar, mini, el('div', 'stl-drop', 'DROP MUSIC, FOLDERS OR PICTURES'));
@@ -121,7 +122,7 @@ export function createLibrary(host, api) {
       if (!v.length) return;
     }
     if (!v.length) { const e = el('div', 'stl-empty'); e.appendChild(el('b', null, st.q ? 'NOTHING MATCHES' : st.src === 'queue' ? 'NOTHING IS WAITING' : 'NOTHING HERE')); e.appendChild(document.createTextNode(st.q ? '"' + st.q + '"' : '')); main.appendChild(e); return; }
-    if (st.view === 'albums') { renderAlbums(v, now); return; }
+    if (st.view === 'albums') { order = renderAlbums(L, main, v, now, { tracksOf, render: renderMain }); return; }
     if (st.view === 'grid') {
       const g = el('div', 'stl-tiles'); main.appendChild(g); chunked(g, v, i => tile(api, S.list[i], i, { sel: st.pk.set.has(i), now: S.list[i] === now })); return;
     }
@@ -129,27 +130,6 @@ export function createLibrary(host, api) {
     main.appendChild(h);
     const wrap = el('div', 'stl-wrap'); main.appendChild(wrap);
     chunked(wrap, v, (i, k) => row(api, S.list[i], i, k + 1, { sel: st.pk.set.has(i), now: S.list[i] === now }));
-  }
-  function renderAlbums(v, now) {
-    const as = makeAlbums(S.list, v);
-    if (st.album) {
-      const a = as.find(x => x.key === st.album);
-      if (a) {
-        const pg = el('div', 'stl-page'), first = S.list[a.idx[0]], tot = a.idx.reduce((s, i) => s + (S.list[i].dur || 0), 0);
-        const back = el('button', '', '◄ ALBUMS'); back.addEventListener('click', () => { st.album = null; renderMain(); });
-        const pic = el('img'); const u = api.thumb(first, url => { pic.src = url; }); if (u) pic.src = u; pg.appendChild(pic);
-        const info = el('div'); info.appendChild(el('h2', null, a.name)); info.appendChild(el('p', null, [a.artist, a.year, a.idx.length + ' DISC' + (a.idx.length > 1 ? 'S' : ''), clock(tot), first.genre].filter(Boolean).join('  ·  ')));
-        const acts = el('div', 'acts'); acts.appendChild(back);
-        const play = el('button', 'on', '▶ PLAY'); play.addEventListener('click', () => api.play(a.idx[0], tracksOf(a.idx))); acts.appendChild(play);
-        const shuf = el('button', '', 'SHUFFLE'); shuf.addEventListener('click', () => { const sh = a.idx.slice().sort(() => Math.random() - 0.5); api.play(sh[0], tracksOf(sh)); }); acts.appendChild(shuf);
-        info.appendChild(acts); pg.appendChild(info); main.appendChild(pg);
-        const wrap = el('div', 'stl-wrap'); a.idx.forEach((i, k) => wrap.appendChild(row(api, S.list[i], i, S.list[i].no || k + 1, { sel: st.pk.set.has(i), now: S.list[i] === now }))); main.appendChild(wrap); order = a.idx; return;
-      }
-      st.album = null;
-    }
-    const g = el('div', 'stl-albums');
-    as.forEach(a => { const d = albumEl(api, a, S.list[a.idx[0]], { sel: a.idx.some(i => st.pk.set.has(i)), now: a.idx.some(i => S.list[i] === now) }); g.appendChild(d); });
-    main.appendChild(g); order = as.flatMap(a => a.idx);
   }
   function render() {
     if (dead || root.style.display === 'none') return;
@@ -202,14 +182,14 @@ export function createLibrary(host, api) {
   });
   main.addEventListener('dblclick', ev => { const i = idxOf(ev); if (i >= 0 && !(ev.target.dataset && ev.target.dataset.fav)) api.play(i, playOrder()); });
   main.addEventListener('contextmenu', ev => {
-    ev.preventDefault(); const alb = ev.target.closest('.stl-alb'), i = idxOf(ev);
-    if (alb) { const a = makeAlbums(S.list, order).find(x => x.key === alb.dataset.k); if (a) st.pk = { set: new Set(a.idx), anchor: a.idx[0] }; buildSel(); markSel(); }
+    ev.preventDefault(); const alb = ev.target.closest('.stl-alb'), i = idxOf(ev); let one = null;
+    if (alb) { one = albumList(L, order).find(x => x.key === alb.dataset.k) || null; if (one) st.pk = { set: new Set(one.idx), anchor: one.idx[0] }; buildSel(); markSel(); }
     else if (i >= 0 && !st.pk.set.has(i)) { st.pk = pick(st.pk, i, {}, order); buildSel(); markSel(); }
     const p = picked(); if (!p.length) return;
     O.popup(L, ev, [{ label: '▶ PLAY', run: () => api.play(p[0], tracksOf(p)) }, { label: 'PLAY NEXT', run: () => { S.queue.unshift(...tracksOf(p).reverse()); refresh(); } }, { label: 'ADD TO UP NEXT', run: () => { S.queue.push(...tracksOf(p)); refresh(); } }, '-',
       { label: 'FAVOURITE / NOT', run: () => { const all = p.every(j => S.list[j].fav); p.forEach(j => { S.list[j].fav = !all; }); io.saveLibrary(); refresh(); } },
       { label: 'MOVE TO FOLDER...', run: () => O.moveMenu(L, ev, p) }, { label: 'PICTURE...', run: () => O.pickImages(L, fs => O.setLabels(L, fs, p)) },
-      { label: 'EDIT INFO...', run: () => O.editInfo(L, p) }, '-', { label: 'REMOVE FROM THE SHELF', run: () => removeAsk(p) }]);
+      { label: 'EDIT INFO...', run: () => O.editInfo(L, p) }].concat(one ? [{ label: 'EDIT ALBUM...', run: () => editThis(L, one) }] : [], ['-', { label: 'REMOVE FROM THE SHELF', run: () => removeAsk(p) }]));
   });
   /* the picked rows and tiles light without the whole list being built again */
   function markSel() { main.querySelectorAll('[data-i]').forEach(n => n.classList.toggle('sel', st.pk.set.has(+n.dataset.i))); }

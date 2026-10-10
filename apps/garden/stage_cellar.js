@@ -50,9 +50,9 @@ export const cellar = {
     rect(g, 0, H - 40, W, 40, L('#262c3a')); rect(g, 0, H - 40, W, 3, L('#3a4258'));
     for (let x = 0; x < W; x += 56) { rect(g, x, H - 40, 1, 40, L('#161a24')); }
     oval(g, 500, H - 20, 46, 6, 'rgba(60,110,170,0.55)'); oval(g, 500, H - 21, 40, 4, 'rgba(110,170,230,0.45)');
-    drawRack(g, L, 'cellar');
+    if (!K.wall) drawRack(g, L, 'cellar');                       /* no rack in the wallpaper: there are no pots to stand on it */
     /* the grow-lamps under the middle and top boards: one over every pot below */
-    [ROWS[0], ROWS[1]].forEach(y => { for (let c = 0; c < 4; c++) { const cx = 40 + c * 184 + 33; rect(g, cx - 20, y + 18, 40, 7, L('#1a1c24')); rect(g, cx - 18, y + 24, 36, 2, '#c8c0d8'); } });
+    if (!K.wall) [ROWS[0], ROWS[1]].forEach(y => { for (let c = 0; c < 4; c++) { const cx = 40 + c * 184 + 33; rect(g, cx - 20, y + 18, 40, 7, L('#1a1c24')); rect(g, cx - 18, y + 24, 36, 2, '#c8c0d8'); } });
     /* the bulb's cord and its holder */
     rect(g, BULB.x, 0, 1, BULB.y - 2, L('#14141c'));
   },
@@ -93,9 +93,9 @@ export const cellar = {
     rect(g, bx - 2, by - 8, 5, 6, '#2a2a34'); disc(g, bx, by + 2, 5, bad < 1 ? '#ffd890' : '#fff0b8'); rect(g, bx - 1, by, 2, 3, '#ffffff');
     glow(g, bx, by + 4, 110, '255,214,120', 0.75 * fl);
     for (let i = 0; i < 70; i += 2) { const f = i / 70, w = 6 + f * 150; g.fillStyle = 'rgba(255,224,140,' + (0.075 * (1 - f) * fl).toFixed(3) + ')'; g.fillRect(Math.round(bx - w / 2), Math.round(by + 8 + i * 3.1), Math.round(w), 6); }
-    /* a pool of the plant's own colour under each lamp, over its pot */
-    const room = V.st.rooms[V.st.active];
-    [ROWS[0], ROWS[1]].forEach((y, row) => { for (let c = 0; c < 4; c++) {
+    /* a pool of the plant's own colour under each lamp, over its pot (none in the wallpaper: no pots, no plants) */
+    const room = !K.wall && V.st.rooms[V.st.active];
+    if (room) [ROWS[0], ROWS[1]].forEach((y, row) => { for (let c = 0; c < 4; c++) {
       const p = room.pots[(row + 1) * 4 + c], cx = 40 + c * 184 + 33, sp = p && V.w.species(p.sp), hue = sp ? sp.hue[0] : '#c8c0d8', n = parseInt(hue.slice(1), 16), rgb = ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255);
       const a = p ? 0.5 : 0.12;
       for (let i = 0; i < 44; i += 2) { const f = i / 44, w = 34 + f * 46; g.fillStyle = 'rgba(' + rgb + ',' + (0.07 * (1 - f) * a * 2).toFixed(3) + ')'; g.fillRect(Math.round(cx - w / 2), y + 25 + i, Math.round(w), 2); }

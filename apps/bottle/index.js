@@ -2,6 +2,7 @@ import { Snd } from '../../kernel/snd.js';
 import { makeSfx } from './sfx.js';
 import { makeArt, BW, BH, C, GLS, BOT } from './art.js';
 import { makeContainer } from './raster.js';
+import { makeRoom } from './room.js';
 import { clamp, makeSlosh, stepSlosh, JAG_FULL, JAG_SHOT, POURED_FILL, BOT_FULL, sway } from './physics.js';
 import { startPour, pourStep } from './pour.js';
 import { startDrink, drinkStep, restPose } from './drink.js';
@@ -11,6 +12,8 @@ import { DRINKS } from '../../kernel/cos_data.js';
 import { scopedListeners, whenGone } from '../lifecycle.js';
 import { poured, drank, loreKnock } from './trophy_calls.js';
 import { STYLES, styleOf } from './styles.js';
+import { burnOf, hitName } from '../../kernel/drunk_bac.js';
+import { buffs } from '../buffs_scope.js';
 
 const JAG_KEY = 'templeos.bottle.v1';
 /* what the machine says as you go down, by how far you are */
@@ -58,8 +61,11 @@ export default {
     let drink = drinkById('jager'), PAL = paletteOf(drink);
     let A = makeArt(g, PAL), R = A.R, T = A.T;
     const sfx = makeSfx(Snd);
+    const gift = buffs();
     let botC = makeContainer(A.bottleSpec);
     const glass = makeGlass3D();
+    const room = makeRoom();
+    let roomKey = '', shelfDrinks = [];                                    /* the other bottles you own, standing on the shelf behind the table (room.js) */
     const owned = () => DRINKS.filter(d => window.Cos.has('drink', d.id));
 
     const S = {
@@ -120,7 +126,8 @@ export default {
 
     function draw(ts) {
       const B = S.bot, G = S.gls;
-      A.table();
+      room.paint(g, roomKey, shelfDrinks);
+      if (gift.has('jager_coaster')) A.coaster();                       /* HOLYC.EXE's quiet gift: a coaster under the glass */
       A.shadow(GLS.rest[0], 293, 84);
       if (S.phase === 'idle' || (S.phase === 'pour' && S.sub === 'return' && B.c[1] > REST_C[1] - 6)) A.shadow(70, 246, 86);
       if (!B.capOn) A.capOnBar();
@@ -139,7 +146,7 @@ export default {
       if (!drinking) {
         R(136, 300, 108, 8, '#1a1008');
         R(137, 301, Math.round(106 * frac), 6, frac > 0.25 ? C.label : '#c8542a');
-        T('BOTTLE ' + S.bottles + (window.Drunk ? '  ·  ' + window.Drunk.stage() : '') + '  ·  HAND: ' + (S.forceStyle != null ? STYLES[S.forceStyle] : styleOf(sway())).name, 190, 322, C.dim, 8, 'center');
+        T('BOTTLE ' + S.bottles + (window.Drunk ? '  ·  ' + window.Drunk.stage() : '') + '  ·  HAND: ' + (S.forceStyle != null ? STYLES[S.forceStyle] : styleOf(sway())).name, 190, 322, C.white, 8, 'center');
         T('DRUNK: ' + S.drunk + ' MEASURE' + (S.drunk === 1 ? '' : 'S') +
           '  (' + (S.drunk * JAG_SHOT / 1000).toFixed(2) + ' L)', 190, 336, C.white, 8, 'center');
       }
@@ -181,6 +188,7 @@ export default {
         S.lore = !!(window.Drunk && window.Drunk.loreOn && window.Drunk.loreOn() && drink.abv > 0);
         S.pct = drink.potion ? potionPercent() : null;                       /* the homemade potion: this sip is whatever it is */
         S.sipUnits = strengthOf(drink, S.pct);
+        S.burn = burnOf(S.sipUnits * 35);                                      /* how hard this one hits the throat: the glass flinches, the screen flushes */
         startDrink(S); sfx.sip(); return true;
       }
       if (S.ml < JAG_SHOT) { say('EMPTY. BUY ANOTHER ONE.'); sfx.deny(); return false; }
@@ -200,7 +208,8 @@ export default {
       refreshBar(); save(); sfx.cork();
       say(quip(d));
     }
-    function refreshBar() { bDrink.textContent = 'DRINK: ' + drink.name; bDrink.title = owned().length > 1 ? 'CHANGE WHAT YOU ARE POURING' : 'DAVE SELLS OTHER BOTTLES'; }
+    function refreshRoom() { shelfDrinks = owned().filter(d => d.id !== drink.id); roomKey = drink.id + '|' + shelfDrinks.map(d => d.id).join(','); }
+    function refreshBar() { refreshRoom(); bDrink.textContent = 'DRINK: ' + drink.name; bDrink.title = owned().length > 1 ? 'CHANGE WHAT YOU ARE POURING' : 'DAVE SELLS OTHER BOTTLES'; }
     bDrink.addEventListener('click', () => {
       if (S.phase !== 'idle') return;
       if (full()) { say('FINISH THE GLASS FIRST.'); sfx.deny(); cv.focus(); return; }
@@ -258,12 +267,14 @@ export default {
     function doneDrink() {
       S.phase = 'idle'; S.drunk++; S.rest = BREATHER;
       S.gls.vol = Math.min(S.gls.vol, 0.03);
-      sfx.down(); sfx.ahh(); save();
-      const units = S.sipUnits != null ? S.sipUnits : drink.strength;
+      const units = S.sipUnits != null ? S.sipUnits : drink.strength, burn = S.burn || 0;
+      sfx.down(); if (burn > 0.7) sfx.cough(burn); else sfx.ahh(burn); save();
       if (window.Drunk && !S.lore) window.Drunk.drink(units);                           /* with LORE ACCURATE on, the first swallow was the whole journey */
       drank(drink.id, units);
       const lines = JAG_LINES[window.Drunk ? window.Drunk.stage() : 'SOBER'] || JAG_LINES.SOBER;
-      say(S.lore ? 'LORE ACCURATE. ONE SIP.' : S.pct ? 'THAT SIP WAS ' + S.pct + '%. ' + lines[S.drunk % lines.length] : lines[S.drunk % lines.length]);
+      /* a potion says what that sip was, and so does anything strong enough to have burned */
+      say(S.lore ? 'LORE ACCURATE. ONE SIP.' : S.pct ? 'THAT SIP WAS ' + S.pct + '%: ' + hitName(S.pct) + '. ' + lines[S.drunk % lines.length]
+        : burn >= 0.55 ? hitName(units * 35) + '. ' + lines[S.drunk % lines.length] : lines[S.drunk % lines.length]);
     }
 
     /* ---- the simulation --------------------------------------------------- */

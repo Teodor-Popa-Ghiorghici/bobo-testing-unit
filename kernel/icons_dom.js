@@ -15,13 +15,13 @@ const APP_SPRITES = {
   account: 'account', standbattle: 'arena', garage: 'garage', holyc: 'holyc', trophies: 'trophy', trophybox: 'trophybox', bibel: 'bibel'
 };
 
-export function spriteFor(type, app) {
+export function spriteFor(type, app, look) {
   if (type === 'folder')   return SPRITES.folder;
   if (type === 'image')    return SPRITES.image;
   if (type === 'video')    return SPRITES.video;
   if (type === 'terminal') return SPRITES.terminal;
-  if (type === 'bin')      return SPRITES.bin;
-  if (type === 'binfull')  return SPRITES.binfull;
+  if (type === 'bin')      return look === 'dumpster' ? SPRITES.dumpster : SPRITES.bin;
+  if (type === 'binfull')  return look === 'dumpster' ? SPRITES.dumpsterfull : SPRITES.binfull;
   if (type === 'song')     return SPRITES.song;
   if (type === 'app')      return SPRITES[APP_SPRITES[app]] || SPRITES.app;
   if (type === 'doc')      return SPRITES.doc;
@@ -33,8 +33,8 @@ const kinds = new Map();                 /* key -> template element */
 let sheet = null;
 
 /* what picture an icon wears: the same SVG is one rule, however many files show it */
-function template(type, app) {
-  const svg = spriteFor(type, app);
+function template(type, app, look) {
+  const svg = spriteFor(type, app, look);
   let t = kinds.get(svg);
   if (t) return t;
   if (!sheet) {
@@ -63,10 +63,10 @@ function template(type, app) {
    CamelCaseName and after a dot, dash or underscore (it is never read back: the icon carries its real name in data-name). */
 export const breakable = name => String(name).replace(/([a-z0-9])([A-Z])/g, '$1\u200b$2').replace(/([._-])(?=[^._-])/g, '$1\u200b');
 
-/* a finished icon for { name, type, app } */
+/* a finished icon for { name, type, app, look, label }: `label` is what is written under it when that is not its name (the bin that has become a dumpster) */
 export function iconEl(item) {
-  const el = template(item.type, item.app).cloneNode(true);
+  const el = template(item.type, item.app, item.look).cloneNode(true);
   el.dataset.name = item.name;
-  el.lastChild.firstChild.textContent = breakable(item.name);
+  el.lastChild.firstChild.textContent = breakable(item.label || item.name);
   return el;
 }

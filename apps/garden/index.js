@@ -9,6 +9,9 @@ import { createCalls } from './trophy_calls.js';
 import { createReadyChime } from './ready.js';
 import * as M from './model.js';
 import { createFlyover } from './geese.js';  /* Thea's geese */
+import { setLiveWallpaper, liveWallpaper } from '../../kernel/wallpaper.js';
+import { ROOMS as WALL_ROOMS } from './wall.js';
+import { buffs } from '../buffs_scope.js';
 
 const PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
 const SWEEP_MS = 85;
@@ -58,6 +61,21 @@ export default {
     const pullBtn = btn('PULL UP', () => setMode(mode === 'pull' ? 'none' : 'pull'));
     const benchBtn = btn('BENCH', () => benchToggle());
     btn('DAVE', () => ctx.openWindow('shop'));
+    /* HOLYC.EXE's quiet gift: the five rooms with nothing growing in them, moving, as the desktop's wallpaper (apps/garden/wall.js, kernel/wallpaper_live.js). The button is not there until it is earned. */
+    const gift = buffs();
+    const wallBtn = btn('', () => {
+      const order = [null].concat(WALL_ROOMS.map(r => r.id)), cur = liveWallpaper(), nxt = order[(order.indexOf(cur) + 1) % order.length];
+      setLiveWallpaper(nxt); refreshWall(); snd('click');
+      say(nxt ? 'THE DESKTOP IS NOW THE ' + WALL_ROOMS.find(r => r.id === nxt).name + ', MOVING, WITH NOTHING GROWING IN IT. PRESS AGAIN FOR THE NEXT ROOM.' : 'THE DESKTOP IS ITS OWN BACKGROUND AGAIN.', 6000);
+    });
+    function refreshWall() {
+      wallBtn.style.display = gift.has('garden_wall') ? '' : 'none';
+      const cur = liveWallpaper(), r = WALL_ROOMS.find(x => x.id === cur);
+      wallBtn.textContent = 'WALLPAPER: ' + (r ? r.name : 'OFF'); wallBtn.classList.toggle('on', !!cur);
+      wallBtn.title = 'PUT A ROOM, MOVING, ON THE DESKTOP BEHIND THE ICONS';
+    }
+    refreshWall();
+    const offGift = gift.on(() => refreshWall());
     const tipEl = document.createElement('div'); tipEl.className = 'gtip';
     const l1 = document.createElement('div'), l2 = document.createElement('div');
     l1.className = 'godword gbar'; l2.className = 'godword gl2'; l2.style.whiteSpace = 'normal'; l2.style.color = 'var(--sch-fg, #FFFFFF)';
@@ -289,6 +307,7 @@ export default {
       window.removeEventListener('mixer-changed', mixerHandler);
       window.removeEventListener('garden-stock-refresh', stock);
       window.removeEventListener('cos-changed', bought);
+      offGift();
       GardenAir.stop();
       st.lastTick = Date.now(); save();
     };

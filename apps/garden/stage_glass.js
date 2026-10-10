@@ -57,7 +57,7 @@ export const greenhouse = {
       for (let x = 0; x <= 233; x += 2) { const t = x / 233, y = 16 + Math.sin(t * Math.PI) * sag; rect(g, x0 + x, y, 2, 1, L('#2a2e30')); }
       for (let k = 1; k < 10; k++) { const t = k / 10, y = 16 + Math.sin(t * Math.PI) * sag; rect(g, x0 + t * 233 - 1, y + 1, 3, 4, L('#c8c0a0')); }
     }
-    drawRack(g, L, 'greenhouse');
+    if (!K.wall) drawRack(g, L, 'greenhouse');                       /* no rack in the wallpaper: there are no pots to stand on it */
     /* stacked clay pots, a hose coiled on its hook, a rain barrel with a tap */
     for (let k = 0; k < 3; k++) for (let j = 0; j <= 2 - k; j++) { rect(g, 18 + j * 15 + k * 7, H - 52 - k * 9, 14, 9, L('#b8643a')); rect(g, 16 + j * 15 + k * 7, H - 54 - k * 9, 18, 3, L('#d07a48')); }
     for (let k = 0; k < 5; k++) { oval(g, 668, H - 52 + k * 2, 11 - (k & 1), 5, L(k & 1 ? '#2a6a3a' : '#38884a')); }

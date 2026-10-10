@@ -57,11 +57,29 @@ $TR-$
 
 $TR,"WINDOWS"$
 $FG,11$[Z]$FG$ zoom this window, bigger or smaller, and remember it.
-$FG,11$[T]$FG$ a colour scheme for just this window's frame. A scheme dresses the title
-                  bar and the edge of a window, the menu bar and the taskbar, and the
-                  colour of the desktop. What is inside a window is never recoloured.
+$FG,11$[T]$FG$ (NOTES only) a colour scheme for just this Notes window. A scheme dresses
+                  Notes, its frame and its page, and nothing else: the rest of the machine
+                  keeps its own colours. It is held to readable, whatever is chosen.
 $FG,11$[_]$FG$ tuck it into the taskbar.  $FG,11$[□]$FG$ fill the desktop (or F11).
 $FG,11$[X]$FG$ close.
+A program that opens once comes back where you left it, at the size you made it.
+$TR-$
+
+$TR,"THE TASKBAR"$
+Every window has a button with its program's picture. With many open the names
+go and the pictures stay: hold the pointer on one for its name.
+$FG,11$Left click$FG$    bring it forward; again, tuck it away.
+$FG,11$Right click$FG$   restore or minimise, fullscreen, close.
+$FG,11$Middle click$FG$  close it.
+$FG,11$The strip at the far right$FG$ puts every window away; press it again to bring
+                    back exactly the ones it put away.
+$TR-$
+
+$TR,"GO TO"$
+$FG,11$Ctrl+Space$FG$ (or Tools, GO TO) opens a box. Type a few letters of a program, a
+window that is open, a file anywhere on the desk, or a thing to do (SHOW THE
+DESKTOP, RESTORE SYSTEM FILES): $FG,11$Up/Down$FG$ choose, $FG,11$Enter$FG$ go, $FG,11$Esc$FG$ away. What you used last
+is offered first.
 $TR-$
 
 $TR,"THE KEYBOARD, IN A LIST OF FILES"$

@@ -8,6 +8,8 @@ import { toast } from './wm.js';
 import { VaultURL } from './vault.js';
 import { ditherVGA, UP } from './imaging.js';
 import { sys } from './trophy_hook.js';
+import { LiveWall } from './wallpaper_live.js';
+import { applyReadable } from './readable.js';
 
 const WALL_KEY = 'templeos.wallpaper.v1';
 let wallpaper = null;             /* { src, mode, kind, vault? } */
@@ -20,6 +22,19 @@ export const WALL_MODES = [
   { id: 'tile',    label: 'TILE',             bg: 'auto',      rep: 'repeat',    fit: 'none' }
 ];
 const modeOf = id => WALL_MODES.find(m => m.id === id) || WALL_MODES[0];
+
+/* a live wallpaper (kernel/wallpaper_live.js): one of the Garden's rooms, moving, with nothing growing in it. HOLYC.EXE's quiet gift 'garden_wall' (kernel/buffs_core.js); `room` is a room id, or null to put it away. */
+const liveOk = () => { try { return !!(window.Buffs && window.Buffs.has('garden_wall')); } catch (e) { return false; } };
+export const liveWallpaper = () => (wallpaper && wallpaper.kind === 'live' && liveOk() ? wallpaper.room : null);
+export function setLiveWallpaper(room) {
+  if (!room) { if (wallpaper && wallpaper.kind === 'live') clearWallpaper(true); return false; }
+  if (!liveOk()) return false;
+  wallpaper = { kind: 'live', room: room, mode: 'fill' };
+  applyWallpaper();
+  try { localStorage.setItem(WALL_KEY, JSON.stringify(wallpaper)); } catch (e) { /* kept for this sitting */ }
+  sys.emit('bg', { fit: 'fill', kind: 'live' });
+  return true;
+}
 
 export const hasWallpaper = () => !!wallpaper || !!(() => { try { return localStorage.getItem(WALL_KEY); } catch (e) { return null; } })();
 
@@ -58,14 +73,14 @@ export function wallpaperMenu(path, isVideo) {
   }));
 }
 
-export function clearWallpaper() {
+export function clearWallpaper(quiet) {
   wallpaper = null;
   /* the key has to be gone before applyWallpaper runs, or its localStorage
      fallback (for rehydrating on load) just reads the old value straight
      back in and undoes the clear */
   try { localStorage.removeItem(WALL_KEY); } catch (e) {}
   applyWallpaper();
-  toast('BACKGROUND CLEARED.');
+  if (!quiet) toast('BACKGROUND CLEARED.');
 }
 
 /* the desktop's video wallpaper is drawn onto a canvas, crushed to the same
@@ -139,17 +154,28 @@ function stopDeskVideo() { DeskVid.stop(); }
 function startDeskVideo(src, mode) { DeskVid.start(src, mode); }
 
 export async function applyWallpaper() {
+  try { await applyWallpaperNow(); } finally { setTimeout(applyReadable, 60); }       /* the veil that keeps the windows readable over whatever it is (kernel/readable.js) */
+}
+async function applyWallpaperNow() {
   const desk = document.getElementById('desktop');
   if (!desk) return;
   try {
     const raw = localStorage.getItem(WALL_KEY);
     if (raw && !wallpaper) wallpaper = JSON.parse(raw);
   } catch (e) {}
+  if (wallpaper && wallpaper.kind === 'live' && !liveOk()) wallpaper = null;      /* the gift is what holds it up */
   if (!wallpaper) {
     desk.style.backgroundImage = '';
-    DeskVid.stop();
+    DeskVid.stop(); LiveWall.stop();
     return;
   }
+  if (wallpaper.kind === 'live') {
+    desk.style.backgroundImage = '';
+    DeskVid.stop();
+    if (LiveWall.room() !== wallpaper.room) LiveWall.start(wallpaper.room);
+    return;
+  }
+  LiveWall.stop();
   const m = modeOf(wallpaper.mode);
   if (wallpaper.kind === 'video') {
     desk.style.backgroundImage = '';

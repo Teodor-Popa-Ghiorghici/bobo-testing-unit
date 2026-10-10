@@ -1,6 +1,7 @@
 /* The menu bar across the top. File, Edit, Tools and Help drop a menu; Compile
    compiles the file you last had open; Debug opens the machine's diagnostics.
    File and Edit work on whatever list of files you last clicked in. */
+import { BinLook } from './bin_look.js';
 import { showMenu, hideMenus } from './menus.js';
 import { openWindow, toast } from './wm.js';
 import { Active, restoreSystemFiles, newFolderPrompt, newFilePrompt } from './fileops.js';
@@ -33,8 +34,8 @@ export function wireMenubar(hooks) {
       ];
       if (hasWallpaper()) out.push({ label: 'CLEAR BACKGROUND', run: () => clearWallpaper() });
       out.push({ sep: true });
-      out.push({ label: 'RECYCLE BIN...', run: () => open('trash') });
-      out.push({ label: 'EMPTY THE RECYCLE BIN', run: () => hooks.emptyBin() });
+      out.push({ label: BinLook.name() + '...', run: () => open('trash') });
+      out.push({ label: 'EMPTY THE ' + BinLook.name(), run: () => hooks.emptyBin() });
       out.push({ label: 'RESTORE SYSTEM FILES', run: () => restoreSystemFiles() });
       return out;
     },
@@ -46,12 +47,14 @@ export function wireMenubar(hooks) {
       { label: 'DISPLAY SETTINGS', run: () => open('display') }
     ],
     Tools: () => [
+      { label: 'GO TO...   CTRL+SPACE', run: () => window.Launcher && window.Launcher.open() },
+      { sep: true },
       { label: 'TERMINAL', run: () => open('terminal') },
       { label: 'THE GARAGE (MAKE MUSIC)', run: () => open('garage') },
       { label: 'THESTACK (HI-FI)', run: () => open('hifi') },
       { label: 'NOTES', run: () => open('notes') },
       { sep: true },
-      { label: 'RECYCLE BIN', run: () => open('trash') }
+      { label: BinLook.name(), run: () => open('trash') }
     ],
     Help: () => [
       { label: 'HELP CONTENTS', run: () => help('start') },

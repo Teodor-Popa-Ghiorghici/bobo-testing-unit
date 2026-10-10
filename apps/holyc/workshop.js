@@ -4,6 +4,8 @@
 import { el, button, rich } from './tutor_ui.js';
 import { TEMPLATES, REFERENCE } from './templates.js';
 import { saved, installed, template } from './trophy_calls.js';
+import { workshopFlags } from './buff_rules.js';
+import { runProgram, seeded } from './engine.js';
 
 const DIR = '::/Home/HolyC';
 const clean = n => String(n || '').replace(/\.(HC|APP)$/i, '').replace(/[^A-Za-z0-9_ -]/g, '').trim().slice(0, 24);
@@ -65,8 +67,18 @@ export function makeWorkshop(host, o) {
       if (await ctx.fs.stat('::/' + name)) { ctx.toast(name + ' IS ALREADY ON THE DESKTOP. PICK ANOTHER NAME.'); snd.error(); return; }
       await ctx.fs.write('::/' + name, { type: 'app', app: 'holyc', args: { run: true, name: name }, content: lab.get() });
       changed('::'); snd.done(); ctx.toast(name + ' IS ON THE DESKTOP. IT OPENS AS AN APP.'); installed(name);
+      noticed(lab.get());
       if (o.onInstall) o.onInstall(name);
     } catch (e) { ctx.toast('COULD NOT INSTALL: ' + (e.message || e)); snd.error(); }
+  }
+  /* the workshop notices a program written from a blank page that runs clean (kernel/buffs_core.js: said to nobody, shown by whatever it earns) */
+  function noticed(src) {
+    try {
+      const R = o.HC ? runProgram(o.HC, src, { rand: seeded(7) }) : null, f = workshopFlags(src, TEMPLATES, !!(R && R.ok));
+      const P = o.progress; if (!P || (!f.clock && !f.notes)) return;
+      P.data.shop = P.data.shop || {}; if (f.clock) P.data.shop.clock = true; if (f.notes) P.data.shop.notes = true; P.save();
+      if (window.Buffs) window.Buffs.sync(P.buffView());
+    } catch (e) { /* the buffs are somebody else's business */ }
   }
   W.open = src => { W.active = true; if (src !== undefined) lab.load(src); lab.setBoard(false); render(); lab.editor.stopTyping(); lab.focus(); };
   W.close = () => { W.active = false; panel.innerHTML = ''; };

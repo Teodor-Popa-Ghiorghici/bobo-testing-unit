@@ -1,4 +1,6 @@
 import { Dnd } from '../../kernel/dnd.js';
+import { showMenu } from '../../kernel/menus.js';
+import { BinLook } from '../../kernel/bin_look.js';
 import { toast } from '../../kernel/wm.js';
 
 import { spriteFor } from '../../kernel/desktop.js';
@@ -18,6 +20,7 @@ export default {
   width: 520,
   height: 340,
   resizable: true,
+  rightClick: true,                          /* right-click it for the dumpster, once HOLYC.EXE has given it (kernel/bin_look.js) */
 
   async mount(root, ctx) {
     const _style = document.createElement('link');
@@ -42,6 +45,13 @@ export default {
     const bRestore = mk('PUT BACK', 'PUT THE SELECTED THINGS BACK WHERE THEY CAME FROM', () => restore(selected()));
     const bGone = mk('DELETE FOR GOOD', 'THROW THE SELECTED THINGS AWAY FOR EVER', () => purge(selected()));
     const bAll = mk('EMPTY THE BIN', 'THROW EVERYTHING AWAY FOR EVER', () => purge(rows));
+    /* the name and the look follow the bin/dumpster choice (kernel/bin_look.js): the window's title, the button, the empty line, a green ribbed floor */
+    function dress() {
+      const d = BinLook.dumpster();
+      root.classList.toggle('dumpster', d);
+      bAll.textContent = 'EMPTY THE ' + BinLook.noun();
+      try { ctx.setTitle(BinLook.name()); } catch (e) { /* no title to set */ }
+    }
     const note = document.createElement('span');
     note.className = 'fcount';
     bar.appendChild(note);
@@ -113,7 +123,7 @@ export default {
       if (!rows.length) {
         const e = document.createElement('div');
         e.className = 'fempty';
-        e.textContent = 'THE BIN IS EMPTY. DELETED THINGS WAIT HERE UNTIL YOU THROW THEM AWAY.';
+        e.textContent = 'THE ' + BinLook.noun() + ' IS EMPTY. DELETED THINGS WAIT HERE UNTIL YOU THROW THEM AWAY.';
         list.appendChild(e);
       }
       bRestore.disabled = bGone.disabled = !picked.size;
@@ -123,7 +133,13 @@ export default {
     list.addEventListener('pointerdown', ev => {
       if (ev.target === list) { picked.clear(); render(); }
     });
-    list.addEventListener('contextmenu', ev => ev.preventDefault());
+    list.addEventListener('contextmenu', ev => {
+      ev.preventDefault();
+      if (!BinLook.earned()) return;
+      showMenu(document.getElementById('ctxmenu'), ev.clientX, ev.clientY, [{ label: BinLook.switchLabel(), run: () => { BinLook.toggle(); if (window.Snd) window.Snd.click(); } }]);
+    });
+    L.on(window, 'binlook-changed', () => { dress(); render(); });
+    dress();
     L.on(window, 'vfs-changed', ev => {
       const dir = ev.detail && ev.detail.dir;
       if (!dir || dir.indexOf('::/.Trash') === 0) render();

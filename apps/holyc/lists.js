@@ -57,7 +57,7 @@ export function renderChapter(host, id, o) {
   const h = el('div', 'hc-ph'); h.append(button('◀ CHAPTERS', 'sm', () => o.onBack(), snd), el('span', 'hc-chtitle', c.title), el('span', 'hc-cs', c.blurb)); wrap.appendChild(h);
   c.list.forEach((p, i) => {
     const pr = P.puzzle(p.id), row = el('div', 'hc-prow' + (pr.solved ? ' done' : ''));
-    row.append(el('span', 'hc-pmark', pr.solved ? '✓' : String(i + 1)), el('span', 'hc-pt', p.title), el('span', 'hc-pstars', stars(p.stars)),
+    row.append(el('span', 'hc-pmark', pr.solved ? (pr.seen || pr.helped ? '✓' : '★') : String(i + 1)), el('span', 'hc-pt', p.title), el('span', 'hc-pstars', stars(p.stars)),
       el('span', 'hc-psun', pr.solved ? '+' + (pr.paid || 0) : '+' + puzzleSun(p.stars, false)));
     row.addEventListener('mousedown', ev => { if (ev.button !== 0) return; ev.stopPropagation(); snd.click(); o.onOpen(p.id); });
     wrap.appendChild(row);

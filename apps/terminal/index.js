@@ -10,6 +10,7 @@ import { snapshot } from '../../kernel/holyc_env.js';
 import { lineReport } from '../../kernel/lines.js';
 import { sys } from '../../kernel/trophy_hook.js';
 import { APP_ALIASES, APP_HELLO } from '../../kernel/commands.js';
+import { complete } from './complete.js';
 
 /* ---- the fallback answering machine --------------------------------------
    Real commands (DIR, CD, TYPE, DEL, MD, TREE, COMPILE...) are handled
@@ -49,6 +50,7 @@ const TERM = {
      "  GODDOODLE ..... ASK FOR A PICTURE",
      "  GODSONG ....... ASK FOR A TUNE",
      "  TROPHIES [GAME] THE LEDGER (TROPHIES OPEN OPENS IT)",
+     "  TROPHYBOX ..... THE BIG CUPS (RESTORE PUTS ITS ICON BACK)",
      "APPS:",
      "  TASKS ......... ADAM, SETH AND THE REST",
      "  AFTEREGYPT .... THE GAME",
@@ -228,6 +230,19 @@ export default {
     });
 
     input.addEventListener('keydown', async ev => {
+      /* Tab completes a command or a name on the disk; Ctrl+L clears the screen; Ctrl+C gives up on the line (apps/terminal/complete.js) */
+      if (ev.key === 'Tab') {
+        ev.preventDefault();
+        const r = await complete(input.value, { commands: Object.keys(APP_ALIASES), list: p => ctx.fs.list(p), resolve: resolvePath });
+        if (r.matches) Snd.key();
+        input.value = r.line; typed.textContent = r.line;
+        if (r.show.length) print([r.show.join('   ')], 'l-dim');
+        return;
+      }
+      if (ev.ctrlKey && !ev.altKey && !ev.metaKey && (ev.key === 'l' || ev.key === 'L')) { ev.preventDefault(); out.innerHTML = ''; Snd.click(); return; }
+      if (ev.ctrlKey && !ev.altKey && !ev.metaKey && !ev.shiftKey && (ev.key === 'c' || ev.key === 'C') && input.selectionStart === input.selectionEnd) {
+        ev.preventDefault(); print(['::>' + input.value + '^C'], 'l-dim'); input.value = ''; typed.textContent = ''; hpos = history.length; return;
+      }
       if (ev.key === 'Enter') {
         ev.preventDefault();
         const cmd = input.value;
@@ -443,6 +458,7 @@ export default {
           else { const id = cli.findArea(T, arg, T.names); if (id) say(cli.ofArea(T, id, T.names)); else say(cli.ofOne(T, arg)); }
           return true;
         }
+        case 'TROPHYBOX': case 'BOX': ctx.openWindow('trophybox'); print(['OPENING THE TROPHY BOX. ITS ICON IS GONE? RESTORE.'], 'l-dim'); return true;
         case 'SAVER': case 'SCREENSAVER':
           Saver.idle = 0;
           Saver.start();

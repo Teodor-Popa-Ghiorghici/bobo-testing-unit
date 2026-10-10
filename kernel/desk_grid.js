@@ -28,7 +28,7 @@ const key = (c, r) => c + ',' + r;
    full spills into the nearest free cell like anything else. Icons that already have a place keep it. */
 export const GAMES = new Set(['Magen', 'TheCook', 'Garden', 'StandBattleArena', 'DungeonSweeper', 'Sweeper', 'Solitaire', 'Jaeger', 'Bekkedal', 'Elephant', 'AfterEgypt']);
 export const DOCS = new Set(['AutoExec.HC', 'Welcome.DD', 'Adam', 'Compiler']);
-export const TOOLS = new Set(['TERMINAL', 'Trophies', 'Notes', 'HolyC', 'Garage', 'TheStack', 'Crayon', 'MyDrawings', 'Dave']);
+export const TOOLS = new Set(['TERMINAL', 'Trophies', 'Notes', 'HolyC', 'Garage', 'TheStack', 'Crayon', 'MyDrawings', 'Dave', 'TrophyBox']);
 export function zoneOf(it) {
   if (it.type === 'bin' || it.type === 'binfull') return 'bin';
   if (GAMES.has(it.name)) return 'games';

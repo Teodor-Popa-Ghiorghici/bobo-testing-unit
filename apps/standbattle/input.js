@@ -67,6 +67,7 @@ export function createDevices(saved) {
         else if (code === 'Backspace') { nav.push({ k: 'back', who: 'p1' }); used = true; }
         else if (code === 'Tab') { nav.push({ k: 'tab', who: 'p1' }); used = true; }
         else if (code === 'KeyR') { nav.push({ k: 'reset', who: 'p1' }); }
+        else if (code === 'KeyP') { nav.push({ k: 'pose', who: 'p1' }); }
       }
       return used;
     },

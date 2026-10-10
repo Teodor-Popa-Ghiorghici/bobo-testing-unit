@@ -41,7 +41,7 @@ export const yard = {
     fence(g, L, P, season);
     shed(g, L, P, season, K);
     if (season === 'winter') { bare(g, L, 70, 0, 1.2); bare(g, L, 640, 0, 0.9); } else { canopy(g, L, P, 'left'); canopy(g, L, P, 'right'); }
-    drawRack(g, L, 'yard');
+    if (!K.wall) drawRack(g, L, 'yard');                       /* no rack in the wallpaper: there are no pots to stand on it */
     /* stepping stones across the foot of the lawn, with a ring of wet round the ones in a puddle */
     for (let i = 0; i < 6; i++) { const x = 110 + i * 100 + (i % 2) * 6, y = H - 22 + (i % 2) * 3; oval(g, x, y, 24, 5, L(season === 'winter' ? '#9aa4b8' : '#6f7a82')); oval(g, x, y - 1, 21, 4, L(season === 'winter' ? '#b8c2d4' : '#8a96a0')); }
   },
@@ -66,7 +66,7 @@ export const yard = {
         const sw = Math.round(Math.sin(tsec * (1.3 + wind) + x * 0.07) * (1.5 + wind * 2)), h = 6 + Math.floor(r() * 7);
         rect(g, x + sw, H - 40 - h + 8, 2, h, K.L(r() < 0.5 ? P.blade[0] : P.blade[1])); rect(g, x + sw * 2, H - 40 - h + 5, 2, 3, K.L(P.blade[2]));
       }
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < (K.wall ? 0 : 14); i++) {                                       /* the nodding flowers are not in the wallpaper: it is the room, with nothing growing in it */
         const x = 12 + i * 49 + Math.floor(r() * 18), sw = Math.round(Math.sin(tsec * 1.1 + i) * 2), c = P.flowers[i % P.flowers.length];
         rect(g, x + (sw >> 1), H - 26, 1, 12, K.L('#3e5828')); rect(g, x - 1 + sw, H - 31, 4, 4, K.L(c)); rect(g, x + sw, H - 30, 2, 2, K.L('#ffe060'));
       }

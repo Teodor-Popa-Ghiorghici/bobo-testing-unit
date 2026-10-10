@@ -50,9 +50,9 @@ export const shrine = {
     /* the tiled floor, a grid of dark stones */
     rect(g, 0, H - 42, W, 42, L('#241830')); rect(g, 0, H - 42, W, 3, L('#4a3460'));
     for (let x = 0; x < W; x += 44) rect(g, x, H - 40, 1, 40, L('#140c1c')); for (let y = H - 30; y < H; y += 14) rect(g, 0, y, W, 1, L('#140c1c'));
-    drawRack(g, L, 'shrine');
+    if (!K.wall) drawRack(g, L, 'shrine');                       /* no rack in the wallpaper: there are no pots to stand on it */
     /* gold along the front of every board, and the red pillars' gold bands */
-    ROWS.forEach(y => { rect(g, 14, y, W - 28, 1, L('#c89a3a')); });
+    if (!K.wall) ROWS.forEach(y => { rect(g, 14, y, W - 28, 1, L('#c89a3a')); });
     [14, W - 26].forEach(x => { for (let y = 160; y < 400; y += 60) { rect(g, x, y, 12, 3, L('#c89a3a')); } });
     /* two stone lanterns and a red candle-holder on the floor */
     [70, 630].forEach(x => { rect(g, x - 12, H - 22, 24, 10, L('#7a7488')); rect(g, x - 6, H - 40, 12, 18, L('#6a6478')); rect(g, x - 16, H - 46, 32, 8, L('#8a8498')); rect(g, x - 11, H - 52, 22, 6, L('#7a7488')); rect(g, x - 5, H - 56, 10, 4, L('#9a94a8')); rect(g, x - 4, H - 38, 8, 12, 'rgb(30,14,10)'); });

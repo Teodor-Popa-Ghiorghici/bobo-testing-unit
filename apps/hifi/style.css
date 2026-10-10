@@ -85,7 +85,7 @@
 .stl-alb.now .cd { animation: stspin 3s steps(24) infinite; transform: translateX(34%); }
 @keyframes stspin { to { transform: translateX(34%) rotate(360deg); } }
 .stl-alb b, .stl-alb i { display: block; font-weight: normal; font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stl-alb b { color: #e8ecf2; margin-top: 8px; } .stl-alb i { color: var(--brush); font-size: 15px; }
+.stl-alb b { color: #e8ecf2; margin-top: 8px; } .stl-alb.edited b::after { content: ' ✎'; color: var(--a2); } .stl-alb i { color: var(--brush); font-size: 15px; }
 .stl-page { display: flex; gap: 16px; padding: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, #0a0a0c), #0a0a0c); border-bottom: 1px solid var(--panelhi); align-items: flex-end; }
 .stl-page img { width: 132px; height: 132px; image-rendering: pixelated; border: 1px solid var(--panelhi); box-shadow: 5px 5px 0 #000; object-fit: cover; flex: none; }
 .stl-page h2 { margin: 0 0 4px; font-weight: normal; font-size: 30px; color: #fff; line-height: 1; overflow-wrap: anywhere; }
@@ -109,6 +109,7 @@
 .stl-dlg .bd { padding: 10px; display: flex; flex-direction: column; gap: 6px; } .stl-dlg .bd p { margin: 0; color: var(--brushhi); }
 .stl-dlg .ft { display: flex; gap: 6px; justify-content: flex-end; padding: 6px 10px 10px; }
 .stl-dlg label { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; color: var(--brush); } .stl-dlg label input { width: 100%; box-sizing: border-box; }
+.stl-dlg .bd button { align-self: flex-start; } .stl-dlg .bd img { flex: none; }
 .stl-dlg .lst { max-height: 240px; overflow: auto; border: 1px solid var(--panelhi); background: #0a0a0c; }
 .stl-dlg .lst div { display: flex; justify-content: space-between; gap: 10px; padding: 1px 8px; }
 .stl-dlg .lst div:nth-child(odd) { background: var(--case); }

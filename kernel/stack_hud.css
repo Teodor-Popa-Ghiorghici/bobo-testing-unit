@@ -1,0 +1,52 @@
+/* THE STACK'S CONTROL ON THE DESKTOP (kernel/stack_hud.js): stands in the bottom right corner of the glass, above the taskbar, over the windows, while THE STACK is minimised.
+   Three sizes: .sh-s (one line), .sh-m (the disc, the buttons, the bar), .sh-l (the cover too). Plain VGA inks on black, so it reads on any picture. */
+.sthud { position: absolute; z-index: 430; box-sizing: border-box; background: #000000; border: 2px solid #55FFFF; box-shadow: 4px 4px 0 #000000, 0 0 0 1px #000000; font-family: 'VT323', monospace; color: #AAAAAA; user-select: none; font-size: 18px; line-height: 1; overflow: hidden; }
+.sthud.playing { border-color: #55FF55; }
+.sthud * { box-sizing: border-box; }
+.sh-b { font: inherit; font-size: 18px; line-height: 1; height: 22px; padding: 0 7px; background: #AAAAAA; color: #000000; border: 1px solid #FFFFFF; border-right-color: #555555; border-bottom-color: #555555; cursor: pointer; white-space: nowrap; }
+.sh-b:hover { background: #FFFF55; }
+.sh-b:active { border: 1px solid #555555; border-right-color: #FFFFFF; border-bottom-color: #FFFFFF; }
+.sh-b.on { background: #55FFFF; }
+.sh-b.sh-play.on { background: #55FF55; }
+.sh-b:focus-visible, .sh-vol:focus-visible { outline: 2px solid #FFFF55; outline-offset: 1px; }
+.sh-vol { -webkit-appearance: none; appearance: none; background: transparent; height: 16px; margin: 0; cursor: pointer; }
+.sh-vol::-webkit-slider-runnable-track { height: 6px; background: #555555; border: 1px solid #AAAAAA; }
+.sh-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 14px; margin-top: -5px; background: #FFFF55; border: 1px solid #000000; }
+.sh-bar { flex: 1; min-width: 0; height: 10px; background: #555555; border: 1px solid #AAAAAA; cursor: pointer; position: relative; touch-action: none; }
+.sh-bar i, .sh-line i { display: block; height: 100%; width: 0; background: #55FFFF; }
+.sthud.playing .sh-bar i, .sthud.playing .sh-line i { background: #55FF55; }
+.sh-head { display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 3px 0 6px; background: #55FFFF; color: #000000; cursor: move; }
+.sh-head b { font-weight: normal; letter-spacing: 1px; } .sh-head .sp { flex: 1; }
+.sh-head .sh-b { height: 15px; padding: 0 5px; font-size: 16px; }
+.sh-sizes { display: flex; gap: 1px; } .sh-sz { padding: 0 5px; } .sh-sz.on { background: #000000; color: #FFFF55; border-color: #000000; }
+.sh-info b { display: block; font-weight: normal; font-size: 21px; color: #FFFF55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-info i { display: block; font-style: normal; font-size: 17px; color: #AAAAAA; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.sh-row { display: flex; align-items: center; gap: 3px; }
+.sh-vrow { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; margin-left: 4px; color: #AAAAAA; font-size: 16px; }
+.sh-vrow .sh-vol { flex: 1; min-width: 40px; } .sh-pct { width: 26px; text-align: right; color: #FFFFFF; }
+.sh-prog { display: flex; align-items: center; gap: 6px; }
+.sh-tm { width: 34px; text-align: right; font-size: 16px; color: #AAAAAA; } .sh-tm.r { text-align: left; }
+
+/* S: one line */
+.sh-s { display: flex; align-items: center; gap: 3px; width: 318px; height: 30px; padding: 0 3px 3px 5px; }
+.sh-s .sh-line1 { flex: 1; min-width: 0; display: flex; align-items: baseline; overflow: hidden; white-space: nowrap; cursor: move; }
+.sh-s .sh-line1 b { font-weight: normal; color: #FFFF55; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; max-width: 62%; }
+.sh-s .sh-line1 i { font-style: normal; color: #AAAAAA; overflow: hidden; text-overflow: ellipsis; flex: 1 1 0; min-width: 0; margin-left: 7px; }
+.sh-s .sh-b { height: 20px; padding: 0 5px; } .sh-s .sh-vol { width: 50px; flex: none; }
+.sh-s .sh-x, .sh-s .sh-sz1 { padding: 0 4px; }
+.sh-s .sh-line { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #555555; }
+
+/* M */
+.sh-m { width: 340px; padding-bottom: 6px; display: flex; flex-direction: column; gap: 4px; }
+.sh-m .sh-info, .sh-m .sh-row, .sh-m .sh-prog { padding: 0 6px; }
+
+/* L: the cover, and the words for the switches */
+.sh-l { width: 440px; padding-bottom: 6px; display: flex; flex-direction: column; }
+.sh-l .sh-body { display: flex; gap: 10px; padding: 8px 8px 0; }
+.sh-l .sh-art { width: 104px; height: 104px; flex: none; object-fit: cover; image-rendering: pixelated; background: #111111; border: 1px solid #AAAAAA; box-shadow: 3px 3px 0 #000000; }
+.sh-l .sh-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.sh-l .sh-info b { font-size: 24px; } .sh-l .sh-info i { font-size: 18px; }
+.sh-l .sh-row { flex-wrap: wrap; } .sh-l .sh-row .sh-b { height: 24px; font-size: 19px; }
+.sh-l .sh-vrow { margin-left: 0; } .sh-l .sh-bar { height: 12px; }
+@media (prefers-reduced-motion: no-preference) { .sthud { animation: sh-in 120ms steps(3) 1; } }
+@keyframes sh-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }

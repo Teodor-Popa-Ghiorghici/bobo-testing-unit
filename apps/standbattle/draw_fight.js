@@ -12,6 +12,7 @@ import { createJuice } from './juice.js';
 import { FX } from './palette.js';
 import { WORLD_W, GROUND_Y } from './constants.js';
 import { zToYOffset, depthSort } from './render_adapter.js';
+import { layPoses } from './pose_random.js';
 
 const SCENE_LIGHT = {
   alley: { color: '#FFD79B', alpha: 0.34 }, street: { color: '#FFC98A', alpha: 0.42 },
@@ -83,6 +84,7 @@ export function drawFight(g, W, H, fight, view, tsec, dtMs, opts) {
   if (!frozen) view.fx.update(dtMs * fight.timeScale);
   view.juice.update(dtMs, frozen);
   view.poses = [fighterPose(A, tsec, scaled), fighterPose(B, tsec, scaled)];
+  layPoses(fight, view);                       /* POSE (pose_random.js): where the limbs were put on purpose, until the fighter does something; the picture only */
   const rim = SCENE_LIGHT[fight.stage.id] || SCENE_LIGHT.street;
 
   g.save();
