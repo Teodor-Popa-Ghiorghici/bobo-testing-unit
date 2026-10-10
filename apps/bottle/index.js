@@ -146,7 +146,7 @@ export default {
       if (!drinking) {
         R(136, 300, 108, 8, '#1a1008');
         R(137, 301, Math.round(106 * frac), 6, frac > 0.25 ? C.label : '#c8542a');
-        T('BOTTLE ' + S.bottles + (window.Drunk ? '  ·  ' + window.Drunk.stage() : '') + '  ·  HAND: ' + (S.forceStyle != null ? STYLES[S.forceStyle] : styleOf(sway())).name, 190, 322, C.dim, 8, 'center');
+        T('BOTTLE ' + S.bottles + (window.Drunk ? '  ·  ' + window.Drunk.stage() : '') + '  ·  HAND: ' + (S.forceStyle != null ? STYLES[S.forceStyle] : styleOf(sway())).name, 190, 322, C.white, 8, 'center');
         T('DRUNK: ' + S.drunk + ' MEASURE' + (S.drunk === 1 ? '' : 'S') +
           '  (' + (S.drunk * JAG_SHOT / 1000).toFixed(2) + ' L)', 190, 336, C.white, 8, 'center');
       }
