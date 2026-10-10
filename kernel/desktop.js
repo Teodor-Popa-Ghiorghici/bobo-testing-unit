@@ -10,6 +10,7 @@ import { layout, slotOf, gridOf, cellOf, cellPos, nearestFree } from './desk_gri
 import { itemMenu, spaceMenu } from './filemenus.js';
 import { wireMenubar } from './menubar.js';
 import { joinPath, baseName, dirOf, TRASH } from './vfs_ops.js';
+import { BinLook } from './bin_look.js';
 
 export { showMenu, hideMenus } from './menus.js';
 export { pickUpload, wireDrop } from './importer.js';
@@ -181,6 +182,9 @@ export function expectArrivals(clientX, clientY, n) {
   setTimeout(() => { arrivals = []; }, 4000);
 }
 
+/* the bin and the dumpster are the same icon in two looks: redrawn when it is changed, or earned */
+window.addEventListener('binlook-changed', () => refreshIcons());
+
 let refreshing = false, again = false;
 export async function refreshIcons() {
   if (refreshing) { again = true; return; }
@@ -202,7 +206,7 @@ async function buildIcons() {
     const list = files.map(it => Object.assign(it, { vfs: true }));
     // the terminal and the bin are kernel primitives, not VFS nodes
     list.push({ name: 'TERMINAL', type: 'terminal' });
-    list.push({ name: 'RecycleBin', type: binFull ? 'binfull' : 'bin' });
+    list.push({ name: 'RecycleBin', type: binFull ? 'binfull' : 'bin', look: BinLook.dumpster() ? 'dumpster' : '', label: BinLook.dumpster() ? BinLook.label() : '' });
     lastList = list;
 
     // forget icons for anything that no longer exists, so their old cells don't stay "taken" forever
@@ -216,7 +220,7 @@ async function buildIcons() {
     let moved = false;
 
     const order = list.map(item => {
-      const sig = item.type + ':' + (item.app || '');
+      const sig = item.type + ':' + (item.app || '') + ':' + (item.look || '');
       let rec = iconEls.get(item.name);
       if (!rec || rec.sig !== sig) {
         rec = { el: iconEl(item), sig, x: null, y: null };
@@ -429,8 +433,8 @@ function openIconContextMenu(ev, item) {
   if (item.type === 'bin' || item.type === 'binfull') {
     showMenu(menu, ev.clientX, ev.clientY, [
       { label: 'OPEN', run: () => openItem('::', item) },
-      { label: 'EMPTY THE RECYCLE BIN', off: item.type === 'bin', run: () => emptyBin() }
-    ]);
+      { label: 'EMPTY THE ' + BinLook.name(), off: item.type === 'bin', run: () => emptyBin() }
+    ].concat(BinLook.earned() ? [{ label: BinLook.switchLabel(), run: () => { BinLook.toggle(); if (window.Snd) window.Snd.click(); } }] : []));
     return;
   }
   const files = sel.filter(i => i.path);
@@ -440,7 +444,7 @@ function openIconContextMenu(ev, item) {
 async function emptyBin() {
   const n = (await vfs.trashList()).length;
   await vfs.trashEmpty();
-  toast(n ? 'RECYCLE BIN EMPTIED: ' + n + ' ITEM' + (n === 1 ? '' : 'S') + ' GONE FOR GOOD.' : 'THE RECYCLE BIN IS ALREADY EMPTY.');
+  toast(n ? BinLook.name() + ' EMPTIED: ' + n + ' ITEM' + (n === 1 ? '' : 'S') + ' GONE FOR GOOD.' : 'THE ' + BinLook.name() + ' IS ALREADY EMPTY.');
   if (window.Snd && n) window.Snd.del();
 }
 export { emptyBin };

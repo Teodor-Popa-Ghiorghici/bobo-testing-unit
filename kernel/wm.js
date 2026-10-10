@@ -74,7 +74,7 @@ export function createWindow(opts) {
   /* a game's window (the mixer, the trophies and a few checks ask which are games) */
   if (opts.appId && GAME_IDS.has(opts.appId)) win.dataset.game = '1';
 
-  /* a colour scheme dresses a window's frame and nothing inside it: the bar is filtered by theme.css, the edge is coloured by Cos.dressFrame from this VGA colour */
+  /* a colour scheme dresses NOTES and nothing else: on a Notes window the bar is filtered by theme.css and the edge coloured by Cos.dressFrame from this VGA colour; every other window keeps it */
   const skin = TITLE_COLORS[opts.kind] || TITLE_COLORS.text;
   win.style.borderColor = skin.border;
   win.dataset.edge = skin.border;
@@ -115,11 +115,12 @@ export function createWindow(opts) {
     if (app) { const m = themes(); if (winScheme) m[app] = winScheme; else delete m[app]; try { localStorage.setItem(THEME_KEY, JSON.stringify(m)); } catch (e) { /* kept for this sitting */ } }
   };
   let th = null;
-  if (opts.appId && !palette) {
+  if (opts.appId) win.dataset.app = opts.appId;
+  if (opts.appId === 'notes' && !palette) {          /* a colour scheme dresses Notes and nothing else (kernel/theme_fx.js): [T] is Notes' own */
     th = document.createElement('span');
     th.className = 'th';
     th.textContent = '[T]';
-    th.title = 'WINDOW FRAME. Dress just this window\'s title bar and edge in one of your colour schemes (what is inside it is never recoloured). It remembers.';
+    th.title = 'NOTES: wear one of your colour schemes in just this window (its frame and its page). It remembers. Notes is the only thing a scheme dresses.';
     th.addEventListener('mousedown', async ev => {
       ev.stopPropagation();
       if (ev.button !== 0) return;
@@ -405,7 +406,7 @@ async function openNew(appId, args) {
        so the mixer knows who is running */
     const before = openWins.slice();
     const res = await app.open(args);
-    openWins.forEach(r => { if (before.indexOf(r) < 0 && !r.appId && !r.palette) { r.appId = appId; r.rightClick = r.rightClick || !!app.rightClick; } });
+    openWins.forEach(r => { if (before.indexOf(r) < 0 && !r.appId && !r.palette) { r.appId = appId; r.rightClick = r.rightClick || !!app.rightClick; if (r.win && r.win.dataset) r.win.dataset.app = appId; } });
     announceWins();
     return res;
   }

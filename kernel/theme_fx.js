@@ -6,10 +6,12 @@
    at white. It is laid over the title bar of every window, the menu bar and the taskbar, so the chrome is one colour world, whether the scheme is worn by the whole
    machine or just by one window's [T].
 
-   WHAT IT DRESSES, AND WHAT IT NEVER TOUCHES. A scheme dresses the machine's chrome and nothing that is inside an app: the title bar and the edge of every window, the
-   menu bar, the taskbar, the colour of the desktop, and the pop-ups (menus, toasts, dialogs: they read the six inks). The body of a window -- the terminal, the games, the
-   pictures, every canvas -- the icons, the elephant and a wallpaper keep their own colours, whatever scheme is worn. (It used to be laid over all of it, which left no app
-   looking like itself.) kernel/theme.css, "THE SCHEME DRESSES THE CHROME", is where the filter is applied.
+   WHAT IT DRESSES, AND WHAT IT NEVER TOUCHES. A scheme dresses NOTES and nothing else: the Notes window's own frame (title bar and edge) and the whole of its page (the list,
+   the editor, the reading view, the links, the graph). Every other window, the menu bar, the taskbar, the colour of the desktop, the icons, the pop-ups, the games, the
+   terminal, the elephant and a wallpaper keep the machine's own colours, whatever scheme is worn: a scheme used to be laid over the machine's chrome, and on a pale one
+   (PAPER) the icons' names and the taskbar disappeared. Notes is the one place where the colours of the text are a thing you choose, so it is the one place they are
+   chosen, and it is held to readable whatever is chosen (`notesInks`: every ink is pushed until it has contrast against the page it is read on).
+   kernel/theme.css, "THE SCHEME DRESSES NOTES", is where the filter is applied.
 
    - The first `DEEP` of the ramp is where the background sits; the ramp is bg, dim, fg, hi at equal steps, in sRGB (color-interpolation-filters), so a
      light-on-dark scheme and a dark-on-light one (PAPER) are the same filter with the ends swapped.
@@ -77,13 +79,41 @@ export function install(schemes) {
   svg.innerHTML = '<defs>' + schemes.filter(s => s.id !== 'vga').map(s => filterOf(s.id, s.v)).join('') + '</defs>';
 }
 
-/* The custom properties a scheme sets. On the ROOM (the machine's own scheme) that is the six inks, for what is not under a window and so not under the filter
-   (the pop-up menus, the toast, the pointer's own panels), plus the filter and the desktop's colour. On a WINDOW it is only the filter, which its title bar wears:
-   the window keeps the VGA inks (theme.css, `.win`), so nothing inside it is ever recoloured, and nothing is recoloured twice. */
-export function varsOf(s, forWindow) {
-  const v = s.v, o = {};
-  if (!forWindow) Object.assign(o, { '--sch-bg': v.bg, '--sch-fg': v.fg, '--sch-ok': v.ok, '--sch-hi': v.hi, '--sch-err': v.err, '--sch-dim': v.dim, '--sch-acc': v.acc, '--sch-desk': deskOf(v, s.id) });
-  o['--th-filter'] = s.id === 'vga' ? 'none' : 'url(#th-' + s.id + ')';
+/* ---- THE INKS OF A NOTES PAGE, HELD TO READABLE ------------------------------------------------------------------------------------------
+   A scheme is six inks and a ground (bg, fg, ok, hi, err, dim, acc). Notes reads them as: the page (bg), the text (fg), the headings and the title (hi), the links, the second
+   heading and the selected row (acc), the third heading and the chips (ok), a dead link (err), and the counts and what is done (dim). Each is read on a ground, and each is pushed
+   toward the far end of the scale (black on a light page, white on a dark one) until it has the contrast it needs: 7:1 for the text, 4.5:1 for every other ink, which is what
+   the machine holds all its own text to (scripts/check-contrast.mjs). Pure: scripts/check-theme.mjs holds every scheme. */
+export const NOTES_MIN = { fg: 7, ink: 4.5 };
+const mixRgb = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
+export function readable(color, ground, min) {
+  let c = hex(color);
+  const g = hex(ground), to = lumaOf(g) > 0.5 ? [0, 0, 0] : [255, 255, 255];
+  for (let i = 0; i < 24 && contrast(c, g) < min; i++) c = mixRgb(c, to, 0.12);
+  return toHex(c);
+}
+export function notesInks(v) {
+  const bg = v.bg, light = lumaOf(hex(bg)) > 0.5, hover = toHex(mixRgb(hex(bg), light ? [0, 0, 0] : [255, 255, 255], 0.14));
+  const on = (c, min, ground) => readable(c, ground || bg, min);
+  /* a row that is selected is the accent with the page's own colour on it (or whichever of black and white reads on the accent) */
+  const sel = v.acc, selInk = readable(bg, sel, NOTES_MIN.ink);
+  const t = {
+    bg: bg, fg: on(v.fg, NOTES_MIN.fg, hover), hi: on(v.hi, NOTES_MIN.ink, hover), acc: on(v.acc, NOTES_MIN.ink, hover), ok: on(v.ok, NOTES_MIN.ink, hover), err: on(v.err, NOTES_MIN.ink, hover),
+    dim: on(v.dim, NOTES_MIN.ink, hover), hover: hover, sel: sel, selInk: selInk
+  };
+  t.line = on(v.dim, 3, bg);                 /* a rule or an edge needs less: it is not read */
+  return t;
+}
+
+/* The custom properties a scheme sets, and only on a NOTES window: the filter its title bar wears and the page's inks (--n-*, read by the Notes rules in theme.css). The default
+   scheme (VGA) sets nothing and so leaves Notes exactly as it always was. Nothing is ever set on the room: the machine's own colours are not a scheme's business. */
+export function varsOf(s) {
+  const o = {};
+  if (s.id === 'vga') return o;
+  const t = notesInks(s.v);
+  Object.assign(o, { '--n-bg': t.bg, '--n-fg': t.fg, '--n-hi': t.hi, '--n-acc': t.acc, '--n-ok': t.ok, '--n-err': t.err, '--n-dim': t.dim, '--n-hover': t.hover, '--n-sel': t.sel, '--n-selink': t.selInk, '--n-line': t.line });
+  o['--th-filter'] = 'url(#th-' + s.id + ')';
   return o;
 }
-export const VAR_NAMES = ['--sch-bg', '--sch-fg', '--sch-ok', '--sch-hi', '--sch-err', '--sch-dim', '--sch-acc', '--th-filter', '--sch-desk'];
+export const VAR_NAMES = ['--n-bg', '--n-fg', '--n-hi', '--n-acc', '--n-ok', '--n-err', '--n-dim', '--n-hover', '--n-sel', '--n-selink', '--n-line', '--th-filter',
+  '--sch-bg', '--sch-fg', '--sch-ok', '--sch-hi', '--sch-err', '--sch-dim', '--sch-acc', '--sch-desk'];     /* the --sch-* are what a build before this one set on the room: cleared if they are there */

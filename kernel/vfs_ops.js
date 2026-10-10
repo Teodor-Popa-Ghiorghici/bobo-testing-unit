@@ -9,6 +9,7 @@
 import { fs } from './vfs.js';
 import { Style } from './style.js';
 import { sys, sess } from './trophy_hook.js';
+import { handedItems } from './handed.js';
 
 export const TRASH = '::/.Trash';
 const MOVED_KEY = 'templeos.vfs.moved.v1';
@@ -36,7 +37,7 @@ function changed(...dirs) {
    down where it went, so "restore system files" can tell a file the user
    put away from a file that is gone. */
 let seedCache = null;
-async function seedItems() {
+async function shippedItems() {
   if (seedCache) return seedCache;
   try {
     const res = await fetch('assets/seed.json');
@@ -44,6 +45,8 @@ async function seedItems() {
   } catch (e) { seedCache = []; }
   return seedCache;
 }
+/* what the machine shipped with, and what it has handed over since (the trophy box, a mastered game's folder, the pictures bought from Dave: kernel/handed.js) */
+async function seedItems() { return (await shippedItems()).concat(await handedItems()); }
 const loadMoved = () => { try { return JSON.parse(localStorage.getItem(MOVED_KEY)) || {}; } catch (e) { return {}; } };
 /* pairs of [from, to]: written down in one go, and only when one of them is a file the machine shipped with */
 export async function trackMany(pairs) {
@@ -184,7 +187,8 @@ async function restoreSystem() {
       }
       continue;
     }
-    await fs.write(it.path, { type: it.type, content: it.content, src: it.src, app: it.app });
+    if (it.folder) { try { await it.make(); back.push(it.path); } catch (e) { /* the folder is made again next time */ } continue; }
+    await fs.write(it.path, { type: it.type, content: it.content, src: it.src, app: it.app, args: it.args });
     back.push(it.path);
   }
   changed('::');

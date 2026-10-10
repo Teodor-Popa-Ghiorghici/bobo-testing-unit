@@ -8,7 +8,14 @@ const R = (x, y, w, h, c) => '<rect x="' + x + '" y="' + y + '" width="' + w + '
 const can = R(3, 4, 10, 1, '#AAAAAA') + R(6, 3, 4, 1, '#AAAAAA') + R(4, 5, 8, 9, '#555555') + R(4, 5, 1, 9, '#AAAAAA') +
   R(6, 6, 1, 7, '#000000') + R(9, 6, 1, 7, '#000000') + R(11, 6, 1, 7, '#000000') + R(4, 14, 8, 1, '#000000');
 
+/* the recycle dumpster (kernel/bin_look.js): a green skip, wider at the top, with a grey lid, ribs, a white recycling triangle on the front and two black wheels */
+const skip = R(1, 4, 14, 1, '#AAAAAA') + R(1, 3, 14, 1, '#FFFFFF') + R(0, 3, 1, 2, '#000000') + R(15, 3, 1, 2, '#000000') + R(1, 5, 14, 8, '#005500') + R(2, 5, 12, 8, '#00AA00') +
+  R(2, 5, 12, 1, '#55FF55') + R(5, 6, 1, 7, '#005500') + R(10, 6, 1, 7, '#005500') + R(2, 12, 12, 1, '#005500') + R(1, 13, 14, 1, '#000000') +
+  R(7, 7, 2, 1, '#FFFFFF') + R(6, 8, 1, 1, '#FFFFFF') + R(9, 8, 1, 1, '#FFFFFF') + R(5, 9, 1, 1, '#FFFFFF') + R(10, 9, 1, 1, '#FFFFFF') + R(5, 10, 6, 1, '#FFFFFF') +
+  R(3, 14, 3, 2, '#555555') + R(10, 14, 3, 2, '#555555') + R(4, 14, 1, 1, '#AAAAAA') + R(11, 14, 1, 1, '#AAAAAA');
 Object.assign(SPRITES, {
+  dumpster: S(skip),
+  dumpsterfull: S(R(4, 0, 4, 3, '#FFFFFF') + R(8, 1, 3, 2, '#FFFF55') + R(10, 0, 2, 2, '#55FFFF') + R(12, 2, 2, 1, '#FF5555') + skip),
   /* the trophy box: a wooden crate with the handle of a gold cup showing over the top */
   trophybox: S(R(0, 0, 16, 16, '#000000') + R(5, 2, 6, 1, '#FFFF55') + R(4, 3, 8, 3, '#FFFF55') + R(10, 3, 2, 3, '#AA5500') + R(2, 6, 12, 8, '#AA5500') + R(2, 6, 12, 1, '#FF5555') +
     R(2, 9, 12, 1, '#552B00') + R(2, 12, 12, 1, '#552B00') + R(2, 6, 1, 8, '#552B00') + R(13, 6, 1, 8, '#552B00') + R(6, 7, 4, 2, '#FFFF55') + R(7, 7, 2, 1, '#000000')),

@@ -15,12 +15,17 @@ import { GROUND_Y } from './constants.js';
 import { RULES, LANE_Z } from './rules.js';
 import { cmdText, advText } from './cmd_text.js';
 import { emit } from './trophies_bridge.js';
+import { rollPoses, hitBtn } from './pose_random.js';
+import { drawPoseBtn } from './pose_btn.js';
+import { buffs } from '../buffs_scope.js';
 
 const DIR = { 1: [-1, 1], 2: [0, 1], 3: [1, 1], 4: [-1, 0], 6: [1, 0], 7: [-1, -1], 8: [0, -1], 9: [1, -1] };
 const BTN = [['LP', 16, '#FF9A9A'], ['RP', 32, '#FFE86A'], ['LK', 64, '#7AE0FF'], ['RK', 128, '#7AF08A']];
 
 export function trainingScene(app) {
-  let fight, view, tr, menu = false, sel = 0, boxes = false, side = 'right', hb = 0, recorded = false, played = false;
+  let fight, view, tr, menu = false, sel = 0, boxes = false, side = 'right', hb = 0, recorded = false, played = false, poseFlash = 0;
+  const gift = buffs();
+  const pose = () => { if (!gift.has('battle_pose') || menu) return; rollPoses(fight, view, Math.random); poseFlash = 220; sfxPick(); };
   const items = () => [
     { label: 'DUMMY: ' + DUMMIES[tr.dummy] }, { label: tr.mode === 'record' ? 'STOP RECORDING' : 'RECORD (' + (tr.rec.length / 60).toFixed(1) + ' S)' }, { label: tr.mode === 'play' ? 'STOP PLAYBACK' : 'PLAY' },
     { label: 'RESET POSITION' }, { label: 'BOXES: ' + (boxes ? 'ON' : 'OFF') }, { label: 'DUMMY SIDE: ' + side.toUpperCase() }, { label: 'EXIT' }
@@ -56,6 +61,7 @@ export function trainingScene(app) {
       while ((n = app.dev.popNav())) {
         if (n.k === 'pause' || n.k === 'tab') { if (tr.mode === 'record') tr.stopRecord(); menu = !menu; sel = 0; app.dev.release(); }
         else if (n.k === 'reset') reset();
+        else if (n.k === 'pose') pose();
         else if (menu) {
           const L = items();
           if (n.k === 'up') { sel = (sel + L.length - 1) % L.length; sfxMove(); } else if (n.k === 'down') { sel = (sel + 1) % L.length; sfxMove(); }
@@ -63,11 +69,12 @@ export function trainingScene(app) {
           else if (n.k === 'back') menu = false;
         } else if (n.k === 'back') { /* escape also opens the menu through 'pause' */ }
       }
+      if (poseFlash > 0) poseFlash -= dt;
       if (menu) return;
       fight.update(dt, s => { if (s === 0) { hb = app.dev.bits(0); return tr.mode === 'record' ? 0 : hb; } return tr.bits(hb); });
       if (tr.mode === 'record' && tr.rec.length >= MAX_REC) { tr.stopRecord(); recorded = true; }
     },
-    click(mx, my) { if (menu) menuRects(items(), 240, 80, 20, 220).forEach(r => { if (hitRect(r, mx, my)) { sel = r.i; act(r.i); } }); },
+    click(mx, my) { if (menu) menuRects(items(), 240, 80, 20, 220).forEach(r => { if (hitRect(r, mx, my)) { sel = r.i; act(r.i); } }); else if (gift.has('battle_pose') && hitBtn(480, 270, mx, my)) pose(); },
     hover(mx, my) { if (menu) menuRects(items(), 240, 80, 20, 220).forEach(r => { if (hitRect(r, mx, my)) sel = r.i; }); },
     draw(g, W, H, tsec, dt) {
       const frozen = menu ? 0 : dt;
@@ -76,7 +83,8 @@ export function trainingScene(app) {
       panels(g, W, H, fight, tr);
       inputLog(g, H, fight.fighters[0]);
       if (tr.mode !== 'live') text(g, tr.mode === 'record' ? 'RECORDING THE DUMMY WITH YOUR CONTROLS  ' + (tr.rec.length / 60).toFixed(1) + ' S' : 'PLAYBACK', W / 2, 232, { scale: 1, align: 'center', color: tr.mode === 'record' ? '#FF6B6B' : '#7AF08A', outline: '#05060C' });
-      text(g, 'TAB: MENU    R: RESET', W / 2, H - 12, { scale: 1, align: 'center', color: '#9FB0D8', outline: '#05060C' });
+      if (gift.has('battle_pose') && !menu) drawPoseBtn(g, W, H, poseFlash);
+      text(g, 'TAB: MENU    R: RESET' + (gift.has('battle_pose') ? '    P: POSE' : ''), W / 2, H - 12, { scale: 1, align: 'center', color: '#9FB0D8', outline: '#05060C' });
       if (menu) { g.save(); g.globalAlpha = 0.65; px(g, 0, 0, W, H, '#000000'); g.restore(); text(g, 'TRAINING', W / 2, 46, { scale: 3, align: 'center', color: '#FFE86A', outline: '#3A0A1E' }); drawMenu(g, items(), sel, W / 2, 80, 20, tsec, { w: 220 }); }
     },
     hint() { return 'TAB / ESC: TRAINING MENU   R: RESET   TAP UP / DOWN: SIDESTEP   LP+RP: THROW'; }

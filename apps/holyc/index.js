@@ -62,7 +62,7 @@ export default {
     const tabOn = v => Object.keys(tabs).forEach(k => tabs[k].classList.toggle('on', k === v));
     lessonT = makeLessonTutor(left, { lab, snd, progress: P, pay, onExit: () => show('lessons'), onFinish: L => finishLesson(L) });
     puzzleT = makePuzzleTutor(left, { lab, snd, progress: P, HC, pay, onExit: ch => show('puzzles', ch), onNext: p => nextPuzzle(p), solved: () => refreshStats() });
-    shop = makeWorkshop(left, { lab, snd, ctx, progress: P });
+    shop = makeWorkshop(left, { lab, snd, ctx, progress: P, HC });
     const only = el => { [lessonT.el, puzzleT.el, shop.el].forEach(e => { e.style.display = e === el ? '' : 'none'; }); };
 
     function openLesson(id, step) { closeAll(); const L = lessonById(id); only(lessonT.el); mode('lab'); tabOn('lessons'); lessonT.open(L, Math.max(0, Math.min(step || 0, L.steps.length - 1))); }
@@ -89,6 +89,7 @@ export default {
 
     /* ---- go ---------------------------------------------------------------------------------------------------------------------------- */
     refreshStats();
+    try { if (window.Buffs) window.Buffs.sync(P.buffView()); } catch (e) { /* a puzzle solved before there were buffs counts */ }
     if (args.edit !== undefined) { openShop(String(args.edit)); if (args.name) shop.setName(args.name); }
     else if (P.data.view === 'puzzles') show('puzzles'); else show('lessons');
     const again = ev => { const d = ev.detail; if (d && d.appId === 'holyc' && d.args && d.args.edit !== undefined) { openShop(String(d.args.edit)); if (d.args.name) shop.setName(d.args.name); } };

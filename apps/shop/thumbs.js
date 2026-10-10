@@ -1,4 +1,5 @@
 /* CRAZY DAVE — the picture on every card, and Dave himself. One canvas per card, 116 x 60, whole pixels. */
+import { notesInks } from '../../kernel/theme_fx.js';
 import { BACK_BASE, drawBackArt, drawTable } from '../solitaire/cosmetics.js';
 import { drawPlant } from '../garden/art.js';
 import { thumbMini } from '../../kernel/pet_art.js';
@@ -230,12 +231,19 @@ export function drawThumb(cv, cat, it) {
     return;
   }
   if (cat === 'scheme') {
-    const v = it.v;
-    g.fillStyle = v.bg; g.fillRect(0, 0, 116, 60);
-    g.fillStyle = v.dim; g.fillRect(0, 0, 116, 8);
-    g.font = '11px monospace';
-    const rows = [[v.ok, '::/> DIR'], [v.fg, 'AUTOEXEC.HC'], [v.hi, 'GOD.DD'], [v.err, 'DISK ERROR'], [v.acc, '::/> _']];
-    rows.forEach((r, i) => { g.fillStyle = r[0]; g.fillText(r[1], 5, 20 + i * 9); });
+    /* a scheme dresses NOTES and nothing else (kernel/theme_fx.js), so the card is a small Notes page in its inks, each held to readable exactly as the real page is */
+    const t = notesInks(it.v);
+    g.fillStyle = t.bg; g.fillRect(0, 0, 116, 60);
+    g.fillStyle = t.sel; g.fillRect(0, 0, 116, 9);
+    g.font = '8px monospace'; g.fillStyle = t.selInk; g.fillText('NOTES', 3, 7);
+    g.fillStyle = t.line; g.fillRect(36, 9, 1, 51);
+    const list = [[t.fg, 'Index'], [t.dim, 'Plans'], [t.fg, 'Bekkedal']];
+    list.forEach((r, i) => { if (i === 0) { g.fillStyle = t.sel; g.fillRect(0, 11 + i * 10, 36, 10); g.fillStyle = t.selInk; } else g.fillStyle = r[0]; g.font = '9px monospace'; g.fillText(r[1], 3, 19 + i * 10); });
+    g.font = '10px monospace';
+    g.fillStyle = t.hi; g.fillText('THE INDEX', 41, 21);
+    g.fillStyle = t.fg; g.fillText('a page, and', 41, 31);
+    g.fillStyle = t.acc; g.fillText('[[a link]]', 41, 41); g.fillStyle = t.err; g.fillText('[[none]]', 41, 51);
+    g.fillStyle = t.ok; g.fillText('x', 102, 31); g.fillStyle = t.dim; g.fillText('3', 106, 41);
     return;
   }
   if (cat === 'pot') {

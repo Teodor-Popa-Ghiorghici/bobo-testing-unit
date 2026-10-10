@@ -1,4 +1,5 @@
 import { createWindow, raise } from '../../kernel/wm.js';
+import { buffs } from '../buffs_scope.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
@@ -770,8 +771,11 @@ export default {
          so S.bagCap — raised by the two sekk tiers Astrid sells — is the one
          concrete thing the upgrade buys. */
       const bagTotal = () => Object.values(S.bag).reduce((a, b) => a + b, 0);
+      /* ten more places in the sekk: HOLYC.EXE's quiet gift (kernel/buffs_core.js 'bekkedal_bag'). Worked out each time, never added into the save, so it is a gift and not a number that could be counted twice. */
+      const gift = buffs();
+      const bagLimit = () => S.bagCap + (gift.has('bekkedal_bag') ? 10 : 0);
       function gainCapped(id, n) {
-        if (bagTotal() >= S.bagCap) { say(TX('SEKKEN ER FULL.', 'BAG IS FULL.')); deny(); return false; }
+        if (bagTotal() >= bagLimit()) { say(TX('SEKKEN ER FULL.', 'BAG IS FULL.')); deny(); return false; }
         add(id, n || 1); return true;
       }
       /* One counter and one derived level per gathering activity, levels
@@ -2300,7 +2304,7 @@ export default {
         if (rest) add(id, -rest);
       }
       function craftGain(id, n) {
-        if (bagTotal() + n <= S.bagCap) { add(id, n); return; }
+        if (bagTotal() + n <= bagLimit()) { add(id, n); return; }
         S.chest[id] = (S.chest[id] || 0) + n;
       }
       function recipeUnlocked(r) {
@@ -4388,7 +4392,7 @@ export default {
               drawSleep, drawEnd, drawSpine, drawLoftEnd, toolName } = createMenus({
         S: () => S, fish: () => fish, chop: () => chop, typed: () => ({ n: typer.shown(), done: typer.done() }), dlg: () => dlg, shop: () => shop, craft: () => craft,
         travel: () => travel, offer: () => offer, qScroll: () => qScroll, loft: () => loft,
-        bagCur: () => bagCur, giftSel: () => giftSel,
+        bagCur: () => bagCur, giftSel: () => giftSel, bagUse: () => [bagTotal(), bagLimit()],
         T: T, TX: TX, iname: iname, price: price, houseCost: () => houseCost(S),
         recipeUnlocked: recipeUnlocked, craftCount: craftCount,
         panel: panel, icon: icon, text: text, textW: textW, wrapText: wrapText,

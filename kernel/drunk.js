@@ -9,7 +9,11 @@
      too much   the eyelids come down every few seconds, and stay a moment
 
    Every swallow also lands as a kick that rides over the level and dies away
-   in a second, so each measure is felt when it goes down.
+   in a second, so each measure is felt when it goes down. How hard depends on what it is:
+   a weak one is hardly a kick at all, and a strong one BURNS (`burn`, 0 to 1: drunk_bac.js
+   burnOf): the room flushes warm and red at the edges, brightens, the eyes water (a blur
+   that comes and goes in two seconds), and the picture flinches. It is the swallow, not
+   the level, that does it, so it shows from the first sip of the raw stuff.
 
    It is the whole interface that is drunk, not just the picture: the filter and
    the transform go on #room (the case, the well, the chin and the knobs as well
@@ -22,7 +26,7 @@
    floor is a journey of minutes and nothing that is clicked can hurry it. At the
    limit the whole window goes (kernel/blackout.js). With LORE ACCURATE on (kernel/lore.js, earned) the first sip of anything with alcohol in it is the limit:
    `knockOut()` plays the faint (kernel/faint.js) over the room and then the blackout. */
-import { newBlood, swallow, step, over, levelOf, stageOf, wake, BAC } from './drunk_bac.js';
+import { newBlood, swallow, step, over, levelOf, stageOf, wake, proofOf, BAC } from './drunk_bac.js';
 import { FAINT_SECS, AT, frame as faintFrame, starAt } from './faint.js';
 import { status as loreStatus, load as loreLoad, save as loreSave } from './lore.js';
 import { DRINKS } from './cos_data.js';
@@ -43,6 +47,7 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 export const Drunk = {
   level: 0,
   kick: 0,
+  burn: 0,
   raf: null,
   blood: newBlood(), out: false, faint: null,
   lore: loreLoad(typeof localStorage !== 'undefined' ? localStorage : { getItem: () => null }),
@@ -51,11 +56,12 @@ export const Drunk = {
   drink(units = 1) {
     if (units <= 0) { this.kick = Math.max(this.kick, 0.15); this._ensureLoop(); return; }
     swallow(this.blood, units); watch.measure();
-    this.kick = 1;
+    this.kick = clamp(0.25 + 0.75 * Math.min(1, units), 0, 1);              /* the Jägermeister is 1: a weak one hardly kicks */
+    this.burn = Math.max(this.burn, proofOf(units).burn * 0.6);
     this._ensureLoop();
   },
-  /* a swallow on the way down: the screen gives a small lurch */
-  gulp() { this.kick = Math.max(this.kick, 0.4); this._ensureLoop(); },
+  /* a swallow on the way down: the screen gives a small lurch, and a strong one (`burn` 0 to 1, from the bottle) a flush */
+  gulp(burn = 0) { this.kick = Math.max(this.kick, 0.4 + 0.45 * burn); this.burn = Math.max(this.burn, burn); this._ensureLoop(); },
   stage() { return stageOf(this.blood); },
   blackedOut() { return this.out || !!this.faint; },
   /* ---- LORE ACCURATE: how far off it is, whether it is on, and the first sip that ends it ---- */
@@ -131,10 +137,11 @@ export const Drunk = {
       this.level = levelOf(this.blood);
       watch.step(dt, stageOf(this.blood), this.out);
       this.kick = Math.max(0, this.kick - dt * 1.6);
+      this.burn = Math.max(0, this.burn - dt * 0.42);
       if (this.faint && now - this.faint.t0 >= FAINT_SECS * 1000) { this.faint = null; this.blood.blood = BAC.LIMIT + 0.01; }      /* the faint is over: the limit has been reached */
       if (over(this.blood) && !this.out && !this.faint) this.blackout();
       this._apply(now);
-      if (this.level > 0.001 || this.out || this.faint) this.raf = requestAnimationFrame(tick);
+      if (this.level > 0.001 || this.burn > 0.01 || this.out || this.faint) this.raf = requestAnimationFrame(tick);
       else { this.raf = null; this._clear(); }
     };
     this.raf = requestAnimationFrame(tick);
@@ -155,20 +162,22 @@ export const Drunk = {
       f.dfC.setAttribute('k2', (1 - ghost).toFixed(3));
       f.dfC.setAttribute('k3', ghost.toFixed(3));
     }
-    const hue = Math.sin(now / 900) * L * 34;
-    const sat = 1 + L * 0.9 + Math.sin(now / 650) * L * 0.2;
-    const blur = L * L * 2.4 + this.kick * 1;
+    const Bn = this.burn, calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const hue = Math.sin(now / 900) * L * 34 - Bn * 14;
+    const sat = 1 + L * 0.9 + Math.sin(now / 650) * L * 0.2 + Bn * 0.55;
+    const blur = L * L * 2.4 + this.kick * 1 + Bn * Bn * 1.8;                /* the eyes water */
     room.style.filter = (warp > 0 ? 'url(#drunkfx) ' : '') + 'blur(' + blur.toFixed(2) + 'px) saturate(' + sat.toFixed(2) +
-      ') hue-rotate(' + hue.toFixed(1) + 'deg) contrast(' + (1 + L * 0.18).toFixed(2) + ')';
+      ') hue-rotate(' + hue.toFixed(1) + 'deg) contrast(' + (1 + L * 0.18).toFixed(2) + ')' + (Bn > 0.01 ? ' brightness(' + (1 + Bn * 0.14).toFixed(2) + ')' : '');
     /* the room tilting, the picture drifting, breathing in and out */
     const rot = Math.sin(now / 1300) * L * 2.4 + Math.sin(now / 470) * L * 0.5;
-    const tx = Math.sin(now / 1700) * L * 16, ty = Math.cos(now / 1100) * L * 9;
+    const tx = Math.sin(now / 1700) * L * 16 + (calm ? 0 : Math.sin(now / 37) * Bn * 3), ty = Math.cos(now / 1100) * L * 9 + (calm ? 0 : Math.cos(now / 29) * Bn * 2);
     const z = 1 + Math.sin(now / 2300) * L * 0.03 + this.kick * 0.012;
     room.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) rotate(' + rot.toFixed(2) + 'deg) scale(' + z.toFixed(3) + ')';
     /* the edges close in, and (late) the lids */
     if (this.over) {
-      this.over.style.display = L > 0.12 ? 'block' : 'none';
-      this.vig.style.boxShadow = 'inset 0 0 ' + (60 + L * 150).toFixed(0) + 'px ' + (L * 46).toFixed(0) + 'px rgba(0,0,0,' + (L * 0.75).toFixed(2) + ')';
+      this.over.style.display = L > 0.12 || Bn > 0.02 ? 'block' : 'none';
+      this.vig.style.boxShadow = 'inset 0 0 ' + (60 + L * 150).toFixed(0) + 'px ' + (L * 46).toFixed(0) + 'px rgba(0,0,0,' + (L * 0.75).toFixed(2) + ')' +
+        (Bn > 0.02 ? ', inset 0 0 170px 30px rgba(255,70,10,' + (Bn * 0.4).toFixed(2) + ')' : '');
       let lid = 0;
       if (L > 0.55) {
         const cyc = Math.pow(Math.max(0, Math.sin(now / (2100 - L * 700) + 1)), 7);

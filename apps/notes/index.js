@@ -2,6 +2,7 @@ import { createWindow, raise } from '../../kernel/wm.js';
 import { scopedListeners, whenGone } from '../lifecycle.js';
 import { linksOf } from './links.js';
 import { createCalls } from './trophy_calls.js';
+import { buffs } from '../buffs_scope.js';
 
 const NOTE_KEY = 'templeos.notes.v1';
 const NOTE_SEED = [
@@ -179,12 +180,27 @@ export default {
         if (graphEl.classList.contains('on')) layoutSeed();
         save();
       }
+      /* the three typefaces, and the three more that HOLYC.EXE gives for doing something unaided (kernel/buffs_core.js 'notes_fonts'): the machine's own pixel face, a hand, and a slab. k evens out their sizes. */
+      const FAM = { mono: "'Courier New', monospace", sans: 'system-ui, sans-serif', serif: 'Georgia, serif' };
+      const EXTRA = {
+        pixel: { label: 'PIXEL', fam: "'VT323', 'Courier New', monospace", k: 1.35 },
+        hand: { label: 'HAND', fam: "'Segoe Script', 'Bradley Hand', 'Comic Sans MS', 'Comic Neue', 'URW Chancery L', 'Z003', cursive", k: 1.05 },
+        slab: { label: 'SLAB', fam: "'Rockwell', 'Roboto Slab', 'Bitstream Charter', 'Charter', 'Courier Prime', serif", k: 1, bold: true }
+      };
+      const gift = buffs();
+      function syncFonts() {
+        const sel = $('.nfont');
+        if (gift.has('notes_fonts') && !sel.querySelector('option[value="pixel"]')) Object.keys(EXTRA).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = EXTRA[k].label; sel.appendChild(o); });
+        if (!FAM[N.font] && !(EXTRA[N.font] && gift.has('notes_fonts'))) N.font = 'mono';
+      }
       function applyType() {
-        const fam = { mono: "'Courier New', monospace", sans: "system-ui, sans-serif", serif: "Georgia, serif" }[N.font];
-        [editEl, readEl].forEach(e => { e.style.fontFamily = fam; e.style.fontSize = N.size + 'px'; });
+        syncFonts();
+        const x = EXTRA[N.font], fam = x ? x.fam : FAM[N.font];
+        [editEl, readEl].forEach(e => { e.style.fontFamily = fam; e.style.fontSize = Math.round(N.size * (x ? x.k : 1)) + 'px'; e.style.fontWeight = x && x.bold ? 'bold' : ''; });
         $('.nfont').value = N.font;
         $('.nsize').value = String(N.size);
       }
+      const offGift = gift.on(() => applyType());
       function setMode(m) {
         N.mode = m;
         root.classList.toggle('reading', m === 'read');
@@ -360,8 +376,12 @@ export default {
         const q = gcv.getContext('2d');
         const W = gcv.width, H = gcv.height;
         q.setTransform(1, 0, 0, 1, 0, 0);
-        q.fillStyle = '#07090c'; q.fillRect(0, 0, W, H);
-        q.strokeStyle = '#12181f'; q.lineWidth = 1;
+        /* the colours: the machine's own, or the scheme's inks when this window wears one (kernel/theme_fx.js notesInks: the same inks the page reads, held to readable) */
+        const css = getComputedStyle(_rootEl.closest ? (_rootEl.closest('.win') || root) : root), I = k => (css.getPropertyValue(k) || '').trim(), themed = !!I('--n-bg');
+        const K = themed ? { bg: I('--n-bg'), grid: I('--n-hover'), edge: I('--n-line'), hot: I('--n-acc'), dead: I('--n-err'), deadHot: I('--n-err'), node: I('--n-ok'), nodeHot: I('--n-acc'), nodeOn: I('--n-hi'), label: I('--n-dim'), labelOn: I('--n-fg'), count: I('--n-ok'), ring: I('--n-bg') }
+                            : { bg: '#07090c', grid: '#12181f', edge: '#28323d', hot: '#55FFFF', dead: '#5a2b26', deadHot: '#ff7b6a', node: '#55FF55', nodeHot: '#55FFFF', nodeOn: '#FFFF55', label: '#AAAAAA', labelOn: '#FFFFFF', count: '#55FF55', ring: '#000000' };
+        q.fillStyle = K.bg; q.fillRect(0, 0, W, H);
+        q.strokeStyle = K.grid; q.lineWidth = 1;
         for (let x = 0; x < W; x += 24) { q.beginPath(); q.moveTo(x, 0); q.lineTo(x, H); q.stroke(); }
         for (let y = 0; y < H; y += 24) { q.beginPath(); q.moveTo(0, y); q.lineTo(W, y); q.stroke(); }
         q.setTransform(G.zoom, 0, 0, G.zoom, W / 2 + G.ox, H / 2 + G.oy);
@@ -374,7 +394,7 @@ export default {
           if (!a || !b) return;
           const dead = e[1].indexOf('ghost:') === 0;
           const hot = e[0] === curId || e[1] === curId;
-          q.strokeStyle = dead ? (hot ? '#ff7b6a' : '#5a2b26') : (hot ? '#55FFFF' : '#28323d');
+          q.strokeStyle = dead ? (hot ? K.deadHot : themed ? K.dead : '#5a2b26') : (hot ? K.hot : K.edge);
           q.lineWidth = hot ? 2 / G.zoom : 1 / G.zoom;
           q.beginPath(); q.moveTo(a.x, a.y); q.lineTo(b.x, b.y); q.stroke();
           /* an arrow head, so the direction of a link is visible */
@@ -395,23 +415,23 @@ export default {
           const r = 7 + Math.min(9, (deg[n.id] || 0) * 1.6);
           const on = n.id === curId, hot = G.hot === n.id;
           q.beginPath(); q.arc(p.x, p.y, r + 2, 0, Math.PI * 2);
-          q.fillStyle = '#000000'; q.fill();
+          q.fillStyle = K.ring; q.fill();
           q.beginPath(); q.arc(p.x, p.y, r, 0, Math.PI * 2);
-          q.fillStyle = on ? '#FFFF55' : hot ? '#55FFFF' : '#55FF55'; q.fill();
+          q.fillStyle = on ? K.nodeOn : hot ? K.nodeHot : K.node; q.fill();
           q.font = (on ? 'bold ' : '') + (11 / G.zoom < 7 ? 7 : 11) + 'px monospace';
-          q.fillStyle = on ? '#FFFFFF' : '#AAAAAA';
+          q.fillStyle = on ? K.labelOn : K.label;
           q.fillText(n.title, p.x, p.y + r + 9);
         });
         Object.keys(gh).forEach(k => {
           const p = G.pos[k]; if (!p) return;
           q.beginPath(); q.arc(p.x, p.y, 6, 0, Math.PI * 2);
-          q.setLineDash([3, 3]); q.strokeStyle = '#FF5555'; q.lineWidth = 1.5 / G.zoom; q.stroke();
+          q.setLineDash([3, 3]); q.strokeStyle = themed ? K.dead : '#FF5555'; q.lineWidth = 1.5 / G.zoom; q.stroke();
           q.setLineDash([]);
-          q.font = '10px monospace'; q.fillStyle = '#FF5555';
+          q.font = '10px monospace'; q.fillStyle = themed ? K.dead : '#FF5555';
           q.fillText(gh[k], p.x, p.y + 16);
         });
         q.setTransform(1, 0, 0, 1, 0, 0);
-        q.font = '10px monospace'; q.textAlign = 'left'; q.fillStyle = '#55FF55';
+        q.font = '10px monospace'; q.textAlign = 'left'; q.fillStyle = K.count;
         q.fillText(N.notes.length + ' NOTES · ' + edges.length + ' LINKS · ' +
                    Object.keys(gh).length + ' UNWRITTEN', 8, 14);
       }
@@ -480,6 +500,7 @@ export default {
       show(Math.min(N.cur, N.notes.length - 1));
       setMode('edit');
       whenGone(_rootEl, () => {
+        offGift();
         if (G.raf) cancelAnimationFrame(G.raf);
         tro.stop();
         try { localStorage.setItem(NOTE_KEY, JSON.stringify(N)); } catch (e) {}

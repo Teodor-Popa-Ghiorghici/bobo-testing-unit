@@ -16,6 +16,7 @@ import { ratesHtml } from './rates.js';
 import { createCalls } from './trophy_calls.js';
 import { achSun } from './pay.js';
 import { drawCookie, createCookie } from './cookie.js';
+import { buffs } from '../buffs_scope.js';
 
 /* the machine's own pixel face for everything the star's canvas has to say */
 const MGF = "'VT323', 'Courier New', monospace";
@@ -23,7 +24,7 @@ const MGF = "'VT323', 'Courier New', monospace";
 export default {
   open() {
   createWindow({
-    kind: 'app', title: 'Magen', w: 1000, h: 640, appId: 'magen',
+    kind: 'app', title: 'Magen', w: 1100, h: 760, appId: 'magen',
     build: body => {
       const root = document.createElement('div');
       root.className = 'mgroot';
@@ -71,6 +72,26 @@ export default {
       const $  = q => root.querySelector(q);
       const cv = $('.mgcv'), g = cv.getContext('2d');
       const winL = scopedListeners(cv);
+      /* ---- the stage is as big as the window can make it ---------------------------------------------------------------
+         You spend your hours at the star, so it gets the room: the stage is the biggest square (in steps of half a pixel of the picture,
+         so its pixels stay even: 300, 450, 600) that fits under the count and above the line at the foot, and leaves the store a
+         usable width. The left column, the plaques and the star's size follow --mgs. Drawn at 300 across as it always was and scaled. */
+      const leftEl = $('.mgleft'), wrapEl = $('.mgstagewrap'), bodyEl = root.querySelector('.mgbody');
+      let stageSize = 300, fitPending = false;
+      function fitStage() {
+        fitPending = false;
+        if (!bodyEl.clientHeight) return;
+        let over = 10;
+        Array.from(leftEl.children).forEach(c => { if (c === wrapEl) return; const cs = getComputedStyle(c); over += c.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0); });
+        const room = Math.min(bodyEl.clientHeight - over - 8, root.clientWidth - 470);
+        const size = Math.max(300, Math.min(600, Math.floor(room / 150) * 150));
+        if (size === stageSize) return;
+        stageSize = size;
+        root.style.setProperty('--mgs', size + 'px'); root.style.setProperty('--mgk', String(size / 300));
+      }
+      const askFit = () => { if (!fitPending) { fitPending = true; requestAnimationFrame(fitStage); } };
+      if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(askFit); ro.observe(root); whenGone(root, () => ro.disconnect()); }
+      setTimeout(askFit, 0);
       if (!g) { $('.mghint').textContent = 'NO CANVAS.'; return; }
       const pane = $('.mgpane'), tip = $('.mgtip');
 
@@ -202,8 +223,11 @@ export default {
         return m;
       }
       function zechPer() { return legOn('l_tik') ? 0.05 : legOn('l_zech') ? 0.03 : 0.02; }
+      /* HOLYC.EXE's quiet gift (kernel/buffs_core.js 'magen_money'): six per cent more of everything. The window writes it as -6.000.000%, which is 6% written differently. */
+      const gift = buffs();
+      const blessing = () => gift.has('magen_money') ? 1.06 : 1;
       function globalMult() {
-        let m = kavMult() * (1 + S.zech * zechPer());
+        let m = kavMult() * (1 + S.zech * zechPer()) * blessing();
         let d = 0; MG_DIAS.forEach(u => { if (upOn(u.id)) d += u.pct; });
         m *= 1 + d;
         if (upOn('s_lam')) m *= 1.36;
@@ -1196,7 +1220,7 @@ export default {
         /* him. Gold on blue, which is the only colour scheme it has ever had */
         const beat = 1 + Math.sin(t * 1.1) * 0.02;
         const sc = squash > 0 ? 0.88 + (1 - squash) * 0.1 : beat;
-        const Rr = Math.round(62 * sc);
+        const Rr = Math.round(74 * sc);
         washOval(CX, CY, Rr + 34, Rr + 34, E.glow, 1 + Math.round((Math.sin(t * 0.8) + 1) * 0.8 + pulse * 4));
         washOval(CX, CY, Rr + 16, Rr + 16, E.glow, 3 + Math.round(pulse * 5));
         washOval(CX, CY, Rr + 7, Rr + 7, 11, 2);
@@ -1422,7 +1446,7 @@ export default {
           .sort((a, b) => b.v - a.v).slice(0, 3).map(t => ({ n: t.n, v: t.v, pct: all > 0 ? t.v / all * 100 : 0 }));
         return { mps: all, raw: rawMps(), resting: S.shabT > 0, perPress: clickPower(), crit: critChance(),
                  autoLvl: S.aLvl, autoPerSec: autoRate(S.aLvl), autoOpen: autoUnlocked(S.clicks), clicks: S.clicks, autoNeed: AUTO_UNLOCK,
-                 top: top, kav: kv, zech: zc, other: gm / (kv * zc), global: gm,
+                 top: top, kav: kv, zech: zc, other: gm / (kv * zc * blessing()), blessing: gift.has('magen_money'), global: gm,
                  offline: legOn('l_off') ? 1 : upOn('s_bit') ? 0.8 : 0.4 };
       }
       rEl.addEventListener('mousemove', ev => {
@@ -1531,7 +1555,7 @@ export default {
           if (tipLive && tip.style.display === 'block') tip.innerHTML = tipLive();
           /* buffs get a draining bar, because a number counting down is a
              fact and a bar emptying is a feeling */
-          bEl.innerHTML = S.buffs.map(b => {
+          bEl.innerHTML = (gift.has('magen_money') ? '<span class="mgbuff mgblessing" title="A BLESSING FROM ELSEWHERE. -6.000.000% IS 6%, WRITTEN DIFFERENTLY: SIX PER CENT MORE OF EVERYTHING.">-6.000.000%</span>' : '') + S.buffs.map(b => {
             const k = Math.max(0, Math.min(1, b.t / b.max));
             return '<span class="mgbuff" style="color:' + C(b.col) + '">' + b.n + ' ' + Math.ceil(b.t) + 's' +
                    '<i style="width:' + Math.round(k * 100) + '%;background:' + C(b.col) + '"></i></span>';

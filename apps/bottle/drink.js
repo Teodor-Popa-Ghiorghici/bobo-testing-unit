@@ -46,21 +46,24 @@ export function drinkStep(S, dt, fx) {
   /* ... and tips too early and too far, or not far enough, so a swallow is a gamble */
   const slip = tipError(st, tr, seed) * near + h.a * near;
   const bob = (t - S.gulpAt) < 0.4 ? Math.sin((t - S.gulpAt) / 0.4 * Math.PI) * 3 : 0;
+  /* a strong one hits the throat, and the glass flinches: it snaps back, drops and trembles for half a second after each swallow (S.burn, 0 to 1, from the strength: drunk_bac.js burnOf) */
+  const burn = S.burn || 0, since = t - S.gulpAt, flinch = burn > 0.2 && since >= 0 && since < 0.55 ? Math.sin(since / 0.55 * Math.PI) * burn : 0;
   const arc = Math.sin(Math.PI * Math.min(1, lift)) * (t < T_TIP ? 26 : 12);
   /* looking at it before it moves (it trembles where it stands), and the heavy landing after */
   const stare = tr < st.lead ? Math.sin(tr * 15) * 1.1 : 0, landed = tr > S.sched.T - st.tail ? Math.max(0, Math.sin((tr - (S.sched.T - st.tail)) / Math.max(0.1, st.tail) * Math.PI)) * 2 : 0;
   G.pose = {
-    sx: lerp(REST.sx, NEAR.sx, lift) + Math.sin(tr * 9) * shake + wander + c.x * lift + stare,
-    sy: lerp(REST.sy, NEAR.sy, lift) - arc + bob + Math.cos(tr * 7) * shake - over * 40 + c.y * lift + landed,
+    sx: lerp(REST.sx, NEAR.sx, lift) + Math.sin(tr * 9) * shake + wander + c.x * lift + stare + Math.sin(tr * 58) * 4 * flinch,
+    sy: lerp(REST.sy, NEAR.sy, lift) - arc + bob + Math.cos(tr * 7) * shake - over * 40 + c.y * lift + landed + flinch * 9,
     z: lerp(REST.z, NEAR.z, lift) * (1 + over),
-    th: clamp(th + slip, 0, TH_MAX + 0.35)
+    th: clamp(th + slip - flinch * 0.4, 0, TH_MAX + 0.35)
   };
   /* a swallow for every fifth of the glass that goes over the edge */
   while (S.pending >= 0.17) {
     S.pending -= 0.17; S.gulps++; S.gulpAt = t;
     if (S.lore && S.faintAt == null) { S.faintAt = tr; if (fx.faint) fx.faint(); }
     fx.sfx.gulp(S.gulps);
-    if (window.Drunk && window.Drunk.gulp) window.Drunk.gulp();
+    if (fx.sfx.sear) fx.sfx.sear(S.burn || 0, S.gulps);
+    if (window.Drunk && window.Drunk.gulp) window.Drunk.gulp(S.burn || 0);
   }
   if (tr >= S.sched.T) { G.pose = restPose(); return true; }
   return false;

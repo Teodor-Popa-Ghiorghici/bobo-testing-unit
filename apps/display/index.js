@@ -7,10 +7,11 @@ export default {
   const rows = [
     ['SCANLINES', 'scan', 'Horizontal lines across the picture.'],
     ['REFRESH BAND', 'band', 'The bar that crawls down every twelve seconds.'],
-    ['VIGNETTE', 'vig', 'The corners going dark, the way a tube does.']
+    ['VIGNETTE', 'vig', 'The corners going dark, the way a tube does.'],
+    ['READABILITY', 'read', 'Over a picture or a moving background: a soft veil as dark as that picture needs, a plate behind the icons\' names and a hairline round every window, so nothing is hard to see whatever the background is. Does nothing with no background.']
   ];
   const made = createWindow({
-    kind: 'terminal', title: 'DISPLAY.EXE', w: 420, h: 250, appId: 'display',
+    kind: 'terminal', title: 'DISPLAY.EXE', w: 440, h: 280, appId: 'display',
     build: body => {
       const p = document.createElement('div');
       p.className = 'sysdlg';

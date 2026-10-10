@@ -1,3 +1,4 @@
+import { buffs } from '../buffs_scope.js';
 import { createWindow, raise } from '../../kernel/wm.js';
 import { Snd } from '../../kernel/snd.js';
 import { Cos } from '../../kernel/cos.js';
@@ -207,7 +208,7 @@ export default {
       const S = {
         list: [], ix: -1, playing: false, voices: [],
         pos: 0, dur: 0, seekBase: 0, startedAt: 0,
-        vol: 0.7, pre: 0, bal: 0, width: 1, speed: 1, room: 0, roomIx: 2,
+        vol: 0.7, pre: 0, bal: 0, width: 1, speed: 1, room: 0, roomIx: 2, exp: false,
         eqOn: true, bassBoost: false, loud: false, mono: false,
         texture: 'off', scan: false, style: 0, repeat: 0, shuffle: false,
         tray: 0, trayDir: 0, disc: 0, spin: 0, sheen: 0, touched: false,
@@ -232,8 +233,9 @@ export default {
       function applyAll() {
         const t = ctx.currentTime;
         N.pre.gain.setTargetAtTime(Math.pow(10, S.pre / 20), t, 0.02);
-        N.master.gain.setTargetAtTime(CRT.on ? S.vol * (window.Mixer ? window.Mixer.get('hifi') : 1) : 0, t, 0.03);
-        if (N.pan.pan) N.pan.pan.setTargetAtTime(S.bal, t, 0.02);
+        /* EXPERIMENTAL MODE (the quiet gift 'stack_lab'): past a hard pan there is nowhere further to go, so the near side is driven harder instead */
+        N.master.gain.setTargetAtTime(CRT.on ? S.vol * (window.Mixer ? window.Mixer.get('hifi') : 1) * (1 + Math.max(0, Math.abs(S.bal) - 1) * 0.8) : 0, t, 0.03);
+        if (N.pan.pan) N.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, S.bal)), t, 0.02);
         const w = S.mono ? 0 : S.width;
         N.sidePos.gain.setTargetAtTime(w, t, 0.02);
         N.sideNeg.gain.setTargetAtTime(-w, t, 0.02);
@@ -976,15 +978,16 @@ export default {
         unit(4, 150, 472, 132, 'HOLYTRON IA-8  ·  INTEGRATED AMPLIFIER / GRAPHIC EQUALISER');
         for (let i = 0; i < EQ_BANDS.length; i++) {
           const v = eqGains[i];
-          knob('eq' + i, 26 + i * 38, 192, 14, (v + 12) / 24, EQ_BANDS[i].label,
-               (v > 0 ? '+' : '') + v.toFixed(1), tint);
+          knob('eq' + i, 26 + i * 38, 192, 14, fracOf('eq' + i), EQ_BANDS[i].label,
+               (v > 0 ? '+' : '') + v.toFixed(1), expOn() ? P.red : tint);
         }
-        knob('pre',   26, 248, 12, (S.pre + 12) / 24, 'TRIM', (S.pre > 0 ? '+' : '') + S.pre.toFixed(1));
-        knob('vol',   64, 248, 12, S.vol, 'VOL', Math.round(S.vol * 100) + '');
-        knob('bal',  102, 248, 12, (S.bal + 1) / 2, 'BAL', S.bal === 0 ? 'C' : (S.bal < 0 ? 'L' : 'R') + Math.round(Math.abs(S.bal) * 100));
-        knob('width',140, 248, 12, S.width / 2, 'WIDTH', Math.round(S.width * 100) + '');
-        knob('speed',178, 248, 12, (S.speed - 0.5) / 1.0, 'SPEED', S.speed.toFixed(2));
-        knob('room', 216, 248, 12, S.room, 'ROOM', ROOMS[S.roomIx]);
+        const kt = expOn() ? P.red : undefined;
+        knob('pre',   26, 248, 12, fracOf('pre'), 'TRIM', (S.pre > 0 ? '+' : '') + S.pre.toFixed(1), kt);
+        knob('vol',   64, 248, 12, fracOf('vol'), 'VOL', Math.round(S.vol * 100) + '', kt);
+        knob('bal',  102, 248, 12, fracOf('bal'), 'BAL', S.bal === 0 ? 'C' : (S.bal < 0 ? 'L' : 'R') + Math.round(Math.abs(S.bal) * 100), kt);
+        knob('width',140, 248, 12, fracOf('width'), 'WIDTH', Math.round(S.width * 100) + '', kt);
+        knob('speed',178, 248, 12, fracOf('speed'), 'SPEED', S.speed.toFixed(2), kt);
+        knob('room', 216, 248, 12, fracOf('room'), 'ROOM', ROOMS[S.roomIx], kt);
         button('eqon',  236, 226, 44, 14, S.eqOn ? 'EQ  ON' : 'EQ BYP', S.eqOn);
         button('loud',  284, 226, 44, 14, 'LOUD', S.loud);
         button('bass',  236, 243, 44, 14, 'BASS+', S.bassBoost);
@@ -999,7 +1002,9 @@ export default {
         unit(4, 286, 472, 96, 'HOLYTRON SA-3  ·  REAL TIME SPECTRUM ANALYSER');
         drawSpectrum(12, 300, 340, 44);
         drawScope(12, 347, 340, 14);
-        button('style', 358, 300, 112, 14, ['MIRRORED', 'BARGRAPH', 'SCOPE'][S.style], false);
+        /* EXP (the quiet gift 'stack_lab') shares the style button's row once it is earned; until then there is no sign of it */
+        if (gift.has('stack_lab')) { button('style', 358, 300, 76, 14, ['MIRRORED', 'BARGRAPH', 'SCOPE'][S.style], false); button('exp', 438, 300, 32, 14, 'EXP', expOn(), P.red); }
+        else button('style', 358, 300, 112, 14, ['MIRRORED', 'BARGRAPH', 'SCOPE'][S.style], false);
         button('roomsel', 358, 318, 112, 14, 'ROOM: ' + ROOMS[S.roomIx], S.roomIx > 0);
         button('ab', 358, 336, 112, 14, 'A/B — HOLD TO BYPASS', false);
         TXT('PRE ' + (S.pre > 0 ? '+' : '') + S.pre.toFixed(1) + 'dB   ' + Math.round(S.speed * 100) + '%',
@@ -1152,32 +1157,48 @@ export default {
       }
 
       /* ---- hands on the front panel ------------------------------------------- */
+      /* c is the knob's middle (where it clicks): a knob that has one is turned half as far again from it in each direction in EXPERIMENTAL MODE, one that starts at nothing (volume, room) half as far again at the top */
       const KNOBS = {
-        vol:   { get: () => S.vol,   set: v => S.vol = v,   min: 0, max: 1,   step: 0.02, detent: null },
-        pre:   { get: () => S.pre,   set: v => S.pre = v,   min: -12, max: 12, step: 0.5, detent: 0 },
-        bal:   { get: () => S.bal,   set: v => S.bal = v,   min: -1, max: 1,  step: 0.05, detent: 0 },
-        width: { get: () => S.width, set: v => S.width = v, min: 0, max: 2,   step: 0.05, detent: 1 },
-        speed: { get: () => S.speed, set: v => S.speed = v, min: 0.5, max: 1.5, step: 0.01, detent: 1 },
-        room:  { get: () => S.room,  set: v => S.room = v,  min: 0, max: 1,   step: 0.02, detent: null }
+        vol:   { get: () => S.vol,   set: v => S.vol = v,   min: 0, max: 1,   step: 0.02, detent: null, c: null },
+        pre:   { get: () => S.pre,   set: v => S.pre = v,   min: -12, max: 12, step: 0.5, detent: 0, c: 0 },
+        bal:   { get: () => S.bal,   set: v => S.bal = v,   min: -1, max: 1,  step: 0.05, detent: 0, c: 0 },
+        width: { get: () => S.width, set: v => S.width = v, min: 0, max: 2,   step: 0.05, detent: 1, c: 1 },
+        speed: { get: () => S.speed, set: v => S.speed = v, min: 0.5, max: 1.5, step: 0.01, detent: 1, c: 1 },
+        room:  { get: () => S.room,  set: v => S.room = v,  min: 0, max: 1,   step: 0.02, detent: null, c: null }
       };
       for (let i = 0; i < EQ_BANDS.length; i++) {
         (function (b) {
-          KNOBS['eq' + b] = { get: () => eqGains[b], set: v => { eqGains[b] = v; applyEQ(); }, min: -12, max: 12, step: 0.5, detent: 0 };
+          KNOBS['eq' + b] = { get: () => eqGains[b], set: v => { eqGains[b] = v; applyEQ(); }, min: -12, max: 12, step: 0.5, detent: 0, c: 0 };
         })(i);
       }
+      const gift = buffs();
+      const expOn = () => S.exp && gift.has('stack_lab');
+      const spanOf = k => !expOn() ? [k.min, k.max] : k.c == null ? [k.min, k.max * 1.5] : [k.c - (k.c - k.min) * 1.5, k.c + (k.max - k.c) * 1.5];
+      const fracOf = id => { const k = KNOBS[id], sp = spanOf(k); return (k.get() - sp[0]) / (sp[1] - sp[0]); };
       const nudge = (id, d) => {
         const k = KNOBS[id]; if (!k) return;
+        const sp = spanOf(k);
         let v = k.get() + d * k.step;
-        v = Math.max(k.min, Math.min(k.max, v));
+        v = Math.max(sp[0], Math.min(sp[1], v));
         if (k.detent != null && Math.abs(v - k.detent) < k.step * 0.9) v = k.detent;   /* the click at the middle */
         k.set(Math.round(v * 1000) / 1000);
       };
       const setFrac = (id, f) => {
         const k = KNOBS[id]; if (!k) return;
-        let v = k.min + (k.max - k.min) * Math.max(0, Math.min(1, f));
-        if (k.detent != null && Math.abs(v - k.detent) < (k.max - k.min) * 0.035) v = k.detent;
+        const sp = spanOf(k);
+        let v = sp[0] + (sp[1] - sp[0]) * Math.max(0, Math.min(1, f));
+        if (k.detent != null && Math.abs(v - k.detent) < (sp[1] - sp[0]) * 0.035) v = k.detent;
         k.set(Math.round(v / k.step) * k.step);
       };
+      /* the switch: on, every knob has the longer throw; off, any knob that was past its old stop is brought back to it */
+      function setExp(on) {
+        if (on && !gift.has('stack_lab')) return;
+        S.exp = !!on;
+        if (!S.exp) { Object.keys(KNOBS).forEach(id => { const k = KNOBS[id]; k.set(Math.max(k.min, Math.min(k.max, k.get()))); }); applyEQ(); }
+        applyAll(); io.saveSettings();
+        say(S.exp ? 'EXPERIMENTAL MODE: EVERY KNOB TURNS HALF AGAIN AS FAR, BOTH WAYS.' : 'EXPERIMENTAL MODE OFF. THE KNOBS ARE BACK WITHIN THEIR STOPS.');
+      }
+      winL.on(window, 'buffs-changed', () => { if (S.exp && !gift.has('stack_lab')) S.exp = false; });
 
       const at = ev => {
         const r = cv.getBoundingClientRect();
@@ -1202,6 +1223,7 @@ export default {
           case 'mono': S.mono = !S.mono; say(S.mono ? 'MONO SUM' : 'STEREO'); break;
           case 'scan': S.scan = !S.scan; break;
           case 'style': S.style = (S.style + 1) % 3; break;
+          case 'exp': setExp(!S.exp); break;
           case 'tex': S.texture = S.texture === 'off' ? 'crackle' : S.texture === 'crackle' ? 'hiss' : 'off';
                       surfaceNoise(S.texture); say('SURFACE NOISE: ' + S.texture.toUpperCase()); break;
           case 'roomsel': S.roomIx = (S.roomIx + 1) % ROOMS.length;
@@ -1246,10 +1268,10 @@ export default {
           return;
         }
         const k = KNOBS[S.drag.id]; if (!k) return;
-        const d = (S.drag.y0 - p.y) / 90;                  /* drag up to turn up */
-        let v = S.drag.v0 + d * (k.max - k.min);
-        v = Math.max(k.min, Math.min(k.max, v));
-        if (k.detent != null && Math.abs(v - k.detent) < (k.max - k.min) * 0.03) v = k.detent;
+        const d = (S.drag.y0 - p.y) / 90, sp = spanOf(k);   /* drag up to turn up */
+        let v = S.drag.v0 + d * (sp[1] - sp[0]);
+        v = Math.max(sp[0], Math.min(sp[1], v));
+        if (k.detent != null && Math.abs(v - k.detent) < (sp[1] - sp[0]) * 0.03) v = k.detent;
         k.set(Math.round(v / k.step) * k.step);
       });
       winL.on(window, 'mouseup', () => {
@@ -1306,8 +1328,8 @@ export default {
         if (k === ' ') { toggle(); return; }
         if (k === 'ArrowRight') { seek(S.pos + (ev.shiftKey ? 30 : 5)); return; }
         if (k === 'ArrowLeft')  { seek(S.pos - (ev.shiftKey ? 30 : 5)); return; }
-        if (k === 'ArrowUp')    { setFrac('vol', Math.min(1, S.vol + 0.05)); return; }
-        if (k === 'ArrowDown')  { setFrac('vol', Math.max(0, S.vol - 0.05)); return; }
+        if (k === 'ArrowUp')    { nudge('vol', 2.5); return; }
+        if (k === 'ArrowDown')  { nudge('vol', -2.5); return; }
         if (k === 'n' || k === 'N') { skip(1); return; }
         if (k === 'p' || k === 'P') { skip(-1); return; }
         if (k === 'b' || k === 'B') { press('eqon'); return; }

@@ -1,4 +1,5 @@
 /* The elements the library is made of: a row, a tile, an album, a source in the sidebar. They only build and wire what they are given: what a click means is the caller's. */
+import { coverUrl } from './album_cover.js';
 export const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 export const mmss = s => { if (!isFinite(s) || s <= 0) return '--:--'; const m = Math.floor(s / 60), q = Math.floor(s % 60); return m + ':' + (q < 10 ? '0' : '') + q; };
 export const clock = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + 'H ' + m + 'M' : m ? m + ' MIN' : s + ' SEC'; };
@@ -37,9 +38,18 @@ export function tile(api, t, i, o) {
   d.appendChild(cv); d.appendChild(el('b', null, t.name)); d.appendChild(el('i', null, sub(t))); d.title = t.name + '\n' + sub(t);
   return d;
 }
+/* an album's own picture as an <img> (its vault entry: album_meta.js), or null while it is being read */
+export function coverImg(key) {
+  const im = el('img'); im.alt = ''; im.draggable = false;
+  const u = coverUrl(key, url => { im.src = url; });
+  if (u) im.src = u;
+  return im;
+}
+/* the picture at the head of an album's page: its own, or the first disc's */
+export function albumPage(api, a, first) { return a.coverKey ? coverImg(a.coverKey) : thumbImg(api, first, ''); }
 export function album(api, a, first, o) {
-  const d = el('div', 'stl-alb' + (o.sel ? ' sel' : '') + (o.now ? ' now' : '')); d.dataset.k = a.key;
-  const sl = el('div', 'sl'); sl.appendChild(el('div', 'cd')); const sv = el('div', 'sv'); sv.appendChild(thumbImg(api, first, '')); sl.appendChild(sv); d.appendChild(sl);
+  const d = el('div', 'stl-alb' + (o.sel ? ' sel' : '') + (o.now ? ' now' : '') + (a.edited ? ' edited' : '')); d.dataset.k = a.key;
+  const sl = el('div', 'sl'); sl.appendChild(el('div', 'cd')); const sv = el('div', 'sv'); sv.appendChild(a.coverKey ? coverImg(a.coverKey) : thumbImg(api, first, '')); sl.appendChild(sv); d.appendChild(sl);
   d.appendChild(el('b', null, a.name)); d.appendChild(el('i', null, [a.artist, a.idx.length + (a.idx.length === 1 ? ' DISC' : ' DISCS')].filter(Boolean).join('  ·  '))); d.title = a.name + '\n' + a.artist;
   return d;
 }

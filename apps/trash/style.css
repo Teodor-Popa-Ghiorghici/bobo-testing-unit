@@ -6,3 +6,10 @@
 .trow.sel { background: #0000AA; }
 .trow:hover { background: #555555; }
 .trow.sel:hover { background: #0000AA; }
+
+/* the dumpster (kernel/bin_look.js): the same list on a green ribbed floor, with a dark green rail along the top */
+.dumpster .win-trash { background: #002200 repeating-linear-gradient(90deg, #003300 0 6px, #002200 6px 10px); border-top: 3px solid #00AA00; }
+.dumpster .trow { text-shadow: 1px 1px 0 #000000; }
+.dumpster .trow.sel { background: #00AA00; color: #000000; text-shadow: none; }
+.dumpster .trow:hover { background: #005500; }
+.dumpster .fempty { color: #55FF55; }

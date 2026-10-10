@@ -49,7 +49,7 @@ export function createLibraryIO(core) {
     catch (e) { say('THE SHELF IS FULL. NEWER DISCS MAY NOT COME BACK.'); return false; }
   }
   function saveDirs() { try { localStorage.setItem(DIRS_KEY, JSON.stringify(S.userDirs)); } catch (e) { /* no room */ } }
-  function saveSettings() { try { localStorage.setItem('templeos.stack.ui.v1', JSON.stringify({ mode: S.labelMode, tab: S.tab, view: S.view, vol: S.vol, shuffle: S.shuffle, repeat: S.repeat, last: S.list[S.ix] && !S.list[S.ix].builtin ? S.list[S.ix].vault : null })); } catch (e) { /* no room */ } }
+  function saveSettings() { try { localStorage.setItem('templeos.stack.ui.v1', JSON.stringify({ mode: S.labelMode, tab: S.tab, view: S.view, vol: Math.min(1, S.vol), exp: !!S.exp, shuffle: S.shuffle, repeat: S.repeat, last: S.list[S.ix] && !S.list[S.ix].builtin ? S.list[S.ix].vault : null })); } catch (e) { /* no room */ } }
 
   /* a label for a disc: from the vault by key (shared), or from an old record's little data: picture */
   function labelByKey(key) {
@@ -72,6 +72,7 @@ export function createLibraryIO(core) {
     if (ui.tab) S.tab = ui.tab;
     if (typeof ui.vol === 'number') S.vol = Math.max(0, Math.min(1, ui.vol));
     S.resume = ui.last || null;
+    if (ui.exp) S.exp = true;                       /* it only counts if the gift is held (apps/hifi/index.js expOn) */
     if (ui.shuffle) S.shuffle = true;
     if (ui.repeat) S.repeat = ui.repeat | 0;
     if (!recs.length) { core.changed(); return; }

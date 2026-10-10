@@ -1,6 +1,7 @@
 import { varsOf, VAR_NAMES, frameHex, install as installThemes } from './theme_fx.js';
 import { FRAMES, LOGOS, CURSORS, SCHEMES, POTS, SPECIES, WALLS, CRAYON, GARAGE, DRINKS, ELEPHANT, SOLITAIRE, DECO_SVG, CUR_HANDMASK, forSale } from './cos_data.js';
 import { Backdrops } from './backdrops.js';
+import { handedOver } from './handed.js';
 
 /* `kind`: what owning one of these means. 'look' goes on the machine and is worn one at a time (frame, logo, pointer, scheme);
    'stock' is what the garden grows with (pots, seeds); 'wall' is a picture, set as the background; 'unlock' is something an app
@@ -294,41 +295,43 @@ const Cos = {
     room.style.setProperty('--cur-move',  arrow + ', move');
   },
 
+  /* A colour scheme dresses NOTES and nothing else (kernel/theme_fx.js says why). The room keeps the machine's own look, whatever is worn, and every Notes window wears the machine's
+     scheme unless it was given one of its own by its [T]. */
   applyScheme() {
     const room = document.getElementById('room');
     if (!room) return;
-    const s = this.find('scheme', this.live('scheme')) || SCHEMES[0];
-    this.applySchemeVars(room, s);
+    VAR_NAMES.forEach(k => room.style.removeProperty(k));              /* anything an older build set on the room */
     this.dressFrames();
   },
 
-  /* the edge of a window is a border, so it is coloured here, from the VGA colour wm.js gave it (data-edge) and the scheme the window wears
-     (its own [T], else the machine's); the title bar is filtered by the stylesheet. A scheme never reaches inside a window. */
+  isNotes: win => !!(win && win.dataset && win.dataset.app === 'notes'),
+
+  /* the edge of a window is a border, so it is coloured here, from the VGA colour wm.js gave it (data-edge); on a Notes window it takes the scheme's ramp (its title bar is filtered by the
+     stylesheet); on every other window it is the VGA colour it was given, always. */
   dressFrame(win) {
     const edge = win && win.dataset && win.dataset.edge;
     if (!edge || !this.st) return;
+    if (!this.isNotes(win)) { win.style.borderColor = edge; this.wearNotes(win, null); return; }
     const s = this.find('scheme', win.dataset.scheme || this.live('scheme')) || SCHEMES[0];
     win.style.borderColor = s.id === 'vga' ? edge : frameHex(s.v, edge);
+    this.wearNotes(win, s);
   },
   dressFrames() { document.querySelectorAll('.win[data-edge]').forEach(w => this.dressFrame(w)); },
 
-  /* a scheme is worn as custom properties on an element: the six inks, the gradient-map filter (kernel/theme_fx.js) and the desktop's colour */
-  applySchemeVars(el, s, forWindow) {
-    const o = varsOf(s, forWindow);
-    for (const k in o) el.style.setProperty(k, o[k]);
+  /* the scheme worn as the page's inks and the title bar's filter, on the window itself (a Notes window) */
+  wearNotes(win, s) {
+    VAR_NAMES.forEach(k => win.style.removeProperty(k));
+    win.classList.toggle('themed', !!(s && s.id !== 'vga'));
+    if (!s) return;
+    const o = varsOf(s);
+    for (const k in o) win.style.setProperty(k, o[k]);
   },
 
-  /* a window's own scheme overrides whatever's set on #room, for that
-     window's subtree only -- CSS custom properties just cascade, so
-     nothing downstream needs to know this happened. The window itself
-     does not remember (the window manager keeps one choice per app). */
+  /* a Notes window's own scheme (its [T]); null puts it back on the machine's. Any other window has none to wear. */
   applyWinScheme(win, schemeId) {
-    if (!win) return;
-    if (!schemeId) { VAR_NAMES.forEach(k => win.style.removeProperty(k)); win.classList.remove('themed'); delete win.dataset.scheme; this.dressFrame(win); return; }
-    const s = this.find('scheme', schemeId);
-    if (!s) return;
-    this.applySchemeVars(win, s, true);
-    win.classList.add('themed');
+    if (!win || !this.isNotes(win)) return;
+    if (!schemeId) { delete win.dataset.scheme; this.dressFrame(win); return; }
+    if (!this.find('scheme', schemeId)) return;
     win.dataset.scheme = schemeId;
     this.dressFrame(win);
   },
@@ -342,6 +345,8 @@ const Cos = {
 };
 
 Cos.COS_CATS = COS_CATS;
+/* every picture bought is owed to ::/Backdrops: RESTORE SYSTEM FILES writes back the ones that were deleted for good */
+handedOver(() => Cos.st ? Cos.owned('wall').map(id => Cos.find('wall', id)).filter(Boolean).map(it => ({ path: BACKDROPS_DIR + '/' + backdropFile(it), type: 'image', content: '', src: it.src })) : []);
 
 export { Cos };
 window.Cos = Cos;

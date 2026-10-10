@@ -49,6 +49,7 @@ const TERM = {
      "  GODDOODLE ..... ASK FOR A PICTURE",
      "  GODSONG ....... ASK FOR A TUNE",
      "  TROPHIES [GAME] THE LEDGER (TROPHIES OPEN OPENS IT)",
+     "  TROPHYBOX ..... THE BIG CUPS (RESTORE PUTS ITS ICON BACK)",
      "APPS:",
      "  TASKS ......... ADAM, SETH AND THE REST",
      "  AFTEREGYPT .... THE GAME",
@@ -443,6 +444,7 @@ export default {
           else { const id = cli.findArea(T, arg, T.names); if (id) say(cli.ofArea(T, id, T.names)); else say(cli.ofOne(T, arg)); }
           return true;
         }
+        case 'TROPHYBOX': case 'BOX': ctx.openWindow('trophybox'); print(['OPENING THE TROPHY BOX. ITS ICON IS GONE? RESTORE.'], 'l-dim'); return true;
         case 'SAVER': case 'SCREENSAVER':
           Saver.idle = 0;
           Saver.start();

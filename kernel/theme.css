@@ -950,61 +950,61 @@ textarea.editor {
 ::-webkit-scrollbar-thumb { background: #AAAAAA; border: 1px solid var(--phos, #FFFFFF); }
 
 /* ---- the notes ---------------------------------------------------------- */
-.notesroot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; background: #000000; color: var(--phos-dim); }
+.notesroot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; background: var(--n-bg, #000000); color: var(--n-fg, var(--phos-dim)); }
 /* The shop's and the notes' root IS the window body (the app sets its className, which drops .wbody), so it fills
    the window as a flex item rather than with `height: 100%`: the browser's zoom is applied to this very box,
    and a zoomed 100% is taller than the window, which pushed the shop's footer off the bottom of the screen. */
-.ntop { display: flex; align-items: center; gap: 4px; padding: 3px 4px; background: #000000;
-        border-bottom: 1px solid #555555; flex: 0 0 auto; flex-wrap: wrap; }
+.ntop { display: flex; align-items: center; gap: 4px; padding: 3px 4px; background: var(--n-bg, #000000);
+        border-bottom: 1px solid var(--n-line, #555555); flex: 0 0 auto; flex-wrap: wrap; }
 .ntop .appbtn { padding: 1px 6px; }
-.nsep { width: 1px; height: 16px; background: #555555; margin: 0 3px; }
-.nsel { background: #000000; color: #55FF55; border: 1px solid #555555; font: 13px 'Courier New', monospace; padding: 1px 2px; }
-.nstat { color: #FFFF55; font: 13px 'Courier New', monospace; padding-left: 6px; white-space: nowrap; }
+.nsep { width: 1px; height: 16px; background: var(--n-line, #555555); margin: 0 3px; }
+.nsel { background: var(--n-bg, #000000); color: var(--n-ok, #55FF55); border: 1px solid var(--n-line, #555555); font: 13px 'Courier New', monospace; padding: 1px 2px; }
+.nstat { color: var(--n-hi, #FFFF55); font: 13px 'Courier New', monospace; padding-left: 6px; white-space: nowrap; }
 .nbody { flex: 1 1 auto; display: flex; min-height: 0; }
-.nside { width: 170px; flex: 0 0 170px; border-right: 1px solid #555555; display: flex; flex-direction: column; min-height: 0; }
-.nfind { background: #000000; color: #55FF55; border: 0; border-bottom: 1px solid #555555;
+.nside { width: 170px; flex: 0 0 170px; border-right: 1px solid var(--n-line, #555555); display: flex; flex-direction: column; min-height: 0; }
+.nfind { background: var(--n-bg, #000000); color: var(--n-ok, #55FF55); border: 0; border-bottom: 1px solid var(--n-line, #555555);
          font: 13px 'Courier New', monospace; padding: 4px; outline: 0; }
-.nfind::placeholder { color: #AAAAAA; }
+.nfind::placeholder { color: var(--n-dim, #AAAAAA); }
 .nlist { flex: 1 1 auto; overflow: auto; }
 .nrow { display: flex; justify-content: space-between; gap: 4px; padding: 3px 6px; cursor: pointer;
-        font: 14px 'Courier New', monospace; color: var(--phos-dim); border-bottom: 1px solid #111111; }
-.nrow:hover { background: #0000AA; color: var(--phos); }
-.nrow.on { background: #00AAAA; color: #000000; }
+        font: 14px 'Courier New', monospace; color: var(--n-fg, var(--phos-dim)); border-bottom: 1px solid var(--n-line, #111111); }
+.nrow:hover { background: var(--n-hover, #0000AA); color: var(--n-fg, var(--phos)); }
+.nrow.on { background: var(--n-sel, #00AAAA); color: var(--n-selink, #000000); }
 .nrt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nrc { color: #AAAAAA; }
-.nrow.on .nrc { color: #000000; }
-.nempty { padding: 8px; color: #AAAAAA; font: 13px 'Courier New', monospace; }
+.nrc { color: var(--n-dim, #AAAAAA); }
+.nrow.on .nrc { color: var(--n-selink, #000000); }
+.nempty { padding: 8px; color: var(--n-dim, #AAAAAA); font: 13px 'Courier New', monospace; }
 .nmain { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.ntitle { background: #000000; color: #FFFF55; border: 0; border-bottom: 1px solid #555555;
+.ntitle { background: var(--n-bg, #000000); color: var(--n-hi, #FFFF55); border: 0; border-bottom: 1px solid var(--n-line, #555555);
           font: bold 15px 'Courier New', monospace; padding: 5px 8px; outline: 0; flex: 0 0 auto; }
-.nedit { flex: 1 1 auto; background: #000000; color: var(--phos-dim); border: 0; resize: none; outline: 0;
+.nedit { flex: 1 1 auto; background: var(--n-bg, #000000); color: var(--n-fg, var(--phos-dim)); border: 0; resize: none; outline: 0;
          padding: 8px; line-height: 1.5; min-height: 0; }
 .nread { flex: 1 1 auto; display: none; overflow: auto; padding: 8px; line-height: 1.5;
          white-space: pre-wrap; word-break: break-word; }
 .notesroot.reading .nedit { display: none; }
 .notesroot.reading .nread { display: block; }
-.nread .nh1 { color: var(--phos); font-weight: bold; font-size: 1.35em; }
-.nread .nh2 { color: #55FFFF; font-weight: bold; font-size: 1.18em; }
-.nread .nh3 { color: #55FF55; font-weight: bold; }
-.nread .nli { color: var(--phos-dim); }
-.nread .ntask { color: #FFFF55; }
-.nread .ntask.done { color: #AAAAAA; text-decoration: line-through; }
-.nlink { color: #55FFFF; cursor: pointer; text-decoration: underline; }
-.nlink:hover { background: #00AAAA; color: #000000; }
-.nlink.dead { color: #FF5555; }
-.nback { flex: 0 0 auto; border-top: 1px solid #555555; padding: 4px 6px; max-height: 92px; overflow: auto;
+.nread .nh1 { color: var(--n-hi, var(--phos)); font-weight: bold; font-size: 1.35em; }
+.nread .nh2 { color: var(--n-acc, #55FFFF); font-weight: bold; font-size: 1.18em; }
+.nread .nh3 { color: var(--n-ok, #55FF55); font-weight: bold; }
+.nread .nli { color: var(--n-fg, var(--phos-dim)); }
+.nread .ntask { color: var(--n-hi, #FFFF55); }
+.nread .ntask.done { color: var(--n-dim, #AAAAAA); text-decoration: line-through; }
+.nlink { color: var(--n-acc, #55FFFF); cursor: pointer; text-decoration: underline; }
+.nlink:hover { background: var(--n-sel, #00AAAA); color: var(--n-selink, #000000); }
+.nlink.dead { color: var(--n-err, #FF5555); }
+.nback { flex: 0 0 auto; border-top: 1px solid var(--n-line, #555555); padding: 4px 6px; max-height: 92px; overflow: auto;
          font: 13px 'Courier New', monospace; }
-.nbl { color: #AAAAAA; margin-right: 6px; }
-.nbnone { color: #AAAAAA; margin-right: 8px; }
-.nchip { display: inline-block; margin: 1px 4px 1px 0; padding: 0 5px; border: 1px solid #555555;
-         color: #55FF55; cursor: pointer; }
-.nchip:hover { background: #00AA00; color: #000000; }
-.nchip.dead { color: #FF5555; border-color: #AA0000; }
+.nbl { color: var(--n-dim, #AAAAAA); margin-right: 6px; }
+.nbnone { color: var(--n-dim, #AAAAAA); margin-right: 8px; }
+.nchip { display: inline-block; margin: 1px 4px 1px 0; padding: 0 5px; border: 1px solid var(--n-line, #555555);
+         color: var(--n-ok, #55FF55); cursor: pointer; }
+.nchip:hover { background: var(--n-sel, #00AA00); color: var(--n-selink, #000000); }
+.nchip.dead { color: var(--n-err, #FF5555); border-color: var(--n-err, #AA0000); }
 .ngraph { display: none; flex: 1 1 auto; position: relative; min-width: 0; }
 .notesroot.graphing .nmain { display: none; }
 .ngraph.on { display: block; }
-.ngcv { width: 100%; height: 100%; display: block; background: #07090c; cursor: grab; }
-.nghint { position: absolute; left: 8px; bottom: 6px; color: #AAAAAA; font: 12px 'Courier New', monospace;
+.ngcv { width: 100%; height: 100%; display: block; background: var(--n-bg, #07090c); cursor: grab; }
+.nghint { position: absolute; left: 8px; bottom: 6px; color: var(--n-dim, #AAAAAA); font: 12px 'Courier New', monospace;
           pointer-events: none; }
 .jagpane { background: #150d06; }
 
@@ -1527,13 +1527,11 @@ textarea.editor {
 .pinnum { color: #AAAAAA; font-size: 15px; }
 .pinfoot { color: #AAAAAA; font-size: 14px; margin-top: 4px; }
 
-/* ---- THE SCHEME DRESSES THE CHROME (kernel/theme_fx.js) --------------------------------------------------------------------------------
-   --th-filter is `none` on the default scheme and url(#th-<id>) on any other: set on #room by the scheme the machine wears, and again on one
-   window by its [T], which wins for that window's subtree. It is worn by the machine's own chrome and by nothing else: the title bar and the grip of
-   every window, the menu bar and the taskbar. The edge of a window is a border, coloured from the same ramp by Cos.dressFrame (kernel/cos.js); the
-   desktop's colour is --sch-desk; the pop-ups read the six inks. What is INSIDE a window (the terminal, the games, a picture, every canvas), the
-   icons, the elephant and a wallpaper are never filtered: an app always looks the way it was made, whatever scheme is worn. */
-.win > .titlebar, .win > .grip, #menubar, #taskbar { filter: var(--th-filter, none); }
+/* ---- THE SCHEME DRESSES NOTES (kernel/theme_fx.js) -------------------------------------------------------------------------------------
+   --th-filter and the --n-* inks are set by Cos.wearNotes on a NOTES window and nowhere else: the filter is worn by that window's title bar and grip, the inks by the Notes
+   rules above (the page, the list, the links, the graph). The edge of the window is a border, coloured from the same ramp by Cos.dressFrame (kernel/cos.js). The menu bar, the
+   taskbar, the desktop, the icons, the pop-ups and every other window are never dressed: they are the machine's own, whatever scheme is worn. */
+.win > .titlebar, .win > .grip { filter: var(--th-filter, none); }
 /* a window keeps the VGA inks whatever the room wears: the six inks the pop-ups read are not an app's business (see varsOf in theme_fx.js) */
 .win { --sch-bg: #000000; --sch-fg: #FFFFFF; --sch-ok: #55FF55; --sch-hi: #FFFF55; --sch-err: #FF5555; --sch-dim: #AAAAAA; --sch-acc: #55FFFF; }
 
@@ -1547,3 +1545,12 @@ textarea.editor {
 .tasklist .tend:hover { background: #AA0000; color: #FFFFFF; }
 .nf-art { color: #FFFF55; white-space: pre; }
 .nf-k { color: #55FFFF; white-space: pre; }
+
+/* ---- READABILITY (kernel/readable.js; DISPLAY.EXE > READABILITY) -------------------------------------------------------------------------
+   Only with a background on the desk (the class is on <html> then, and the veil is a div between the wallpaper and the icons): a dark plate behind every icon's name, a hairline of
+   black round the picture of it, and a hairline and a soft shadow round every window. Nothing here is a colour of the machine's: it is black at a few per cent to a half. */
+#readscrim { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.readable .icon .lbl { background: rgba(0, 0, 0, 0.6); transition: background 0.3s; }
+.readable .icon.sel .lbl { background: #FFFFFF; }
+.readable .icon .ico { filter: drop-shadow(0 0 1px #000000) drop-shadow(0 0 3px rgba(0, 0, 0, 0.75)); }
+.readable .win { box-shadow: 0 0 0 1px #000000, 0 7px 22px rgba(0, 0, 0, 0.55); }

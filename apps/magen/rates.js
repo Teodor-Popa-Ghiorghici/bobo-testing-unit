@@ -27,6 +27,7 @@ export function ratesHtml(m, fmt) {
   h += row('kavanah', 'x' + m.kav.toFixed(3));
   h += row('zechut', 'x' + m.zech.toFixed(3));
   h += row('community, rules, buffs', 'x' + m.other.toFixed(3));
+  if (m.blessing) h += row('a blessing from elsewhere', '-6.000.000%', 'that is 6%, written differently: x1.06');
   h += row('everything together', 'x' + m.global.toFixed(3));
   h += '</p>';
   h += '<p class="mgmech">Away from the window it earns ' + Math.round(m.offline * 100) + '% of this.</p>';

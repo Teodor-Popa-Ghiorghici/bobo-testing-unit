@@ -29,7 +29,7 @@
 .mgbody { flex: 1 1 auto; display: flex; min-height: 0; }
 
 /* ---- the left: the sky goes on, and the valley is at the foot of it ------- */
-.mgleft { flex: 0 0 306px; display: flex; flex-direction: column; align-items: center; min-height: 0; padding-top: 4px;
+.mgleft { flex: 0 0 calc(var(--mgs, 300px) + 6px); display: flex; flex-direction: column; align-items: center; min-height: 0; padding-top: 4px;
           border-right: 2px solid var(--hue); position: relative;
           background: var(--mg-hills, none) repeat-x 0 100% / 320px 48px, #0000AA var(--mg-night, none); }
 .mgleft:before, .mgleft:after { content: ''; position: absolute; top: 0; bottom: 48px; width: 4px;
@@ -39,13 +39,13 @@
 .mgleft > * { position: relative; z-index: 1; }
 
 /* the count and the rate are two plaques, blue and gold, with a lit edge */
-.mgcount { width: 288px; text-align: center; line-height: 1.1; padding: 2px 0 3px; background: #0000AA var(--mg-plaque, none);
+.mgcount { width: calc(var(--mgs, 300px) - 12px); display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; column-gap: 10px; text-align: center; line-height: 1.1; padding: 2px 4px 3px; box-sizing: border-box; background: #0000AA var(--mg-plaque, none);
            border: 2px solid; border-color: #FFFF55 #AA5500 #AA5500 #FFFF55; }
-.mgcount .mgn { color: #FFFF55; font-size: 44px; font-weight: bold; display: block; word-break: break-all;
+.mgcount .mgn { color: #FFFF55; font-size: calc(44px + (var(--mgk, 1) - 1) * 14px); font-weight: bold; display: block; word-break: break-all;
                 text-shadow: 2px 2px 0 #000000, -1px -1px 0 #000000, 1px -1px 0 #000000, -1px 1px 0 #000000; }
-.mgcount .mgn.big { font-size: 36px; }
+.mgcount .mgn.big { font-size: calc(36px + (var(--mgk, 1) - 1) * 12px); }
 .mgcount .mgu { color: #FFFFFF; font-size: 21px; }
-.mgrate { width: 288px; text-align: center; background: #0000AA var(--mg-plaque, none); color: #55FFFF; font-size: 22px; margin: 2px 0 3px; padding: 0 0 1px;
+.mgrate { width: calc(var(--mgs, 300px) - 12px); box-sizing: border-box; text-align: center; background: #0000AA var(--mg-plaque, none); color: #55FFFF; font-size: 22px; margin: 2px 0 3px; padding: 0 0 1px;
           border: 2px solid; border-color: #5555FF #000000 #000000 #5555FF; line-height: 1.1; }
 .mgrate > span { display: block; }
 .mgrate b { color: #FFFF55; font-weight: normal; }
@@ -57,7 +57,7 @@
 .mgrate u { color: #FF55FF; text-decoration: none; }
 
 /* the bar that says what is next, and how long it is */
-.mggoal { position: relative; width: 288px; height: 26px; background: #AA5500 var(--mg-wood, none); margin: 1px 0 3px; overflow: hidden;
+.mggoal { position: relative; width: calc(var(--mgs, 300px) - 12px); box-sizing: border-box; height: 26px; background: #AA5500 var(--mg-wood, none); margin: 1px 0 3px; overflow: hidden;
           border: 2px solid; border-color: #000000 #FFFF55 #FFFF55 #000000; }
 .mggoal span, .mggoal b { position: relative; z-index: 2; font-size: 20px; line-height: 22px; }
 .mggoal span { float: left; padding-left: 4px; color: #FFFFFF; }
@@ -68,12 +68,12 @@
 .mgstagewrap:before, .mgstagewrap:after { content: ''; position: absolute; width: 7px; height: 7px; background: var(--hue); }
 .mgstagewrap:before { left: -1px; top: -1px; }
 .mgstagewrap:after  { right: -1px; bottom: -1px; }
-.mgcv { width: 300px; height: 300px; image-rendering: pixelated; cursor: pointer; display: block; }
+.mgcv { width: var(--mgs, 300px); height: var(--mgs, 300px); image-rendering: pixelated; cursor: pointer; display: block; }
 
 .mgbuffs { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; min-height: 15px; font-size: 19px; padding: 2px 4px; }
 .mgbuff { position: relative; display: inline-block; padding: 1px 5px 4px; border: 1px solid #FFFFFF; background: #0000AA; }
 .mgbuff i { position: absolute; left: 0; bottom: 0; height: 2px; }
-.mgact { width: 288px; font-size: 20px; min-height: 26px; padding: 1px 2px; text-align: center; margin-top: 2px; color: #FFFFFF;
+.mgact { width: calc(var(--mgs, 300px) - 12px); box-sizing: border-box; font-size: 20px; min-height: 26px; padding: 1px 2px; text-align: center; margin-top: 2px; color: #FFFFFF;
          background: #AA5500 var(--mg-wood, none); border: 2px solid; border-color: #FFFF55 #000000 #000000 #FFFF55; }
 .mgshab { color: #FFFF55; }
 .mgshab.lit { background: #00AA00; color: #000000; border: 1px solid #FFFF55; padding: 0 6px; cursor: pointer; }
@@ -246,3 +246,6 @@
 .mgtip .mgrt { line-height: 1.1; display: flex; flex-wrap: wrap; justify-content: space-between; color: #FFFFFF; }
 .mgtip .mgrt b { color: #FFFFFF; font-size: 22px; }
 .mgtip .mgrt i { flex: 1 0 100%; color: #AAAAAA; font-style: normal; font-size: 16px; line-height: 1; }
+
+/* the quiet gift from HOLYC.EXE (kernel/buffs_core.js): a chip that is always there once it is earned, gold on blue, a little apart from the buffs that run out */
+.mgbuff.mgblessing { color: #FFFF55; border-color: #FFFF55; cursor: help; letter-spacing: 1px; }

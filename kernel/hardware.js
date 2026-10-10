@@ -22,7 +22,7 @@ export const CRT = {
 export const Vol = CRT;
 window.CRT = CRT;
 
-export const DISP = { scan: true, band: true, vig: true };
+export const DISP = { scan: true, band: true, vig: true, read: true };
 window.DISP = DISP;
 
 const PHOS_NAME = ['P1', 'P4', 'P7'];
@@ -88,6 +88,7 @@ function applyBand() {
 
 export function applyDisplay() {
   applyBand();
+  try { window.dispatchEvent(new Event('wallpaper-changed')); } catch (e) { /* nobody listens */ }     /* READABILITY is a display setting too (kernel/readable.js) */
   paintGlass();
   try { localStorage.setItem('templeos.display.v1', JSON.stringify(DISP)); } catch (e) {}
 }
