@@ -19,14 +19,19 @@ if (real) {
     const m = real(q), asks = REDUCE.test(q), not = NOPREF.test(q);
     if (!asks && !not) return m;
     const answer = () => asks ? (on || m.matches) : (!on && m.matches);
-    const subs = new Set();
+    const subs = new Set(); let onch = null;
     const tell = () => { const ev = { matches: answer(), media: q, type: 'change' }; subs.forEach(f => { try { f.call(proxy, ev); } catch (e) { /* the listener's own business */ } }); if (typeof proxy.onchange === 'function') { try { proxy.onchange(ev); } catch (e) { /* ditto */ } } };
-    m.addEventListener && m.addEventListener('change', tell);
-    window.addEventListener('calm-changed', tell);
+    /* Listen to the window only while somebody listens to this query: a query that is only read (`.matches`) must leave nothing behind. */
+    let wired = false;
+    const wire = () => { if (wired) return; wired = true; m.addEventListener && m.addEventListener('change', tell); window.addEventListener('calm-changed', tell); };
+    const unwire = () => { if (!wired || subs.size || typeof proxy.onchange === 'function') return; wired = false; m.removeEventListener && m.removeEventListener('change', tell); window.removeEventListener('calm-changed', tell); };
+    const add = f => { if (f) { subs.add(f); wire(); } }, del = f => { subs.delete(f); unwire(); };
     const proxy = {
-      get matches() { return answer(); }, media: q, onchange: null,
-      addEventListener: (t, f) => { if (t === 'change' && f) subs.add(f); }, removeEventListener: (t, f) => { subs.delete(f); },
-      addListener: f => { if (f) subs.add(f); }, removeListener: f => { subs.delete(f); },
+      get matches() { return answer(); }, media: q,
+      get onchange() { return onch; },
+      set onchange(f) { onch = f; if (typeof f === 'function') wire(); else unwire(); },
+      addEventListener: (t, f) => { if (t === 'change') add(f); }, removeEventListener: (t, f) => { del(f); },
+      addListener: add, removeListener: del,
       dispatchEvent: () => true
     };
     return proxy;
