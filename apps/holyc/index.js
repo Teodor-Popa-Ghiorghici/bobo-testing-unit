@@ -44,7 +44,7 @@ export default {
       const n = P.count(), done = LESSONS.reduce((a, l) => a + P.lesson(l.id).done.length, 0), steps = LESSONS.reduce((a, l) => a + l.steps.length, 0);
       stats.textContent = 'LESSONS ' + done + '/' + steps + '   PUZZLES ' + n.puzzles + '/' + PUZZLES.length + '   SUN ' + (window.Economy ? window.Economy.balance() : 0);
     };
-    const pay = (n, why) => { if (n > 0 && window.Economy) window.Economy.earn(n, why); snd.coin(); refreshStats(); };
+    const pay = (n, why) => { if (n > 0 && window.Economy) window.Economy.earn(n, why, { game: 'holyc' }); snd.coin(); refreshStats(); };
     const onEcon = () => refreshStats();
     if (window.Economy) window.Economy.onChange(onEcon);
 

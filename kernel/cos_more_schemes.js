@@ -33,7 +33,7 @@ export const SCHEMES_M = [
   S('nicetry', 'NICE TRY', 'bk_nice', 'Pinky peach on a brown that wants to be left alone. The door did not open, and it was a good try.', '#120A0A', '#FFE8E0', '#FFB8A0', '#FFFFFF', '#FF6058', '#B88878', '#FFD0C0', true),
   S('yearaurora', 'A YEAR IN THE VALLEY', 'bk_year', 'Green light over a snow field, and a violet at the edge of it. One whole year, and every season was for something.', '#04100C', '#D8FFF0', '#58FFA8', '#F4FFFA', '#FF80B8', '#58A890', '#B890FF'),
   S('jagerorange', 'JAGER ORANGE', 'bt_skal', 'Amber and herb green on dark. Skal. You said it to nobody, to the bottle, and to the room.', '#0A1006', '#FFE0B0', '#FF9A28', '#FFF2D8', '#E85838', '#98A058', '#7CC060'),
-  S('dreamy', 'THIRTY DREAMS', 'bt_dreams', 'Lavender and peach, a bit smudged, as a thing remembered wrongly in the morning. You had a lot of them.', '#0C0618', '#F8E0FF', '#FFA878', '#FFF0D8', '#FF6890', '#A47CC0', '#FFC8A0', true),
+  S('dreamy', 'THIRTY-EIGHT DREAMS', 'bt_dreams', 'Lavender and peach, a bit smudged, as a thing remembered wrongly in the morning. You had a lot of them.', '#0C0618', '#F8E0FF', '#FFA878', '#FFF0D8', '#FF6890', '#A47CC0', '#FFC8A0', true),
   S('holycblue', 'HOLY C BLUE', 'hc_lesson1', 'Yellow and white on a blue that has been the blue since the beginning. Hello, world. Hello, temple.', '#00003C', '#FFFF98', '#98FF98', '#FFFFFF', '#FF9898', '#9898E8', '#98E8FF'),
   S('goldledger', 'GOLD LEDGER', 'meta_10', 'Cream-gold on black, in a column. Ten things written down, and the sum of them is more than ten.', '#0C0900', '#F8E8A8', '#E8C040', '#FFFFFF', '#F08050', '#B09C50', '#FFD860')
 ];

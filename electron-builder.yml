@@ -31,6 +31,7 @@ files:
   - "!apps/hifi/*_check*.js"
   - "!apps/hifi/check_kit.js"
   - "!apps/sweeper/*_check*.js"
+  - "!apps/holyc/*_check*.js"
   - "!apps/defrag/*_check*.js"
   - "!apps/magen/*_check*.js"
   - "!apps/standbattle/*_check*.js"

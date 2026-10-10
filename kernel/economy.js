@@ -28,9 +28,11 @@ export const Economy = (function () {
     balance() { return st.bal; },
     ledger()  { return st.ledger.slice().reverse(); },
     totals()  { return { earned: st.earned || 0, spent: st.spent || 0 }; },
-    earn(amount, source) {
+    /* `o.game` names the game that paid: the golden sun eggs (kernel/eggs.js) add their small share to what a game that pays has paid, and the ledger says so */
+    earn(amount, source, o) {
       amount = Math.floor(amount);
       if (!(amount > 0)) return 0;
+      if (o && o.game && window.Eggs) { try { const b = window.Eggs.boost(o.game, amount); if (b > amount) { source = String(source || '?') + ' (+' + (b - amount) + ' EGGS)'; amount = b; } } catch (e) { /* never into the till */ } }
       st.bal += amount;
       st.earned = (st.earned || 0) + amount;
       log(amount, source);

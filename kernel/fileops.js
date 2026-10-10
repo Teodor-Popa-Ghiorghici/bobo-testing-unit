@@ -67,14 +67,6 @@ export async function duplicate(paths) {
   return r.made;
 }
 
-/* drop a selection into a folder (or the desktop): moved, or copied with Ctrl. Returns how many went. */
-export async function dropInto(paths, dir, copyIt) {
-  const r = await (copyIt ? fs.copyMany : fs.moveMany)(paths, dir);
-  if (r.bad.length) say(r.bad[0], true);
-  if (r.made.length) sys.emit(copyIt ? 'copy' : 'move', { ctrl: !!copyIt, to: dir, n: r.made.length });
-  return r.made.length;
-}
-
 /* ---- delete and undo ---------------------------------------------------------- */
 /* A selection goes into the bin on a reel (kernel/delete_reel.js): the meter is hit once for the whole pile, then the
    files go a beat at a time, each beat a short cooldown after the one before and each a note of a fast tune, so

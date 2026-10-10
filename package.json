@@ -41,7 +41,10 @@
     "check:demo": "node scripts/check-demo.mjs",
     "check:stack": "node scripts/check-stack.mjs",
     "check:lines": "node scripts/check-lines.mjs",
-    "check:dave": "node scripts/check-dave.mjs"
+    "check:dave": "node scripts/check-dave.mjs",
+    "check:wires": "node scripts/check-trophy-wires.mjs",
+    "check:pictures": "node scripts/check-pictures.mjs",
+    "check:eggs": "node scripts/check-eggs.mjs"
   },
   "devDependencies": {
     "electron": "^44.5.1",

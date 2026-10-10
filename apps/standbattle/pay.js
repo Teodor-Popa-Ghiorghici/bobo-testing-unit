@@ -42,6 +42,6 @@ export function pay(sun, reason, now) {
   if (sun <= 0) return 0;
   const n = Math.round(sun * decay(now == null ? Date.now() : now));
   RECENT.push(now == null ? Date.now() : now);
-  if (typeof window !== 'undefined' && window.Economy && window.Economy.earn) window.Economy.earn(n, 'STAND BATTLE: ' + reason);
+  if (typeof window !== 'undefined' && window.Economy && window.Economy.earn) window.Economy.earn(n, 'STAND BATTLE: ' + reason, { game: 'standbattle' });
   return n;
 }

@@ -4,7 +4,7 @@ import { Snd } from '../../kernel/snd.js';
 import { Saver } from '../../kernel/saver.js';
 import { degauss } from '../../kernel/hardware.js';
 import { panic } from '../../kernel/panic.js';
-import { hcLex, hcParse, hcRun, looksLikeHolyC, isPanic } from '../../kernel/holyc.js';
+import { hcLex, hcParse, hcRun, hcFnNames, looksLikeHolyC, isPanic } from '../../kernel/holyc.js';
 import { compileNode } from '../../kernel/compile.js';
 import { snapshot } from '../../kernel/holyc_env.js';
 import { lineReport } from '../../kernel/lines.js';
@@ -173,6 +173,8 @@ export default {
     out.className = 'termout';
 
     let cwd = '::';
+    /* the shell IS the compiler, and what one line defines the next can use: variables, functions and classes live as long as this terminal */
+    const hcGlobals = Object.create(null), hcClasses = new Set();
 
     const line = document.createElement('div');
     line.className = 'termline';
@@ -598,12 +600,12 @@ export default {
             verdict = null;
             const env = await snapshot(cwd);
             try {
-              const ast = hcParse(hcLex(s));
-              hcRun(ast, line => print([line], 'l-holyc'), null, {
+              const ast = hcParse(hcLex(s), { classNames: hcClasses });
+              hcRun(ast, line => print([line], 'l-holyc'), hcGlobals, {
                 godDoodle: () => ctx.openWindow('goddoodle').catch(console.error),
                 dirNames: env.dirNames, cd: p => env.cd(p, t => { cwd = t; setPrompt(); })
               });
-              sys.holyc(ast, null);
+              sys.holyc(ast, null, hcFnNames(hcGlobals));
             } catch (e) {
               if (isPanic(e)) { print(['DROPPING TO THE DEBUGGER.'], 'l-err'); panic(e, 'deliberate'); }
               else if (e && e.holyc) {

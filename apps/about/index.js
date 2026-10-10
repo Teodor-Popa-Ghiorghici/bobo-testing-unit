@@ -6,6 +6,8 @@ import { fs as vfs } from '../../kernel/vfs.js';
 
 export default {
   open() {
+  /* a dialog has no window id of its own, so EVERY DOOR (every app that has a window) is told by hand that this one was opened */
+  try { if (window.Trophies) window.Trophies.mark('system', 'apps', 'about'); } catch (e) { /* never into the machine */ }
   const f = Cos.find('frame', Cos.equipped('frame')) || FRAMES[0];
   const c = Cos.find('cursor', Cos.equipped('cursor')) || CURSORS[0];
   const s = Cos.find('scheme', Cos.equipped('scheme')) || SCHEMES[0];
@@ -17,6 +19,7 @@ export default {
     'CASE      ' + f.name + '\nPOINTER   ' + c.name + '\nPHOSPHOR  ' + s.name + '\nBOOT LOGO ' + l.name + '\n\n' +
     'SUN ON HAND   ' + window.Economy.balance() + '\nSUN EVER      ' + window.Economy.totals().earned + '\n' +
     'CATALOGUE     ' + owned + ' OF ' + tot + ' OWNED\n' +
+    ((window.Eggs && window.Eggs.count()) ? 'GOLDEN EGGS   ' + window.Eggs.count() + ' OF ' + window.Eggs.max + '\n' : '') +
     'PLANTED       ' + ((window.Garden && window.Garden.st.planted) || 0) + ' SEED(S)\n' +
     'BOARDS CLEARED ' + ((window.Sweeper && window.Sweeper.st.won) || 0) +
     '\nDEALS WON     ' + ((window.Solitaire && window.Solitaire.st.won) || 0) +

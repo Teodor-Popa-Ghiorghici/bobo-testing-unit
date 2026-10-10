@@ -16,6 +16,7 @@ import "./vault.js";
 import "./drunk.js";
 import { Gifts } from "./gifts.js";
 import "./buffs.js";
+import "./eggs.js";
 import "./stack_hud.js";
 import "./taskbar.js";
 import "./launcher.js";

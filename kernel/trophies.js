@@ -66,6 +66,7 @@ Trophies.boot = () => {
     import('./trophies_pins.js').then(m => m.mountPins(Trophies)).catch(() => {});
     import('./rewards.js').then(m => m.startRewards(Trophies)).catch(() => {});
     import('./trophy_box.js').then(m => m.startBox(Trophies)).catch(() => {});
+    import('./trophy_gallery.js').then(m => m.start(Trophies)).catch(() => {});
     wire(Trophies);
     window.addEventListener('trophy-earned', ev => onTrophy(ev.detail));
     const d = new Date(), two = n => String(n).padStart(2, '0');

@@ -2,6 +2,7 @@
    puts what comes back (the trophies earned this room) on the pay panel. Nothing in here can throw into the game. */
 import { trophies } from '../trophy_scope.js';
 import { parOf } from './pay.js';
+import { REGIONS } from './data.js';
 
 export const TR = trophies('sweeper');
 const guard = f => { try { return f(); } catch (e) { return undefined; } };
@@ -42,7 +43,8 @@ export function lost(S) {
   });
 }
 
-export const rested = regionId => guard(() => TR.mark('benches', regionId));
+/* SIT DOWN is the six regions of the descent: a bench in the Underdeep is another bench, not a seventh region */
+export const rested = regionId => guard(() => { const r = REGIONS.find(x => x.id === regionId); if (r && (r.act || 1) === 1) TR.mark('benches', regionId); });
 export const bought = camp => guard(() => TR.emit('bench', { owned: camp.owned.length }));
 
 /* the trophies earned since the room began, as the rows of the pay panel */

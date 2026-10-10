@@ -3,6 +3,7 @@
    small ones. */
 import { CHARMS, CHARM, REGIONS, NOTCH_COST, ROOMS, baseCount } from './data.js';
 import { backdrop, weather, mask, geo, notch, charmIcon } from './art.js';
+import { charmText } from './charm_text.js';
 
 export const notchesUsed = camp => camp.equipped.reduce((a, id) => a + CHARM[id].n, 0);
 
@@ -63,10 +64,12 @@ export function createBench(env, regionId) {
     const c = CHARMS[B.sel];
     G.R(660, 130, 240, 372, '#0e1220'); G.R(660, 130, 240, 2, rg.pal.ink);
     G.T(c.name, 676, 164, '#e8e2d4', 24);
-    wrap(G, c.text, 676, 196, 26, 22, '#cfd8e0');
+    const ct = charmText(c, rg);
+    wrap(G, ct.text, 676, 196, 26, 22, '#cfd8e0');
     G.T(c.n + ' NOTCH' + (c.n > 1 ? 'ES' : ''), 676, 330, '#9fe0ff', 22);
     const mine = camp.owned.indexOf(c.id) >= 0;
     G.T(mine ? 'CLICK TO WEAR / REMOVE' : c.feat ? 'NOT SOLD' : 'CLICK TO BUY: ' + c.cost + ' GEO', 676, 360, mine || !c.feat ? '#a3adc2' : '#ffd68c', 20);
+    if (ct.notes.length) wrap(G, ct.notes.join(' '), 676, 392, 26, 22, '#ffd68c');
     if (c.feat === 'perfect' && !mine) {
       G.T('PERFECT ROOMS  ' + found(c) + ' OF ' + ROOMS, 676, 392, '#ffd68c', 22);
       wrap(G, 'PERFECT: NO LARVA HATCHED, AND UNDER THREE QUARTERS OF A SECOND A TILE. EVERY ROOM, THE GUARDIANS TOO.', 676, 420, 26, 22, '#cfd8e0');

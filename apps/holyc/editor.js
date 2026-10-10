@@ -2,17 +2,21 @@
    from it: a line that can be marked (the error, or the one a WATCH IT RUN is on) and text that can be typed into it by the lab, a letter at a time,
    with a key sound for each (TYPE IT FOR ME, SHOW ME). Nothing here knows what HolyC means: lab.js does. */
 import { toHtml } from './highlight.js';
+import { caretCell, CURSORS } from './caret.js';
+
+const CUR_KEY = 'templeos.holyc.cursor.v1';
+const savedCursor = () => { try { const c = localStorage.getItem(CUR_KEY); return CURSORS.indexOf(c) >= 0 ? c : 'vertical'; } catch (e) { return 'vertical'; } };
 
 export function makeEditor(host, o) {
   o = o || {};
   const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
-  const wrap = el('div', 'hc-ed'), gut = el('div', 'hc-gut'), hl = el('pre', 'hc-hl'), ta = el('textarea', 'hc-ta'), marks = el('div', 'hc-marks');
+  const wrap = el('div', 'hc-ed'), cur = el('div', 'hc-cur'), gut = el('div', 'hc-gut'), hl = el('pre', 'hc-hl'), ta = el('textarea', 'hc-ta'), marks = el('div', 'hc-marks');
   ta.spellcheck = false; ta.autocapitalize = 'off'; ta.setAttribute('autocomplete', 'off'); ta.setAttribute('aria-label', 'HolyC program');
   const body = el('div', 'hc-edbody');
-  body.append(marks, hl, ta);
+  body.append(marks, hl, ta, cur);
   wrap.append(gut, body);
   host.appendChild(wrap);
-  const E = { el: wrap, ta: ta, mark: {}, typing: null };
+  const E = { el: wrap, ta: ta, mark: {}, typing: null, cursor: savedCursor() };
   const LH = 22;
   let inputFn = null, runFn = null, keyFn = null;
 
@@ -31,7 +35,34 @@ export function makeEditor(host, o) {
     });
     [...gut.children].forEach((g, i) => { const on = Object.keys(E.mark).some(c => E.mark[c] === i + 1); if (!on) g.className = ''; else g.className = Object.keys(E.mark).filter(c => E.mark[c] === i + 1).join(' '); });
   }
-  const sync = () => { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; gut.scrollTop = ta.scrollTop; marks.style.transform = 'translateY(' + (-ta.scrollTop) + 'px)'; };
+  const sync = () => { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; gut.scrollTop = ta.scrollTop; marks.style.transform = 'translateY(' + (-ta.scrollTop) + 'px)'; place(); };
+  /* The horizontal cursor: the real caret is hidden and an underscore the width of a letter is drawn on the cell it is in (a block while a key is held is not
+     needed: it blinks like the caret did). Only while the box has the focus and nothing is selected. */
+  let cw = 0;
+  const cellW = () => {
+    if (cw) return cw;
+    const p = el('span'); p.textContent = 'MMMMMMMMMMMMMMMMMMMM'; p.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:inherit;font-size:18px';
+    hl.appendChild(p); cw = p.getBoundingClientRect().width / 20; p.remove();
+    return cw;
+  };
+  function place() {
+    const on = E.cursor === 'horizontal' && document.activeElement === ta && ta.selectionStart === ta.selectionEnd && !ta.readOnly;
+    cur.style.display = on ? 'block' : 'none';
+    if (!on) return;
+    const w = cellW(), c = caretCell(ta.value, ta.selectionStart, 2);
+    cur.style.width = Math.max(6, w) + 'px';
+    cur.style.transform = 'translate(' + Math.round(8 + c.col * w - ta.scrollLeft) + 'px,' + (6 + c.row * LH - ta.scrollTop + LH - 5) + 'px)';
+    cur.style.animation = 'none'; void cur.offsetWidth; cur.style.animation = '';        /* a keystroke shows it solid again, then it blinks */
+  }
+  E.setCursor = style => {
+    if (CURSORS.indexOf(style) < 0) return;
+    E.cursor = style; wrap.dataset.cursor = style;
+    try { localStorage.setItem(CUR_KEY, style); } catch (e) { /* not kept */ }
+    place();
+  };
+  ['keyup', 'mouseup', 'focus', 'blur', 'select', 'click'].forEach(t => ta.addEventListener(t, place));
+  ta.addEventListener('keydown', () => requestAnimationFrame(place));
+  wrap.dataset.cursor = E.cursor;
   ta.addEventListener('scroll', sync);
   ta.addEventListener('input', () => { paint(); sync(); if (inputFn) inputFn(ta.value); });
 

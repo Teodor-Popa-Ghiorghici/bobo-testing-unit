@@ -79,7 +79,8 @@ const Cos = {
     this.applyAll();
     try { window.addEventListener('trophies-changed', () => this.syncRewards()); window.addEventListener('trophy-earned', ev => { if (ev.detail) this.grantFor(ev.detail.id); }); } catch (e) { /* no window */ }
     /* a blackout that deals a new backdrop puts it on the shelf for any shop that is open */
-    try { window.addEventListener('backdrop-seen', ev => this.tell('wall', ev.detail.id)); } catch (e) { /* no window */ }
+    /* a picture dealt by a blackout is news for an open shop, not a purchase: `true` says it was given, so FIRST PURCHASE is not earned by passing out */
+    try { window.addEventListener('backdrop-seen', ev => this.tell('wall', ev.detail.id, true)); } catch (e) { /* no window */ }
     /* Dave leaves a box on the desktop when the shop window shuts (kernel/dave_box.js); it waits for the window list to say so */
     import('./dave_box.js').then(m => m.DaveBox.watch()).catch(() => {});
     this.gather();                                                                   /* pictures bought before there was a folder are brought out to it */
@@ -125,7 +126,7 @@ const Cos = {
     if (!it || this.has(cat, id)) return false;
     (this.st.owned[cat] || (this.st.owned[cat] = [])).push(id);
     this.save();
-    this.tell(cat, id);
+    this.tell(cat, id, true);                      /* given, not bought: FIRST PURCHASE and the SUN spent are for what was paid for */
     return true;
   },
   /* ---- what a trophy gives (kernel/cos_rewards.js): an item with `reward: '<trophy id>'` is owned the moment that trophy is earned ---- */

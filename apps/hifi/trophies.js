@@ -3,7 +3,7 @@
 import { t, rule } from '../trophy_kit.js';
 const on = rule.on;
 
-export const FOLDERS = 9;             /* LOBBY MUSIC, MAGEN, THE COOK, ELEPHANT, BEKKEDAL, STAND BATTLE, AFTEREGYPT, SOLITAIRE, THE GARAGE (the STYLE METER folder is earned, so it is not asked for) */
+export const FOLDERS = 10;            /* LOBBY MUSIC, MAGEN, THE COOK, ELEPHANT, BEKKEDAL, STAND BATTLE, AFTEREGYPT, SOLITAIRE, DUNGEON SWEEPER, THE GARAGE (the STYLE METER folder is earned, so it is not asked for) */
 export const VARIANTS = 4;            /* HYMN, MELLOW, DYNAMIC, GLITCH */
 
 export const TROPHIES = [

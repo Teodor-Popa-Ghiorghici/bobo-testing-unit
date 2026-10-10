@@ -49,6 +49,26 @@ export function buildRewards(T, o) {
       list.appendChild(c);
     });
     root.appendChild(list);
+    /* the pictures: one for each of eleven places, handed over at about three fifths of that place's trophies (kernel/trophy_pictures.js) */
+    const pics = T.pictureList ? T.pictureList() : [], have = pics.filter(p => p.owned).length;
+    if (pics.length) {
+      root.appendChild(el('div', 'tr-rh', 'PICTURES   ' + have + ' / ' + pics.length));
+      root.appendChild(el('div', 'tr-rp', 'Earn about three fifths of the trophies of some places and the machine hands over a picture of its own: a real file in the PICTURES folder on the desktop. AfterEgypt, the toys and the small tools have none.'));
+      const row = el('div', 'tr-rgrid tr-pics');
+      pics.forEach((p, i) => {
+        const c = el('div', 'tr-rwd tr-pic' + (p.owned ? ' owned' : ' locked')); c.style.setProperty('--i', i);
+        const g = el('div', 'tr-rglyph tr-pthumb');
+        if (p.owned) { const im = el('img'); im.src = p.file; im.alt = ''; g.appendChild(im); } else { g.appendChild(el('span', 'tr-pq', '?')); g.appendChild(el('i', 'tr-rlock')); }
+        const b = el('div', 'tr-rbody');
+        b.append(el('div', 'tr-rn', p.owned ? p.name : '? ? ?'), el('div', 'tr-rc', p.area), el('div', 'tr-rb', p.owned ? p.blurb : 'A picture of its own, once enough is done here.'),
+          el('div', 'tr-rt', p.owned ? 'IN THE PICTURES FOLDER. CLICK TO LOOK.' : p.have + ' OF ' + p.total + ' TROPHIES. ' + Math.max(0, p.need - p.have) + ' MORE FOR IT (' + p.need + ').'));
+        const bar = el('div', 'tr-pbar'); const f = el('i'); f.style.width = Math.min(100, Math.round(100 * p.have / Math.max(1, p.need))) + '%'; bar.appendChild(f); b.appendChild(bar);
+        c.append(g, b, el('div', 'tr-rcup'));
+        c.addEventListener('mousedown', ev => { ev.stopPropagation(); if (p.owned) o.picture(p.path); else o.area(p.app); });
+        row.appendChild(c);
+      });
+      root.appendChild(row);
+    }
   }
   return { el: root, draw: draw };
 }

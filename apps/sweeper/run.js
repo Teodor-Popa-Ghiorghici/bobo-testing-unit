@@ -3,6 +3,7 @@
    a click means, what a larva costs, and what a spell does. */
 import { mk, lay, open, each, around, chordTargets, blocked, hiddenSafe, won as boardWon, flagsUsed, underFlags } from './board.js';
 import { CHARM, SPELLS, SPELL_HINT, GRUB_SOUL, spellOpen, maxMasks, modsOf } from './data.js';
+import { eggs } from '../eggs_scope.js';
 
 export function createRun(env) {
   const node = env.node || null;                 /* null = a classic game */
@@ -45,7 +46,9 @@ export function createRun(env) {
   /* ---- soul, masks ----------------------------------------------------- */
   /* the Underdeep is stingy: a room's `soulK` is what share of the soul an opened tile gives, and its `spellK` what the spells cost (the sums are whole) */
   const soulK = node && node.soulK || 1, spellK = node && node.spellK || 1;
-  const gainSoul = n => { if (camp) S.soul = Math.min(99, S.soul + Math.round(n * soulK)); };
+  /* the golden sun eggs (kernel/eggs.js) are a little more soul from every tile opened */
+  const eggK = eggs().mult('sweeper');
+  const gainSoul = n => { if (camp) S.soul = Math.min(99, S.soul + Math.round(n * soulK * eggK)); };
   const costOf = base => Math.round(base * spellK);
   S.cost = kind => costOf(SPELLS[kind].cost);
   const focusCost = () => costOf(has('deep') ? 44 : has('quick') ? 22 : 33);

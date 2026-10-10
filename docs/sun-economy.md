@@ -12,8 +12,8 @@ real pay tables through a model of an hour of playing it and fails if the answer
 * **The garden is the engine** and is a different animal: it earns while you are away and is held by `apps/garden/garden_check.js`
   (the 99,999-SUN third temple takes a fully equipped player who checks in every five minutes fifteen minutes, and a player starting from
   nothing about two and three quarter hours). Everything else is the *other* way to get SUN: slower, steadier, and a reason to open the app.
-* The shop is **196,239 SUN**: 99,999 of it is the third-temple frame (a joke priced as one), and **96,240** is everything else. At the mean of
-  the games below (~2,800 an hour) the rest of the shelves are ~35 hours of play outside the garden. If a game paid ten times as much it
+* The shop is **208,289 SUN**: 99,999 of it is the third-temple frame (a joke priced as one), and **108,290** is everything else. At the mean of
+  the games below (~2,500 an hour) the rest of the shelves are ~43 hours of play outside the garden (the check's band is 8 to 45). If a game paid ten times as much it
   would be the way to buy the shop in an afternoon, and the check says so.
 * **SUN is paid when the thing happens**, never on a timer after it, so closing the window on a pay panel never loses it. (Sweeper used to
   pay a second and a half after the panel came up.) Every part of a payout is a line on the panel the player clicks through: nothing

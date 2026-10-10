@@ -7,6 +7,7 @@ import { makeStageView } from './stage_view.js';
 import { makeTrace } from './trace_view.js';
 import { ran, traced } from './trophy_calls.js';
 import { runProgram } from './engine.js';
+import { nextCursor } from './caret.js';
 
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 
@@ -42,8 +43,10 @@ export function createLab(host, o) {
   const btn = (label, cls, fn, title) => { const b = el('button', 'hc-b ' + cls, label); if (title) b.title = title; b.addEventListener('mousedown', ev => { ev.stopPropagation(); if (ev.button === 0 && !b.disabled) fn(); }); b.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fn(); } }); return b; };
   const bRun = btn('RUN', 'run', () => L.run(), 'run the program (CTRL+ENTER)'), bWatch = btn('WATCH IT RUN', 'watch', () => L.run({ watch: true }), 'run it, then step through it'),
     bReset = btn('RESET', 'rst', () => L.reset(), 'put the program back as it started'), bClear = btn('CLEAR', 'clr', () => { ed.set(''); ed.focus(); }, 'an empty program');
-  bar.append(bRun, bWatch, el('span', 'hc-flex'), bReset, bClear);
-  L.bar = bar; L.buttons = { run: bRun, watch: bWatch, reset: bReset, clear: bClear };
+  const curLabel = () => 'CURSOR: ' + ed.cursor.toUpperCase();
+  const bCur = btn(curLabel(), 'cur', () => { ed.setCursor(nextCursor(ed.cursor)); bCur.textContent = curLabel(); ed.focus(); }, 'the text cursor: a vertical bar, or a horizontal underscore on the letter');
+  bar.append(bRun, bWatch, el('span', 'hc-flex'), bCur, bReset, bClear);
+  L.bar = bar; L.buttons = { run: bRun, watch: bWatch, reset: bReset, clear: bClear, cursor: bCur };
   ed.onRun(() => L.run());
 
   const trace = makeTrace(root, { editor: ed, console: consoleApi, snd, onClose: () => { if (L.R) consoleApi.setLines(L.R.out); } });

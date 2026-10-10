@@ -17,6 +17,7 @@ import { createCalls } from './trophy_calls.js';
 import { achSun } from './pay.js';
 import { drawCookie, createCookie } from './cookie.js';
 import { buffs } from '../buffs_scope.js';
+import { eggs as eggsOf } from '../eggs_scope.js';
 
 /* the machine's own pixel face for everything the star's canvas has to say */
 const MGF = "'VT323', 'Courier New', monospace";
@@ -225,7 +226,9 @@ export default {
       function zechPer() { return legOn('l_tik') ? 0.05 : legOn('l_zech') ? 0.03 : 0.02; }
       /* HOLYC.EXE's quiet gift (kernel/buffs_core.js 'magen_money'): six per cent more of everything. The window writes it as -6.000.000%, which is 6% written differently. */
       const gift = buffs();
-      const blessing = () => gift.has('magen_money') ? 1.06 : 1;
+      /* and the golden sun eggs (kernel/eggs.js, bought at Dave's once he has nothing else to sell): half a per cent more of everything each. It rides with the blessing: it is another thing that is more of the same. */
+      const egg = eggsOf();
+      const blessing = () => (gift.has('magen_money') ? 1.06 : 1) * egg.mult('magen');
       function globalMult() {
         let m = kavMult() * (1 + S.zech * zechPer()) * blessing();
         let d = 0; MG_DIAS.forEach(u => { if (upOn(u.id)) d += u.pct; });
@@ -409,7 +412,7 @@ export default {
           }
           if (hit) {
             S.ach[a.id] = 1; tro.mirrored(a.id);
-            if (window.Economy) window.Economy.earn(achSun(a), 'MAGEN: ' + a.n);
+            if (window.Economy) window.Economy.earn(achSun(a), 'MAGEN: ' + a.n, { game: 'magen' });
             /* the two that are worth nothing announce themselves quietly */
             if (a.worth0) {
               toast('MITZVAH: ' + a.n); sfx.quiet();

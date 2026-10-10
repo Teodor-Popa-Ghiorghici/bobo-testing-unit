@@ -3,7 +3,7 @@ import { godStir, godNext, godRand, godWords, godSong } from './god.js';
 import { word as toolWord, song as toolSong } from '../apps/tools/trophy_calls.js';
 import { HolyCError, hcLex } from './holyc_lex.js';
 import { hcParse } from './holyc_parse.js';
-import { hcRun as run, hcFormat } from './holyc_run.js';
+import { hcRun as run, hcFormat, hcFnNames } from './holyc_run.js';
 import { COLORS } from './holyc_lib.js';
 
 /* ==========================================================================
@@ -16,7 +16,7 @@ import { COLORS } from './holyc_lib.js';
    sound or ask the god for a word, and `window.HolyC`, which is how an app
    (HOLYC.EXE, the lab) reaches the compiler without importing from kernel/.
    ========================================================================== */
-export { HolyCError, hcLex, hcParse, hcFormat };
+export { HolyCError, hcLex, hcParse, hcFormat, hcFnNames };
 
 /* the builtins that need the machine; `hooks.rand` replaces the dice so a check can roll the same numbers every time */
 const MACHINE = {
@@ -54,7 +54,9 @@ export function looksLikeHolyC(s) {
   if (!t) return false;
   if (t.charAt(0) === '"') return true;
   if (/^(U0|I64|I32|I16|I8|U64|U32|U16|U8|F64|Bool)\b/.test(t)) return true;
-  if (/^(if|while|for|return)\s*[({]/.test(t)) return true;
+  if (/^(if|while|for|return|switch)\s*[({\[]/.test(t)) return true;
+  if (/^(class|union)\s+\w+\s*(:\s*\w+\s*)?\{/.test(t) || /^try\s*\{/.test(t) || /^goto\s+\w+\s*;/.test(t) || /^throw\s*[(;]/.test(t)) return true;
+  if (/^#(define|ifdef|ifndef|if|undef|include)\b/.test(t)) return true;
   if (/;\s*$/.test(t)) return true;
   if (/^[A-Za-z_]\w*\s*\([^)]*\)\s*;?$/.test(t)) return true;
   return false;

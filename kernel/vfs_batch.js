@@ -6,12 +6,14 @@
    Each function answers { made: [path...], bad: [message...] } and never throws for one bad item. */
 import { fs } from './vfs.js';
 import { Style } from './style.js';
-import { TRASH, baseName, dirOf, joinPath, pickName, trackMany, changed } from './vfs_ops.js';
+import { TRASH, baseName, dirOf, joinPath, pickName, trackMany, changed, isSystem } from './vfs_ops.js';
+import { sys } from './trophy_hook.js';
 
 /* paths into a folder, copied or moved; the names are chosen against the folder's own listing and against each other */
-async function transferMany(srcs, dstDir, copy) {
+async function transferMany(srcs, dstDir, copy, quiet) {
   const taken = await fs.names(dstDir);
   const puts = [], gone = [], pairs = [], made = [], bad = [], from = new Set();
+  let moved = 0;
   for (const src of srcs) {
     if (from.has(src)) continue;
     from.add(src);
@@ -25,11 +27,14 @@ async function transferMany(srcs, dstDir, copy) {
     ents.forEach(([k, v]) => puts.push([dst + k.slice(src.length), v]));
     if (!copy) { gone.push(src); pairs.push([src, dst]); }
     made.push(dst);
+    moved++;
   }
   await fs.putMany(puts);
   await fs.removeManyQuiet(gone);
   if (pairs.length) await trackMany(pairs);
   changed(dstDir, ...gone.map(dirOf));
+  /* the trophies hear every move and copy from here, since a drag, a paste and a drop all end in these two calls: `own` is a folder somebody made (not one of the machine's) */
+  if (moved && !quiet) isSystem(dstDir).then(sysDir => sys.emit(copy ? 'copy' : 'move', { to: dstDir, n: moved, own: !sysDir && dstDir !== '::' && dstDir.indexOf(TRASH) !== 0 })).catch(() => {});
   return { made, bad };
 }
 const moveMany = (srcs, dstDir) => transferMany(srcs, dstDir, false);
@@ -40,7 +45,7 @@ async function duplicateMany(srcs) {
   const by = new Map();
   srcs.forEach(p => { const d = dirOf(p); by.set(d, (by.get(d) || []).concat(p)); });
   const made = [], bad = [];
-  for (const [dir, list] of by) { const r = await transferMany(list, dir, true); made.push(...r.made); bad.push(...r.bad); }
+  for (const [dir, list] of by) { const r = await transferMany(list, dir, true, true); made.push(...r.made); bad.push(...r.bad); }
   return { made, bad };
 }
 

@@ -32,6 +32,10 @@ JOBS = {
     'glitter':   (None, 0, 1.30, 1.20, 1.10), 'chaos': (None, 0, 1.15, 1.25, 1.10), 'meow': (None, 0, 1.30, 1.25, 1.20),
     'grin':      (None, 0, 1.00, 1.30, 1.10), 'boot': (None, 0, 1.35, 1.20, 1.05), 'halo': (None, 0, 1.00, 1.35, 1.05),
     'aurora':    (None, 0, 1.35, 1.25, 1.05), 'axe': (None, 0, 1.15, 1.20, 1.05), 'pond': (None, 0, 1.20, 1.15, 1.05),
+    # the eight after those: a man and his new monitor, a box of mints, a phone call, the temple's own crest, a bow tie, a kitten, a very tall bear and a lab coat
+    'monitor':   (None, 0, 1.15, 1.20, 1.10), 'tictac': (None, 0, 1.15, 1.20, 1.05), 'phone': (None, 0, 1.10, 1.25, 1.10),
+    'crest':     (None, 0, 1.00, 1.05, 1.00), 'domnule': (None, 0, 1.20, 1.20, 1.10), 'kitten': (None, 0, 1.15, 1.25, 1.10),
+    'bear':      (None, 0, 1.30, 1.20, 1.05), 'labcoat': (None, 0, 1.05, 1.30, 1.15),
 }
 
 def make(name, src, out_dir):

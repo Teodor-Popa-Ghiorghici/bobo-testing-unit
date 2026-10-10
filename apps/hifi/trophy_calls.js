@@ -14,7 +14,8 @@ export function createCalls() {
     play(t) { guard(() => TR.emit('play', { folder: t.builtin ? t.folder || null : null, own: !t.builtin && !t.spec })); },
     /* the disc has run out (or is crossfading into the next one): told only if most of it was played, not scrubbed to */
     ended(dur) { guard(() => { if (dur > 0 && secs >= dur * 0.6) TR.emit('ended', {}); }); },
-    folder: name => guard(() => TR.mark('folders', name)),
+    /* the STYLE METER folder is earned, not one of the library's own, so it is not one of the folders to look in */
+    folder: name => guard(() => { if (name !== 'STYLE METER') TR.mark('folders', name); }),
     preset: n => guard(() => TR.mark('presets', String(n)))
   };
 }

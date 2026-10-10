@@ -1319,6 +1319,23 @@ textarea.editor {
 }
 .shopcard:hover .bt { background: #FFFFFF; }
 .shopcard.eq .bt { background: #00AAAA; color: #000000; }
+.shoptab.eggtab { color: #FFFF55; border-style: dashed; }
+.shoptab.eggtab.on { background: #FFFF55; color: #000000; }
+/* THE EGGS: one card and a table (apps/shop/eggs.js) */
+.eggcard { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; padding: 10px 12px; background: #000000; border: 3px solid #FFFF55; }
+.eggpic { width: 80px; height: 104px; flex: none; image-rendering: pixelated; }
+.eggbody { flex: 1; min-width: 0; }
+.eggname { color: #FFFF55; font-size: 26px; letter-spacing: 2px; line-height: 1; }
+.eggcount { color: #FFFFFF; font-size: 18px; margin: 2px 0 6px; }
+.eggclutch { width: 240px; height: 40px; max-width: 100%; image-rendering: pixelated; display: block; margin-bottom: 8px; }
+.eggbuy { display: inline-block; padding: 3px 14px; background: #FFFF55; color: #000000; border: 2px solid #FFFFFF; font-size: 20px; letter-spacing: 1px; cursor: pointer; }
+.eggbuy:hover { background: #FFFFFF; }
+.eggbuy.broke { background: transparent; color: #FFFF55; border: 2px dashed #FFFF55; }
+.eggbuy.done { background: #00AA00; color: #000000; cursor: default; }
+.eggtable { grid-column: 1 / -1; padding: 6px 4px; }
+.eggh { color: #55FFFF; font-size: 17px; letter-spacing: 1px; border-bottom: 2px solid #555555; margin-bottom: 4px; }
+.eggrow { display: grid; grid-template-columns: 170px 62px 1fr; gap: 8px; padding: 2px 0; font-size: 16px; line-height: 1.05; border-bottom: 1px dotted #333333; }
+.eggrow b { color: #FFFFFF; font-weight: normal; } .eggrow i { color: #55FF55; font-style: normal; } .eggrow span { color: #AAAAAA; }
 .shopempty { grid-column: 1 / -1; padding: 22px 16px; text-align: center; color: var(--phos); border: 2px dashed #AA55AA; background: #000000; line-height: 1.2; }
 .shopempty b { display: block; color: #FFFF55; font-weight: normal; font-size: 22px; margin-bottom: 6px; }
 .shopfoot { padding: 2px 6px; background: #AA00AA; color: #FFFF55; display: flex; }

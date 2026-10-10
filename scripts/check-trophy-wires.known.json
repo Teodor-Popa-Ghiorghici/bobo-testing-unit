@@ -1,0 +1,4 @@
+{
+  "system:emit:open": "kernel/trophies_core.js T.openDay emits it when the machine opens (kernel/trophies.js boot calls openDay)",
+  "system:stat:dayStreak": "kernel/trophies_core.js judgeDays raises it from the calendar"
+}

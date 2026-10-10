@@ -118,7 +118,7 @@ export default {
     settled = true;
     tro.abandoned(tally, moves);
     const n = home();
-    if (n > 0 && window.Economy) { window.Economy.earn(dealPay(n, moves, false), 'SOLITAIRE: ' + n + ' CARDS HOME'); setTimeout(() => Snd.coin(), 150); }
+    if (n > 0 && window.Economy) { window.Economy.earn(dealPay(n, moves, false), 'SOLITAIRE: ' + n + ' CARDS HOME', { game: 'solitaire' }); setTimeout(() => Snd.coin(), 150); }
   }
   function deal() {
     settle();
@@ -199,7 +199,7 @@ export default {
     Solitaire.save();
     tro.won(tally, moves, redeals, BASE_BACKS.some(b => b.id === backId()) ? Solitaire.st.back % 3 : -1);
     Snd.fanfare();
-    window.Economy.earn(payTarget, 'SOLITAIRE: WON IN ' + moves + ' MOVES');
+    window.Economy.earn(payTarget, 'SOLITAIRE: WON IN ' + moves + ' MOVES', { game: 'solitaire' });
     setTimeout(() => Snd.coin(), 400);
     /* the cascade everyone who has ever used an old computer expects */
     bounce = [];

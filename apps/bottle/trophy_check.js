@@ -35,7 +35,7 @@ function night({ gap, n, rest, stopAt, hold }) {
 /* the cordial: the bottle is seventeen measures of 40 ml in 700 */
 ok(BOTTLE_MEASURES === Math.floor(700 / 40), 'a bottle is ' + Math.floor(700 / 40) + ' measures, and the trophy asks for that many');
 ok(GLOW_SECS === 300, 'a glow is five minutes');
-ok(TROPHIES.length === 11 && TROPHIES.every(t => t.id.indexOf('bt_') === 0) && SCENES_TOTAL === 30, 'eleven Bottle trophies, thirty dreams');
+ok(TROPHIES.length === 11 && TROPHIES.every(t => t.id.indexOf('bt_') === 0) && SCENES_TOTAL === 38, 'eleven Bottle trophies, thirty-eight dreams');
 /* LORE ACCURATE: one trophy, for the first sip that knocks somebody out; it is told by the event `lore` and by nothing else */
 { const l = TROPHIES.find(t => t.id === 'bt_lore'); ok(l && l.on === 'lore' && /LORE ACCURATE/.test(l.desc || l.description || ''), 'the one sip with LORE ACCURATE on is its own trophy, told by the event `lore`'); }
 console.log(fails ? fails + ' failed' : 'All checks pass.');

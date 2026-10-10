@@ -8,6 +8,7 @@ import { playHonk } from '../goose_voice.js';
 import { arrange, clean, DEFAULT_VIEW } from './sort.js';
 import { createViewBar } from './viewbar.js';
 import { drawBadge } from './badge.js';
+import { fillEggs, EGG_OPEN } from './eggs.js';
 
 /* what a card's button says, and what pressing it does, by what kind of shelf it is on (kernel/cos.js COS_CATS) */
 const KIND = {
@@ -27,7 +28,7 @@ export default {
   resizable: true,
   /* an app that sends you here can ask for its own shelf: ctx.openWindow('shop', { tab: 'crayon' }) */
   mount(root, ctx, args) {
-    let cat = (args && COS_CATS[args.tab]) ? args.tab : 'frame';
+    let cat = (args && (COS_CATS[args.tab] || args.tab === 'eggs')) ? args.tab : 'frame';
     let bubbleEl = null, gridEl = null, footEl = null, daveCv = null;
     let bob = 0, raf = null, talkT = 0;
 
@@ -48,20 +49,32 @@ export default {
 
     const tabs = document.createElement('div');
     tabs.className = 'shoptabs';
-    const keys = Object.keys(COS_CATS);
-    keys.forEach(k => {
-      const t = document.createElement('div');
-      t.className = 'shoptab' + (k === cat ? ' on' : '');
-      t.textContent = COS_CATS[k].label;
-      t.addEventListener('mousedown', ev => {
-        ev.stopPropagation();
-        cat = k;
-        if (window.Snd) window.Snd.click();
-        tabs.querySelectorAll('.shoptab').forEach((n, i) => n.classList.toggle('on', keys[i] === k));
-        fill();
+    /* the shelves, and, once everything that can be bought has been, one more: THE EGGS (kernel/eggs.js) */
+    const catKeys = Object.keys(COS_CATS);
+    let keys = [];
+    function buildTabs() {
+      const want = catKeys.concat(window.Eggs && window.Eggs.open() ? ['eggs'] : []);
+      if (want.join() === keys.join() && tabs.childElementCount) return false;
+      const first = !keys.length;
+      keys = want; tabs.innerHTML = '';
+      keys.forEach(k => {
+        const t = document.createElement('div');
+        t.className = 'shoptab' + (k === cat ? ' on' : '') + (k === 'eggs' ? ' eggtab' : '');
+        t.textContent = k === 'eggs' ? 'THE EGGS' : COS_CATS[k].label;
+        t.addEventListener('mousedown', ev => {
+          ev.stopPropagation();
+          cat = k;
+          if (window.Snd) window.Snd.click();
+          tabs.querySelectorAll('.shoptab').forEach((n, i) => n.classList.toggle('on', keys[i] === k));
+          fill();
+          if (k === 'eggs') say(pick(EGG_OPEN));
+        });
+        tabs.appendChild(t);
       });
-      tabs.appendChild(t);
-    });
+      if (!first) say('A NEW SHELF. I DID NOT WANT TO TELL YOU. LOOK AT THE END OF THE TABS.');
+      return true;
+    }
+    buildTabs();
 
     let view = { ...DEFAULT_VIEW };
     const viewBar = createViewBar(view, v => { view = v; ctx.save('view', v); fill(); });
@@ -98,8 +111,8 @@ export default {
       } else footEl.appendChild(l);
       const r = document.createElement('span');
       r.className = 'r';
-      const n = keys.reduce((a, k) => a + window.Cos.owned(k).length, 0);
-      const tot = keys.reduce((a, k) => a + window.Cos.shelf(k).length, 0);
+      const n = catKeys.reduce((a, k) => a + window.Cos.owned(k).length, 0);
+      const tot = catKeys.reduce((a, k) => a + window.Cos.shelf(k).length, 0);
       r.textContent = n + ' / ' + tot + ' OWNED';
       footEl.appendChild(r);
     }
@@ -120,6 +133,12 @@ export default {
     function fill() {
       if (!gridEl) return;
       window.Cos.hover(null, null);
+      buildTabs();
+      viewBar.el.style.display = cat === 'eggs' ? 'none' : '';
+      if (cat === 'eggs') {
+        if (!(window.Eggs && window.Eggs.open())) cat = 'frame';
+        else { fillEggs(gridEl, { say, snd: window.Snd, onBuy: () => { fill(); } }); foot(); return; }
+      }
       gridEl.innerHTML = '';
       const shelf = window.Cos.shelf(cat), bal = window.Economy.balance();
       const list = arrange(shelf, view, { has: it => window.Cos.has(cat, it.id), price: it => it.price || 0, balance: bal, name: it => (it.secret && !window.Cos.has(cat, it.id)) ? '???' : it.name });
@@ -276,6 +295,8 @@ export default {
     window.Economy.onChange(this._onEcon);
     this._onCos = () => { if (document.body.contains(root)) fill(); else window.removeEventListener('cos-changed', this._onCos); };
     window.addEventListener('cos-changed', this._onCos);
+    this._onEggs = () => { if (document.body.contains(root)) fill(); else window.removeEventListener('eggs-changed', this._onEggs); };
+    window.addEventListener('eggs-changed', this._onEggs);
 
     /* asked for another shelf by a second click (the elephant sends you to his, a scheme menu to the schemes) */
     this._onAgain = ev => {
@@ -290,6 +311,7 @@ export default {
   unmount() {
     if (this._stop) { this._stop(); this._stop = null; }
     window.removeEventListener('cos-changed', this._onCos);
+    window.removeEventListener('eggs-changed', this._onEggs);
     window.removeEventListener('app-reopen', this._onAgain);
     window.Cos.hover(null, null);
   }

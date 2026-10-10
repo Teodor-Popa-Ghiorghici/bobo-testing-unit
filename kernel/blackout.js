@@ -46,7 +46,15 @@ const SCENES = [
   ['halo', picture('halo'), 'halo'],
   ['aurora', picture('aurora'), 'aurora'],
   ['axe', picture('axe'), 'axe'],
-  ['pond', picture('pond'), 'pond']
+  ['pond', picture('pond'), 'pond'],
+  ['monitor', picture('monitor'), 'monitor'],
+  ['tictac', picture('tictac'), 'tictac'],
+  ['phone', picture('phone'), 'phone'],
+  ['crest', picture('crest'), 'crest'],
+  ['domnule', picture('domnule'), 'domnule'],
+  ['kitten', picture('kitten'), 'kitten'],
+  ['bear', picture('bear'), 'bear'],
+  ['labcoat', picture('labcoat'), 'labcoat']
 ];
 export const SCENE_IDS = SCENES.map(s => s[0]);
 const T_FALL = 1.0, T_DARK = 2.3, T_WAKE = 13.4, T_END = 15.6;

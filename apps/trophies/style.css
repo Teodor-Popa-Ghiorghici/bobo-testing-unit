@@ -129,6 +129,11 @@
 .tr-rn { font-size: 20px; letter-spacing: 2px; color: #FFFFFF; line-height: 1.05; } .tr-rwd.owned .tr-rn { color: #FFFF55; }
 .tr-rc { color: #55FFFF; font-size: 13px; letter-spacing: 2px; } .tr-rb { color: #CCCCCC; font-size: 14px; line-height: 1.05; margin: 2px 0; }
 .tr-rt { color: #FF55FF; font-size: 14px; } .tr-rwd.owned .tr-rt { color: #55FF55; }
+.tr-pics .tr-rwd { grid-template-columns: 112px 1fr 8px; }
+.tr-pthumb { width: 112px; height: 64px; overflow: hidden; }
+.tr-pthumb img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.tr-pq { color: #AA55AA; font-size: 34px; }
+.tr-pbar { height: 6px; margin-top: 3px; background: #1A1A1A; border: 1px solid #555555; } .tr-pbar i { display: block; height: 100%; background: #FF55FF; } .tr-pic.owned .tr-pbar i { background: #55FF55; }
 .tr-rcup { width: 28px; height: 28px; } .tr-rcup svg { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
 
 @keyframes trin { 0% { opacity: 0; transform: translateX(-14px); } 100% { opacity: 1; transform: none; } }

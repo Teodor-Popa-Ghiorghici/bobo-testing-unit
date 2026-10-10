@@ -606,7 +606,15 @@ export const WALLS = [
   { id: 'halo', name: 'THE HALO ANGEL', price: 500, src: 'assets/blackout/halo.png', blurb: 'An angel in black and white, and a halo that is not doing its job.' },
   { id: 'aurora', name: 'THE NORTHERN LIGHTS', price: 450, src: 'assets/blackout/aurora.png', blurb: 'A village road under green lights. The snow is the only thing keeping its temper.' },
   { id: 'axe', name: 'THE AXE', price: 400, src: 'assets/blackout/axe.png', blurb: 'An axe with a worn handle and a blade that has done real work. Mind the edge.' },
-  { id: 'pond', name: 'THE ICE POND', price: 400, src: 'assets/blackout/pond.png', blurb: 'A boy crouched by a frozen pond with a stick, waiting for the ice to say something.' }
+  { id: 'pond', name: 'THE ICE POND', price: 400, src: 'assets/blackout/pond.png', blurb: 'A boy crouched by a frozen pond with a stick, waiting for the ice to say something.' },
+  { id: 'monitor', name: 'THE NEW MONITOR', price: 450, src: 'assets/blackout/monitor.png', blurb: 'A man in a blue shirt, a carpet and a very large screen he is very proud of. It is not on.' },
+  { id: 'tictac', name: 'THE MINT', price: 400, src: 'assets/blackout/tictac.png', blurb: 'A man with wild hair holds up a box of mints as though it were evidence. It is a box of mints.' },
+  { id: 'phone', name: 'THE CALL', price: 350, src: 'assets/blackout/phone.png', blurb: 'A white cap on backwards, a phone at the ear, and the face of somebody whose call is not going well.' },
+  { id: 'crest', name: 'THE SWORD AND THE SCALES', price: 500, src: 'assets/blackout/crest.png', blurb: 'A sword, a pair of scales and the machine\'s own name in yellow letters. The scales are not level.' },
+  { id: 'domnule', name: 'THE BOW TIE', price: 400, src: 'assets/blackout/domnule.png', blurb: 'A navy jacket, a bow tie, one finger pointed at you, and a sentence that begins with Sir and does not stop.' },
+  { id: 'kitten', name: 'THE BITE', price: 450, src: 'assets/blackout/kitten.png', blurb: 'A boy, a black and white kitten, and an ear in the wrong place. Neither of them planned this and both are delighted.' },
+  { id: 'bear', name: 'THE TALL BEAR', price: 500, src: 'assets/blackout/bear.png', blurb: 'A girl beside a bear that is taller than the house, in a shirt that says boutique. The bear is not for sale.' },
+  { id: 'labcoat', name: 'THE LAB COAT', price: 400, src: 'assets/blackout/labcoat.png', blurb: 'A white coat with writing on it, arms wide, two tall doors behind. Sepia, for the occasion.' }
 ];
 
 /* CRAYON: eight more brushes, and the clear sheets it can draw on over the drawing */

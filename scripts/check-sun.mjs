@@ -150,7 +150,8 @@ ok(LEDGER.small > 8000 && LEDGER.small < 22000, 'the ordinary trophies (100 SUN 
   ok(frame === 99999, 'the third temple frame is the 99,999 joke');
   ok(rest > 60000 && rest < 140000, 'the rest of the shelves cost ' + rest + ' SUN');
   console.log('  the shop is ' + total + ' SUN; without the 99,999 frame ' + rest + '; at the mean of the games here (' + Math.round(mean) + ' an hour) the rest is ' + (rest / mean).toFixed(1) + ' hours of play outside the garden');
-  ok(rest / mean > 8 && rest / mean < 40, 'the rest of the shop is between 8 and 40 hours of games other than the garden');
+  /* the band was 8 to 40 hours; Dave's shelves have grown (frames, schemes, thirty-eight backdrops) to a little over 43, and that was the decision, so the top of it is 45 */
+  ok(rest / mean > 8 && rest / mean < 45, 'the rest of the shop is between 8 and 45 hours of games other than the garden');
 }
 
 console.log('\n  the ledger: ' + LEDGER.n + ' trophies, ' + LEDGER.sun + ' SUN once, ever');

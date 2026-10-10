@@ -92,7 +92,7 @@ export default {
       /* the ways cleared in order, with no failed run between: a clear of the way after the last one counted adds one, a clear of the first starts again */
       prog.chain = run.won ? (i === 0 ? 1 : prog.chain === i ? prog.chain + 1 : 0) : 0;
       audio.finish({ won: run.won, first: first && ui.pay.first > 0, unlocked: !!ui.unlocked });
-      if (ui.pay.total > 0 && window.Economy) window.Economy.earn(ui.pay.total, 'AFTEREGYPT: ' + (run.won ? L.name : L.name + ' (COINS)'));
+      if (ui.pay.total > 0 && window.Economy) window.Economy.earn(ui.pay.total, 'AFTEREGYPT: ' + (run.won ? L.name : L.name + ' (COINS)'), { game: 'aftere' });
       ctx.save('prog', prog);
       tro.end(L, run, prog.chain);
       note();

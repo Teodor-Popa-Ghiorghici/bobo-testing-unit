@@ -35,7 +35,15 @@ const FILES = {
   halo: ['assets/blackout/halo.png', 0, 999],
   aurora: ['assets/blackout/aurora.png', 0, 999],
   axe: ['assets/blackout/axe.png', 0, 999],
-  pond: ['assets/blackout/pond.png', 0, 999]
+  pond: ['assets/blackout/pond.png', 0, 999],
+  monitor: ['assets/blackout/monitor.png', 0, 999],
+  tictac: ['assets/blackout/tictac.png', 0, 999],
+  phone: ['assets/blackout/phone.png', 0, 999],
+  crest: ['assets/blackout/crest.png', 0, 999],
+  domnule: ['assets/blackout/domnule.png', 0, 999],
+  kitten: ['assets/blackout/kitten.png', 0, 999],
+  bear: ['assets/blackout/bear.png', 0, 999],
+  labcoat: ['assets/blackout/labcoat.png', 0, 999]
 };
 const BANK = {};
 

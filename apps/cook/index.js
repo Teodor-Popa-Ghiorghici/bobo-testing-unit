@@ -378,7 +378,7 @@ export default {
         const about = kidPool('win_L' + L.id);
         say(resets === 0 && lvRuins === 0 ? 'win_first' : st.steps <= L.par ? 'win_par' : 'win_over', 0, true, about.length ? [about[Math.floor(Math.random() * about.length)]] : []);
         winT = kid ? -1e9 : 0;
-        if (sun) { window.Economy.earn(sun, 'THE COOK: BENCH ' + L.id); if (kid) coinDue = 1; else setTimeout(() => Snd.coin(), 700); }
+        if (sun) { window.Economy.earn(sun, 'THE COOK: BENCH ' + L.id, { game: 'cook' }); if (kid) coinDue = 1; else setTimeout(() => Snd.coin(), 700); }
         SV.money += Math.round(pur * 1000 * L.id);
         tro.won(L, st.steps, resets, undos, lvRuins, nudged === L.id);
         if (L.id >= SV.lv) SV.lv = Math.min(10, L.id + 1);

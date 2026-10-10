@@ -1,5 +1,6 @@
 import { createWindow, raise } from '../../kernel/wm.js';
 import { buffs } from '../buffs_scope.js';
+import { eggs as eggsOf } from '../eggs_scope.js';
 import { fs as vfs } from '../../kernel/vfs.js';
 import { CRT, Vol, sfxGain } from '../../kernel/hardware.js';
 import { BEK_T, BEK_T_SRC, BEK_ART_SCALE, BEK_SAVE, BEK_LOT_COST, UI, BEK_ITEMS, BEK_SEED_ORDER,
@@ -1410,7 +1411,9 @@ export default {
         if (g == null) return 1;
         return g >= 1.5 ? BEK_GRADE_MULT[2] : g >= 0.5 ? BEK_GRADE_MULT[1] : BEK_GRADE_MULT[0];
       }
-      const sellPrice = id => Math.round((BEK_ITEMS[id].sell || 0) * gradeMult(id));
+      /* the golden sun eggs (kernel/eggs.js) are a little more for what is sold at the counter */
+      const eggs = eggsOf();
+      const sellPrice = id => Math.round((BEK_ITEMS[id].sell || 0) * gradeMult(id) * eggs.mult('bekkedal'));
       /* the tier-2 kanne's line: the two tiles either side of the one
          watered dead ahead, perpendicular to the way the player is facing
          (S.dir's own [x,y] delta), same as a real watering can pass */
@@ -2022,7 +2025,7 @@ export default {
         if (q && Object.keys(q.need).every(id => has(id, q.need[id]))) {
           Object.keys(q.need).forEach(id => add(id, -q.need[id]));
           S.q[q.id] = 'done'; S.kr += q.kr;
-          if (window.Economy) window.Economy.earn(questSun(q.kr), 'BEKKEDAL: ' + q.t.en);
+          if (window.Economy) window.Economy.earn(questSun(q.kr), 'BEKKEDAL: ' + q.t.en, { game: 'bekkedal' });
           S.fr[npc.id] = Math.min(FR_MAX, S.fr[npc.id] + q.fr);
           if (q.tool) S.tools[q.tool] = 1;
           if (q.grant) {
@@ -2048,7 +2051,7 @@ export default {
         if (rq) {
           add(rq.item, -rq.qty);
           rq.state = 'done'; S.kr += rq.kr;
-          if (window.Economy) window.Economy.earn(questSun(rq.kr), 'BEKKEDAL: ' + questTitle(rq).en);
+          if (window.Economy) window.Economy.earn(questSun(rq.kr), 'BEKKEDAL: ' + questTitle(rq).en, { game: 'bekkedal' });
           sfx.coin();
           dlg = { lines: [{ no: 'Takk. That is exactly it.', en: 'Thanks. That is exactly it.' }, '+' + rq.kr + ' KR'], i: 0, npc: npc, mood: 'warm' };
           mode = 'talk'; return;
@@ -2366,7 +2369,7 @@ export default {
         if (spineComplete(S) && !S.spine.done) {
           S.spine.done = S.day;
           loft = null; mode = 'loftend'; S.ending = 0;
-          if (window.Economy) window.Economy.earn(LOFT_SUN, 'BEKKEDAL: THE LOFT');
+          if (window.Economy) window.Economy.earn(LOFT_SUN, 'BEKKEDAL: THE LOFT', { game: 'bekkedal' });
         }
       }
       function doCraft() {
@@ -2595,7 +2598,7 @@ export default {
           if (k === 'i' || k === 'q' || k === 'Escape') closeMenu();
           return;
         }
-        if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(HOUSE_SUN, 'BEKKEDAL: THE HOUSE BY THE WATER'); } else startNap(false); } if (k === 'Escape') closeMenu(); return; }
+        if (mode === 'sleep') { if (k === ' ' || k === 'Enter') { mode = ''; if (S.map === 'lakehouse' && !S.flag.homed) { S.flag.homed = 1; mode = 'end'; S.ending = 0; if (window.Economy) window.Economy.earn(HOUSE_SUN, 'BEKKEDAL: THE HOUSE BY THE WATER', { game: 'bekkedal' }); } else startNap(false); } if (k === 'Escape') closeMenu(); return; }
 
         /* walking */
         if (k === ' ') {

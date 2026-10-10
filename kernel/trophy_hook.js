@@ -13,9 +13,9 @@ export const sys = {
 };
 
 /* what a HolyC program that ran was made of, for the trophies that ask: only strings (HELLO, TEMPLE), a function of your own that is also called (A FUNCTION OF YOUR OWN) */
-export function holycFacts(ast) {
+export function holycFacts(ast, known) {
   const body = ast && ast.body || [];
-  const fns = new Set(); body.forEach(n => { if (n.k === 'fn') fns.add(n.name); });
+  const fns = new Set(known || []); body.forEach(n => { if (n.k === 'fn' && n.body) fns.add(n.name); });
   let called = false;
   const walk = (n, inside) => {
     if (!n || typeof n !== 'object') return;
@@ -27,4 +27,5 @@ export function holycFacts(ast) {
   walk(body, null);
   return { onlyString: body.length > 0 && body.every(n => n.k === 'print'), usesFn: fns.size > 0 && called };
 }
-sys.holyc = (ast, file) => { try { sys.emit('holyc', Object.assign({ ok: true, file: file || null }, holycFacts(ast))); } catch (e) { /* never */ } };
+/* `known` is the names of functions the shell was already holding from earlier lines: define one on a line and call it on the next is a function of your own too */
+sys.holyc = (ast, file, known) => { try { sys.emit('holyc', Object.assign({ ok: true, file: file || null }, holycFacts(ast, known))); } catch (e) { /* never */ } };

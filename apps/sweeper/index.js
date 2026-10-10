@@ -115,7 +115,7 @@ export default {
     /* ---- what winning pays ------------------------------------------------ */
     /* SUN is paid the moment the room is won (closing the window on the panel used to cost it); only the coin's sound waits */
     function earn(n, why) {
-      if (n > 0 && window.Economy) window.Economy.earn(n, why);
+      if (n > 0 && window.Economy) window.Economy.earn(n, why, { game: 'sweeper' });
       setTimeout(() => Snd.coin(), 1300);
     }
     function onWin(S, secs) {

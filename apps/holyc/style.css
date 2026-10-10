@@ -136,6 +136,12 @@
 .hc-hl { pointer-events: none; color: #FFFFFF; overflow: hidden; }
 .hc-ta { background: transparent; color: transparent; -webkit-text-fill-color: transparent; caret-color: #FFFF55; resize: none; outline: none; z-index: 2; }
 .hc-ta::selection { background: #5555FF; }
+/* HORIZONTAL cursor: the caret is put away and an underscore the width of a letter stands on its cell (editor.js; caret.js says which) */
+.hc-ed[data-cursor="horizontal"] .hc-ta { caret-color: transparent; }
+.hc-cur { display: none; position: absolute; left: 0; top: 0; height: 4px; background: #FFFF55; z-index: 3; pointer-events: none; animation: hc-blink 1.06s steps(1) infinite; }
+@keyframes hc-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+:root[data-calm] .hc-cur { animation: none; }
+@media (prefers-reduced-motion: reduce) { .hc-cur { animation: none; } }
 .hc-ed.ro .hc-ta { cursor: default; }
 .hc-ed.typing { box-shadow: inset 0 0 0 3px #FF55FF; }
 .hc-marks { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; }

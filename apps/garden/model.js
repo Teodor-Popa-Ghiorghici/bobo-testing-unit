@@ -14,6 +14,10 @@
  * price and, if it is quick, a little more).
  */
 import { bonusFor, POTS_PER_ROOM } from './synergy.js';
+import { eggs } from '../eggs_scope.js';
+
+/* the golden sun eggs (kernel/eggs.js): plants grow a little faster, and tokens come a little sooner. 1 with none, and in Node (the check), where there is no window. */
+const eggK = () => eggs().mult('garden');
 
 export const WATER_MS = 8 * 60 * 1000;
 export const DAY_MS = 20 * 60 * 1000;
@@ -97,7 +101,7 @@ export function step(w, st, now, dt, rate, earn) {
       if (!sp) return;
       const wet = wm === Infinity ? dt : Math.max(0, Math.min(dt, (p.watered + wm) - (now - dt)));
       if (wet <= 0) return;
-      const s = stats(w, st, ri, i), credit = wet * rate * s.grow, need = sp.grow * 1000;
+      const s = stats(w, st, ri, i), credit = wet * rate * s.grow * eggK(), need = sp.grow * 1000;
       if (p.grown < need * 3) p.grown = Math.min(need * 3, p.grown + credit);
       if (p.grown < need * 3) return;
       if (sp.night && !(s.night || clockNight)) return;

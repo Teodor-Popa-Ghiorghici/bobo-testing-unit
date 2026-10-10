@@ -35,8 +35,9 @@ export default {
     const open = id => ctx.openWindow(id).catch(() => {});
     const shop = cat => ctx.openWindow('shop', { tab: cat }).catch(() => {});
     const folder = path => ctx.openWindow('folder', { path }).catch(() => {});
+    const picture = path => ctx.openWindow('viewer', { path, type: 'image' }).catch(() => {});
     const hero = buildHero(T, { focus: id => focusOn(id) });
-    const rewards = buildRewards(T, { shop, folder, focus: id => focusOn(id) });
+    const rewards = buildRewards(T, { shop, folder, picture, area: id => { S.area = id; S.sel = null; S.tab = 'trophies'; draw(); }, focus: id => focusOn(id) });
     const bar = el('div', 'tr-bar'), recent = el('div', 'tr-recent'), body = el('div', 'tr-bodyrow'), side = el('div', 'tr-side'), main = el('div', 'tr-mainpane'), list = el('div', 'tr-list');
     list.setAttribute('role', 'list');
     main.append(el('div', 'tr-area'), list); body.append(side, main);
@@ -150,8 +151,9 @@ export default {
     const onAgain = ev => { if (ev.detail && ev.detail.appId === 'trophies' && ev.detail.args && ev.detail.args.focus) focusOn(ev.detail.args.focus); };
     window.addEventListener('app-reopen', onAgain);
     const onCos = () => { if (S.tab === 'rewards') schedule(); };
+    window.addEventListener('pictures-changed', onCos);
     window.addEventListener('cos-changed', onCos);
-    whenGone(root, () => { window.removeEventListener('app-reopen', onAgain); window.removeEventListener('cos-changed', onCos); un(); if (raf) cancelAnimationFrame(raf); });
+    whenGone(root, () => { window.removeEventListener('app-reopen', onAgain); window.removeEventListener('cos-changed', onCos); window.removeEventListener('pictures-changed', onCos); un(); if (raf) cancelAnimationFrame(raf); });
   },
   unmount() {}
 };
