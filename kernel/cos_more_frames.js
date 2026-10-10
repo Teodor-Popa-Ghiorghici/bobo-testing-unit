@@ -8,7 +8,8 @@ const F = (id, name, reward, blurb, brand, p, deco, secret) => {
   if (secret) o.secret = true;
   return o;
 };
-const BL = 'left 2.5% bottom 3%', BR = 'right 2.5% bottom 3%', TR = 'right 3% top 1.2%';
+/* a plate goes in the chin's own slot (kernel/chin_plate.js), never over the badge or the knobs: the old corners it was pinned to were exactly where they stand */
+const BL = 'chin', BR = 'chin';
 
 /* the plates that go on the cases: label, ground, ink, width, edge */
 export const DECO_M = {

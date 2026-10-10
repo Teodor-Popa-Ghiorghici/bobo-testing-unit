@@ -5,10 +5,12 @@
    - what is text on VGA stays text: white, light grey, yellow, light green, light cyan, the machine's own inks, mapped through each scheme, still read against the
      scheme's mapped black at 4.5:1; the dimmer colours that carry information (light red, light magenta, light blue, brown, dark grey) at 3:1;
    - every scheme has its own filter, VGA has none, and the filter is made of well-formed table values;
-   - a scheme dresses NOTES and nothing else: the machine's chrome (menu bar, taskbar, desktop, pop-ups, every other window) is never filtered, and NOTES' OWN PAGE IS HELD TO READABLE
-     under every scheme: the text at 7:1 and every other ink at 4.5:1 against the page it is read on (kernel/theme_fx.js notesInks). */
+   - a scheme is worn at two depths. NOTES is dressed all the way down, and its own page is held to readable under every scheme: the text at 7:1 and every other ink at 4.5:1 against
+     the page it is read on (kernel/theme_fx.js notesInks). Everything else is dressed on the outside only, never in its art: every window's frame (bar, ink, edge), the menu bar, the
+     taskbar, the desk and the icons' names on it, the pop-ups, and a hairline and glow round each window. None of that is a filter (the menu bar, the taskbar and the icons would
+     vanish under a pale scheme); each is arithmetic on the ramp, and every ink printed on one is held to 4.5:1 here. */
 import { SCHEMES } from '../kernel/cos_data.js';
-import { rampOf, mapColour, contrast, relLum, filterOf, varsOf, deskOf, frameHex, notesInks, readable, NOTES_MIN, VAR_NAMES, GAMMA } from '../kernel/theme_fx.js';
+import { rampOf, mapColour, contrast, relLum, filterOf, varsOf, roomVars, chromeOf, barOf, ROOM_NAMES, deskOf, frameHex, notesInks, readable, NOTES_MIN, VAR_NAMES, GAMMA, BAR_MIN } from '../kernel/theme_fx.js';
 import { TITLE_COLORS } from '../kernel/win_skins.js';
 import { readFileSync } from 'node:fs';
 
@@ -46,16 +48,30 @@ for (const s of SCHEMES) {
     ok(/^#[0-9A-F]{6}$/.test(e), s.id + ': the ' + k + ' window edge is a colour (' + e + ')');
     ok(contrast(H(e), black) >= 1.4 || k === 'panic', s.id + ': the ' + k + ' window edge shows against the scheme\'s black (' + contrast(H(e), black).toFixed(2) + ')');
   }
+  /* the chrome: the menu bar and the taskbar (ink on bar, ink on hover, the dashed button's softer ink), the icons' names on the bare desk, a title bar of every kind, the pop-ups' pairs */
+  const rv = roomVars(s), ch = chromeOf(s);
+  ok(Object.keys(rv).every(k => ROOM_NAMES.includes(k) && VAR_NAMES.includes(k)), s.id + ': everything the room wears is a name that is cleared again');
+  ok(!('--th-filter' in rv), s.id + ': the room never wears the filter (the menu bar, the taskbar and the icons are not filtered)');
+  ok(Object.values(ch).every(v => /^#[0-9A-F]{6}([0-9A-F]{2})?$/.test(v)), s.id + ': the chrome is all real colours');
+  const bar = H(ch['--th-bar']);
+  [['--th-bar-ink', BAR_MIN], ['--th-bar-soft', BAR_MIN]].forEach(([k, min]) => ok(contrast(H(ch[k]), bar) >= min - 0.01, s.id + ': ' + k + ' on the bar is ' + contrast(H(ch[k]), bar).toFixed(2) + ':1, under ' + min));
+  ok(contrast(H(ch['--th-bar-ink']), H(ch['--th-bar-hover'])) >= BAR_MIN - 0.01, s.id + ': a hovered taskbar button still reads (' + contrast(H(ch['--th-bar-ink']), H(ch['--th-bar-hover'])).toFixed(2) + ':1)');
+  const desk = H(rv['--sch-desk']);
+  ok(contrast(H(ch['--th-lbl']), desk) >= BAR_MIN - 0.01, s.id + ': the icons\' names read on the bare desk (' + contrast(H(ch['--th-lbl']), desk).toFixed(2) + ':1)');
+  for (const k in TITLE_COLORS) { const b = barOf(s.v, TITLE_COLORS[k].bar); ok(contrast(H(b.ink), H(b.bar)) >= BAR_MIN - 0.01, s.id + ': the ' + k + ' title reads on its bar (' + contrast(H(b.ink), H(b.bar)).toFixed(2) + ':1)'); }
+  /* the pop-ups read the six inks directly (theme.css: .popmenu is dim with the page's colour on it, a hover is the page with the highlight on it, the toast is OK on the page) */
+  const sb = H(s.v.bg), sd = H(s.v.dim);
+  [['dim on bg (pop-up text, buttons)', sd, sb], ['hi on bg (a hovered pop-up row)', H(s.v.hi), sb], ['ok on bg (the toast)', H(s.v.ok), sb], ['fg on bg', H(s.v.fg), sb]].forEach(([w, a, b]) => ok(contrast(a, b) >= BAR_MIN - 0.01, s.id + ': ' + w + ' is ' + contrast(a, b).toFixed(2) + ':1'));
   if (s.id !== 'vga') { const f = filterOf(s.id, s.v); ok(/id="th-/.test(f) && !/NaN|undefined/.test(f) && (f.match(/tableValues="/g) || []).length === 3, s.id + ': filter markup'); }
 }
 ok(GAMMA > 0.5 && GAMMA < 1, 'the lift is a lift');
 /* readable() never makes a good colour worse and always reaches the contrast asked for, whatever it is given, on a dark ground and on a light one */
 for (const g of ['#000000', '#E8E2D4', '#120a00', '#808080']) for (const c of ['#FFFFFF', '#808080', '#E8E2D4', '#101010', '#FF00FF']) { const r = readable(c, g, 4.5); ok(contrast(H(r), H(g)) >= 4.5 - 0.01 || contrast(H(r), H(g)) >= contrast(H(c), H(g)), 'readable ' + c + ' on ' + g + ' is ' + r); }
 ok(readable('#FFFFFF', '#000000', 7) === '#FFFFFF', 'a colour that already reads is left alone');
-ok(Object.keys(varsOf(SCHEMES[0])).length === 0, 'the default scheme sets nothing: Notes is exactly as it always was');
+ok(Object.keys(varsOf(SCHEMES[0])).length === 0 && Object.keys(roomVars(SCHEMES[0])).length === 0, 'the default scheme sets nothing: the machine and Notes are exactly as they always were');
 ok(frameHex({ bg: '#000000', fg: '#FFFFFF', ok: '#55FF55', hi: '#FFFF55', err: '#FF5555', dim: '#AAAAAA', acc: '#55FFFF' }, '#AA00AA').length === 7, 'frameHex gives a colour');
 
-/* What a scheme may reach: the machine's chrome and nothing inside an app. The filter is applied in the stylesheet, so hold the stylesheet to it. */
+/* What a scheme may reach: the machine's chrome and nothing inside an app. The filter (Notes' own dressing) is applied in the stylesheet, so hold the stylesheet to it. */
 const css = readFileSync(new URL('../kernel/theme.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const rules = css.split('}').map(r => r.trim()).filter(r => /filter:\s*var\(--th-filter/.test(r));
 ok(rules.length === 1, 'exactly one rule applies the scheme\'s filter (found ' + rules.length + ')');
@@ -66,6 +82,12 @@ const sel = rules.length ? rules[0].slice(0, rules[0].indexOf('{')).split(',').m
 const notes = css.split('}').filter(r => /^\s*\.(notesroot|ntop|nsel|nstat|nside|nfind|nrow|nrc|nempty|ntitle|nedit|nread|nlink|nback|nbl|nbnone|nchip|ngcv|nghint)\b/.test(r));
 ok(notes.length >= 20 && notes.every(r => !/#[0-9A-Fa-f]{6}\s*[;}]/.test(r.replace(/var\([^)]*\)/g, ''))), 'every colour in the Notes rules is a variable with a fallback (' + notes.length + ' rules)');
 ok(!/\.notesroot[^{]*\{[^}]*--sch-/.test(css), 'and they read the page\'s inks, not the machine\'s six');
+/* the chrome reads its colours from the room's variables, each with the machine's own colour as the fallback, so the default scheme is exactly what it always was */
+const rule = sel => css.split('}').map(r => r.trim()).filter(r => r.slice(0, r.indexOf('{')).split(',').map(x => x.trim()).includes(sel)).join('\n');
+[['#menubar', '--th-bar', '#AAAAAA'], ['#taskbar', '--th-bar', '#AAAAAA'], ['.tbtn', '--th-bar-ink', '#000000'], ['.titlebar', '--bar-ink', '#000000'], ['#desktop', '--sch-desk', '#0000AA']].forEach(([sl, v, fb]) =>
+  ok(new RegExp('var\\(' + v + ',\\s*' + fb + '\\)', 'i').test(rule(sl)), sl + ' reads ' + v + ' with ' + fb + ' as its fallback'));
+ok(/\.win::after[^}]*var\(--th-line, transparent\)/.test(css) && /\.win::after[^}]*pointer-events:\s*none/.test(css), 'the overlay on a window is transparent under the default scheme and never takes the pointer');
+ok(/html:not\(\.deskpic\) #icons \.icon:not\(\.sel\) \.lbl/.test(css), 'the icons\' names take the scheme\'s ink only on a bare desk, never over a picture');
 ok(SCHEMES.some(s => s.id === 'vga'), 'the default scheme exists');
 console.log(bad ? '\nFAILED ' + bad + ' of ' + n : 'ok  - ' + SCHEMES.length + ' schemes as whole looks (' + n + ' checks)');
 process.exit(bad ? 1 : 0);

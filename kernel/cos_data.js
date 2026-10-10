@@ -48,7 +48,7 @@ export const FRAMES = [
       { svg: 'screw', pos: 'right 2px top 2px' },
       { svg: 'screw', pos: 'left 2px bottom 2px' },
       { svg: 'screw', pos: 'right 2px bottom 2px' },
-      { svg: 'danger', pos: 'left 2.5% bottom 3%', size: '104px 26px' }
+      { svg: 'danger', pos: 'chin' }
     ]
   },
   {
@@ -67,7 +67,7 @@ export const FRAMES = [
       '--case-shadow': 'inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -3px 0 rgba(0,0,0,0.18), inset 3px 0 0 rgba(255,255,255,0.5), inset -3px 0 0 rgba(0,0,0,0.12)'
     },
     deco: [
-      { svg: 'readout', pos: 'left 2.5% bottom 3%', size: '118px 24px' },
+      { svg: 'readout', pos: 'chin' },
       { svg: 'strain', pos: 'right 1% bottom 0%', size: '40px 46px' }
     ]
   },
@@ -158,7 +158,7 @@ export const FRAMES = [
       '--scr-tint': 'rgba(60,120,255,0.05)',
       '--case-shadow': 'inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -3px 0 rgba(0,0,0,0.4), inset 3px 0 0 rgba(255,255,255,0.15), inset -3px 0 0 rgba(0,0,0,0.3)'
     },
-    deco: [{ svg: 'dims', pos: 'left 2.5% bottom 3%', size: '120px 22px' }]
+    deco: [{ svg: 'dims', pos: 'chin' }]
   },
   {
     id: 'lunar', name: 'LUNAR LANDER', price: 3800,

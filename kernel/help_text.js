@@ -57,9 +57,11 @@ $TR-$
 
 $TR,"WINDOWS"$
 $FG,11$[Z]$FG$ zoom this window, bigger or smaller, and remember it.
-$FG,11$[T]$FG$ (NOTES only) a colour scheme for just this Notes window. A scheme dresses
-                  Notes, its frame and its page, and nothing else: the rest of the machine
-                  keeps its own colours. It is held to readable, whatever is chosen.
+$FG,11$[T]$FG$ (NOTES only) a colour scheme for just this Notes window. Notes is dressed all
+                  the way down, its frame and its page. The rest of the machine wears the
+                  scheme on the outside only: every window's frame, the menu bar, the
+                  taskbar, the desktop and the pop-ups. What is inside a window, a game or
+                  a picture, keeps its own colours. It is held to readable, whatever is chosen.
 $FG,11$[_]$FG$ tuck it into the taskbar.  $FG,11$[□]$FG$ fill the desktop (or F11).
 $FG,11$[X]$FG$ close.
 A program that opens once comes back where you left it, at the size you made it.

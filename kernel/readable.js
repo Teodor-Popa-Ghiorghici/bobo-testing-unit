@@ -74,6 +74,7 @@ export function applyReadable() {
   try { const w = JSON.parse(localStorage.getItem('templeos.wallpaper.v1') || 'null'); if (w && (w.kind === 'image' || !w.kind)) still = w.src; } catch (e) { /* none */ }
   const has = !!(live || still);
   document.documentElement.classList.toggle('readable', has && on());
+  document.documentElement.classList.toggle('deskpic', has);          /* a picture is behind the icons: the names keep their plate, and a scheme's ink for a bare desk is not used (theme.css) */
   if (!desk) return;
   if (!has || !on()) { aim({ veil: 0, blur: 0 }); return; }
   ensureScrim();
