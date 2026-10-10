@@ -1,3 +1,4 @@
+import './calm.js';                      /* first: REDUCE MOTION answers matchMedia before anything asks */
 import { initVFS } from './vfs.js';
 import { openWindow } from './wm.js';
 import { Cos } from './cos.js';
@@ -16,6 +17,8 @@ import "./drunk.js";
 import { Gifts } from "./gifts.js";
 import "./buffs.js";
 import "./stack_hud.js";
+import "./taskbar.js";
+import "./launcher.js";
 import { Cheese } from "./cheese.js";
 import { Music } from './music.js';
 import { SunUI } from './economy.js';
@@ -60,7 +63,12 @@ function startClock() {
   const el = document.getElementById('clock');
   if (!el) return;
   const two = n => String(n).padStart(2, '0');
-  const tick = () => { const d = new Date(); el.textContent = two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()); };
+  let day = '';
+  const tick = () => {
+    const d = new Date(); el.textContent = two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds());
+    const k = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    if (k !== day) { day = k; try { el.title = d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase(); } catch (e) { /* no locale */ } }       /* hold the pointer on it for the date */
+  };
   tick();
   setInterval(tick, 1000);
 }

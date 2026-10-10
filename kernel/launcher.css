@@ -1,0 +1,20 @@
+/* GO TO (kernel/launcher.js): over the glass, a little below the menu bar, over every window and the trophy card. Plain VGA inks on black, readable on any picture. */
+.lnch { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 480; background: rgba(0, 0, 0, 0.45); display: flex; justify-content: center; align-items: flex-start; padding-top: 12%; }
+.lnch-box { width: min(560px, 92%); background: #000000; border: 2px solid #55FFFF; box-shadow: 5px 5px 0 #000000; font-family: 'VT323', monospace; color: #AAAAAA; font-size: 20px; line-height: 1; }
+.lnch-in { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #0000AA; border-bottom: 2px solid #55FFFF; }
+.lnch-pr { color: #FFFF55; letter-spacing: 1px; }
+.lnch-q { flex: 1; min-width: 0; font: inherit; font-size: 22px; background: #000000; color: #FFFFFF; border: 1px solid #55FFFF; padding: 3px 6px; outline: none; caret-color: #FFFF55; }
+.lnch-q::placeholder { color: #AAAAAA; opacity: 1; }
+.lnch-list { max-height: 360px; overflow-y: auto; }
+.lnch-row { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 28px; cursor: pointer; }
+.lnch-row.sel { background: #FFFF55; color: #000000; }
+.lnch-row.away .lnch-nm { font-style: normal; opacity: 0.8; }
+.lnch-ico { flex: none; width: 18px; height: 18px; background: center / contain no-repeat; image-rendering: pixelated; text-align: center; line-height: 18px; color: #55FFFF; font-style: normal; }
+.lnch-row.sel .lnch-ico.do { color: #000000; }
+.lnch-nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #FFFFFF; }
+.lnch-row.sel .lnch-nm { color: #000000; }
+.lnch-kd { flex: none; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; color: #55FFFF; text-align: right; }
+.lnch-kd.k-window { color: #55FF55; } .lnch-kd.k-action { color: #FF55FF; } .lnch-kd.k-file { color: #AAAAAA; }
+.lnch-row.sel .lnch-kd { color: #000000; }
+.lnch-none { padding: 14px 10px; color: #AAAAAA; }
+.lnch-foot { padding: 4px 8px; font-size: 16px; color: #AAAAAA; border-top: 1px solid #555555; }

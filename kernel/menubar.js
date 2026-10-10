@@ -47,6 +47,8 @@ export function wireMenubar(hooks) {
       { label: 'DISPLAY SETTINGS', run: () => open('display') }
     ],
     Tools: () => [
+      { label: 'GO TO...   CTRL+SPACE', run: () => window.Launcher && window.Launcher.open() },
+      { sep: true },
       { label: 'TERMINAL', run: () => open('terminal') },
       { label: 'THE GARAGE (MAKE MUSIC)', run: () => open('garage') },
       { label: 'THESTACK (HI-FI)', run: () => open('hifi') },

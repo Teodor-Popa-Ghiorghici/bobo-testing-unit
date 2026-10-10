@@ -525,14 +525,26 @@ html, body {
   border: 1px solid #555555;
   background: #AAAAAA;
   color: #000000;
-  padding: 0 8px;
+  padding: 0 6px;
   height: 20px;
-  line-height: 20px;
+  line-height: 18px;
   cursor: pointer;
   white-space: nowrap;
-  max-width: 190px;
+  display: flex; align-items: center; gap: 5px;
+  flex: 0 1 190px; min-width: 24px; max-width: 190px;
   overflow: hidden;
+  container-type: inline-size;
 }
+/* the picture of the app, and its name: crowded, the name goes and the picture stays */
+.tbtn .tico { display: none; width: 14px; height: 14px; flex: none; background: center / contain no-repeat; image-rendering: pixelated; }
+.tbtn .tico.has { display: block; }
+.tbtn .tl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container (max-width: 66px) { .tbtn .tl { display: none; } .tbtn .tico.has { margin: 0 auto; } }
+.tbtn.min .tico { opacity: 0.55; }
+#tasks { min-width: 0; }
+#showdesk { flex: none; width: 12px; height: 20px; margin-left: 4px; border: 1px solid #555555; background: #000000; cursor: pointer; position: relative; }
+#showdesk::after { content: ''; position: absolute; left: 2px; right: 2px; bottom: 2px; height: 3px; background: #AAAAAA; }
+#showdesk:hover { border-color: #FFFF55; } #showdesk:hover::after { background: #FFFF55; }
 .tbtn:hover { background: #FFFFFF; }
 .tbtn.active { background: #000000; color: #FFFF55; border-color: var(--phos); }
 #clock {
@@ -1557,3 +1569,9 @@ textarea.editor {
 .readable .icon.sel .lbl { background: #FFFFFF; }
 .readable .icon .ico { filter: drop-shadow(0 0 1px #000000) drop-shadow(0 0 3px rgba(0, 0, 0, 0.75)); }
 .readable .win { box-shadow: 0 0 0 1px #000000, 0 7px 22px rgba(0, 0, 0, 0.55); }
+
+/* REDUCE MOTION (kernel/calm.js, DISPLAY.EXE): while it is on every animation and transition is a single frame, and nothing loops */
+:root[data-calm] *, :root[data-calm] *::before, :root[data-calm] *::after {
+  animation-duration: 0.001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important; transition-delay: 0s !important; scroll-behavior: auto !important;
+}
