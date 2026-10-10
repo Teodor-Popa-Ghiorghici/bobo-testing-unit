@@ -20,7 +20,7 @@ export default {
   id: 'garden',
   title: 'GARDEN.EXE',
   width: 720,
-  height: 566,
+  height: 572,
   resizable: true,
   async mount(root, ctx) {
     const w = makeWorld();
@@ -50,6 +50,7 @@ export default {
     /* ---- the window ---- */
     const pane = document.createElement('div'); pane.className = 'gamepane gardenpane';
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.className = 'gamecv gardencv'; cv.tabIndex = 0;
+    cv.dataset.fit = 'int';               /* the window manager sizes the picture to the pane (kernel/canvas_fit.js): whole multiples in a window, whatever fits in fullscreen, so the garden fills the room instead of standing 700 px wide in it */
     pane.appendChild(cv);
     const bar = document.createElement('div'); bar.className = 'appbar wrap';
     const btn = (label, fn) => { const b = document.createElement('button'); b.className = 'appbtn'; b.textContent = label; b.addEventListener('mousedown', ev => { ev.stopPropagation(); fn(b); }); bar.appendChild(b); return b; };

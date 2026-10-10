@@ -81,10 +81,11 @@ export function createWindow(opts) {
   /* a game's window (the mixer, the trophies and a few checks ask which are games) */
   if (opts.appId && GAME_IDS.has(opts.appId)) win.dataset.game = '1';
 
-  /* a colour scheme dresses NOTES and nothing else: on a Notes window the bar is filtered by theme.css and the edge coloured by Cos.dressFrame from this VGA colour; every other window keeps it */
+  /* a colour scheme dresses a window's frame (Cos.dressFrame colours the edge and the bar from these two VGA colours) and, on a Notes window, its page; never what is inside any other */
   const skin = TITLE_COLORS[opts.kind] || TITLE_COLORS.text;
   win.style.borderColor = skin.border;
   win.dataset.edge = skin.border;
+  win.dataset.bar = skin.bar;
 
   const bar = document.createElement('div');
   bar.className = 'titlebar';

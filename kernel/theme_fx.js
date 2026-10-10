@@ -6,12 +6,16 @@
    at white. It is laid over the title bar of every window, the menu bar and the taskbar, so the chrome is one colour world, whether the scheme is worn by the whole
    machine or just by one window's [T].
 
-   WHAT IT DRESSES, AND WHAT IT NEVER TOUCHES. A scheme dresses NOTES and nothing else: the Notes window's own frame (title bar and edge) and the whole of its page (the list,
-   the editor, the reading view, the links, the graph). Every other window, the menu bar, the taskbar, the colour of the desktop, the icons, the pop-ups, the games, the
-   terminal, the elephant and a wallpaper keep the machine's own colours, whatever scheme is worn: a scheme used to be laid over the machine's chrome, and on a pale one
-   (PAPER) the icons' names and the taskbar disappeared. Notes is the one place where the colours of the text are a thing you choose, so it is the one place they are
-   chosen, and it is held to readable whatever is chosen (`notesInks`: every ink is pushed until it has contrast against the page it is read on).
-   kernel/theme.css, "THE SCHEME DRESSES NOTES", is where the filter is applied.
+   WHAT IT DRESSES, AND WHAT IT NEVER TOUCHES. A scheme is worn at two depths.
+   NOTES is dressed all the way down: the window's own frame (title bar and edge) and the whole of its page (the list, the editor, the reading view, the links, the graph).
+   Notes is the one place where the colour of text is a choice, so it is the one place a scheme is chosen ([T]), and it is held to readable whatever is chosen (`notesInks`: every
+   ink is pushed until it has contrast against the page it is read on).
+   Everything else is dressed on the outside only, in the machine's chrome and in simple overlays, and NEVER in its art: the frame of every window (the title bar's colour, its
+   ink, the edge, a hairline and a soft glow laid round it), the menu bar, the taskbar, the colour of the desktop and the ink of the icons' names on it, and the pop-up menus, the
+   toast and the in-glass boxes. What is inside a window (a game, the terminal, a picture, every canvas), the icons' pictures, the elephant and a wallpaper keep the machine's own
+   colours, whatever scheme is worn. A scheme used to be a filter laid over the chrome, and on a pale one (PAPER) the icons' names and the taskbar disappeared; the chrome is now
+   coloured from the scheme's ramp by arithmetic (`chromeOf`, `barOf`), each pair pushed until it reads (`readable`), and `scripts/check-theme.mjs` holds every one.
+   kernel/theme.css, "THE SCHEME", is where the variables are read.
 
    - The first `DEEP` of the ramp is where the background sits; the ramp is bg, dim, fg, hi at equal steps, in sRGB (color-interpolation-filters), so a
      light-on-dark scheme and a dark-on-light one (PAPER) are the same filter with the ends swapped.
@@ -105,8 +109,47 @@ export function notesInks(v) {
   return t;
 }
 
-/* The custom properties a scheme sets, and only on a NOTES window: the filter its title bar wears and the page's inks (--n-*, read by the Notes rules in theme.css). The default
-   scheme (VGA) sets nothing and so leaves Notes exactly as it always was. Nothing is ever set on the room: the machine's own colours are not a scheme's business. */
+/* ---- THE CHROME: the machine's own furniture in a scheme's colours, by arithmetic and not by filter ------------------------------------------------------
+   Each is a VGA colour the machine uses (the grey of the menu bar and the taskbar, the white of an icon's name, the colour of a window's bar) put through the scheme's ramp (`frameHex`),
+   and every ink is then pushed until it reads on what it is printed on (`readable`). The default scheme sets none of it: the variables are removed and the stylesheet's own colours stand. */
+export const BAR_MIN = 4.5;
+const ink = (c, ground) => readable(c, ground, BAR_MIN);
+const hexOf = a => toHex(a);
+
+/* the bar of a window of one kind, and the ink on it (a title is read, so it needs 4.5:1) */
+export function barOf(v, barColour) {
+  const bar = frameHex(v, barColour);
+  return { bar, ink: ink(frameHex(v, '#000000'), bar) };
+}
+
+export function chromeOf(s) {
+  const v = s.v, bar = frameHex(v, '#AAAAAA'), black = frameHex(v, '#000000'), desk = deskOf(v, s.id);
+  const barInk = ink(black, bar);
+  const dark = lumaOf(hex(barInk)) < 0.5;
+  /* a pressed-looking hover: toward the far end from the ink, until the ink still reads on it */
+  let hover = bar;
+  for (let i = 0; i < 12 && (hover === bar || contrast(hex(barInk), hex(hover)) < BAR_MIN); i++) hover = hexOf(mixRgb(hex(i ? hover : bar), dark ? [255, 255, 255] : [0, 0, 0], i ? 0.12 : 0.3));
+  if (contrast(hex(barInk), hex(hover)) < BAR_MIN) hover = bar;
+  const lbl = ink(frameHex(v, '#FFFFFF'), desk);
+  return {
+    '--th-bar': bar, '--th-bar-ink': barInk, '--th-bar-soft': ink(hexOf(mixRgb(hex(barInk), hex(bar), 0.28)), bar), '--th-bar-line': frameHex(v, '#555555'), '--th-bar-hi': frameHex(v, '#FFFFFF'), '--th-bar-hover': hover,
+    '--th-lbl': lbl, '--th-lbl-edge': lumaOf(hex(lbl)) > 0.5 ? '#000000' : '#FFFFFF',
+    /* the simple overlays laid on every window: a hairline just inside the edge and a soft glow just outside it, in the scheme's own accent */
+    '--th-line': hexOf(mixRgb(hex(v.acc), hex(v.bg), 0.35)), '--th-glow': hexOf(mixRgb(hex(v.acc), hex(v.bg), 0.55)) + '88'
+  };
+}
+
+/* what the ROOM wears for a scheme: the six inks the pop-ups read, the desktop's colour, and the chrome. A window puts the six inks back to the machine's own (theme.css, `.win`), so
+   nothing inside a window is ever recoloured twice, or at all. */
+export function roomVars(s) {
+  if (s.id === 'vga') return {};
+  const v = s.v;
+  return Object.assign({ '--sch-bg': v.bg, '--sch-fg': v.fg, '--sch-ok': v.ok, '--sch-hi': v.hi, '--sch-err': v.err, '--sch-dim': v.dim, '--sch-acc': v.acc, '--sch-desk': deskOf(v, s.id) }, chromeOf(s));
+}
+export const ROOM_NAMES = ['--sch-bg', '--sch-fg', '--sch-ok', '--sch-hi', '--sch-err', '--sch-dim', '--sch-acc', '--sch-desk', '--th-bar', '--th-bar-ink', '--th-bar-soft', '--th-bar-line', '--th-bar-hi', '--th-bar-hover', '--th-lbl', '--th-lbl-edge', '--th-line', '--th-glow'];
+
+/* The custom properties a scheme sets on a NOTES window: the filter its title bar wears and the page's inks (--n-*, read by the Notes rules in theme.css). The default scheme (VGA)
+   sets nothing and so leaves Notes exactly as it always was. (What the room wears is `roomVars`.) */
 export function varsOf(s) {
   const o = {};
   if (s.id === 'vga') return o;
@@ -115,5 +158,6 @@ export function varsOf(s) {
   o['--th-filter'] = 'url(#th-' + s.id + ')';
   return o;
 }
-export const VAR_NAMES = ['--n-bg', '--n-fg', '--n-hi', '--n-acc', '--n-ok', '--n-err', '--n-dim', '--n-hover', '--n-sel', '--n-selink', '--n-line', '--th-filter',
-  '--sch-bg', '--sch-fg', '--sch-ok', '--sch-hi', '--sch-err', '--sch-dim', '--sch-acc', '--sch-desk'];     /* the --sch-* are what a build before this one set on the room: cleared if they are there */
+export const NOTES_NAMES = ['--n-bg', '--n-fg', '--n-hi', '--n-acc', '--n-ok', '--n-err', '--n-dim', '--n-hover', '--n-sel', '--n-selink', '--n-line', '--th-filter',
+  '--sch-bg', '--sch-fg', '--sch-ok', '--sch-hi', '--sch-err', '--sch-dim', '--sch-acc', '--sch-desk'];     /* a Notes window is also cleared of any of these an older build put on it */
+export const VAR_NAMES = NOTES_NAMES.concat(ROOM_NAMES.filter(n => NOTES_NAMES.indexOf(n) < 0));

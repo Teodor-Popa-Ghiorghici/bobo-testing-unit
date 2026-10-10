@@ -8,6 +8,7 @@ import { FRAMES, LOGOS, CURSORS, SCHEMES, DRINKS, ELEPHANT, DECO_SVG, forSale } 
 import { createTrophies } from '../kernel/trophies_core.js';
 import { registerAll } from '../kernel/trophies_defs.js';
 import { ratio, V } from '../kernel/cos_px.js';
+import { fits, sizeOf, PLATE_GAP } from '../kernel/chin_plate.js';
 import { SHAPE_IDS } from '../apps/bottle/shapes.js';
 import { MORE, MORE_IDS } from '../apps/elephant/wear_more.js';
 import { WEAR_MORE } from '../kernel/pet_art_more.js';
@@ -65,9 +66,19 @@ more.frame.forEach(f => {
     ok(!!DECO_SVG[d.svg], t + ': decoration ' + d.svg + ' exists');
     const m = /viewBox="0 0 (\d+) (\d+)"/.exec(DECO_SVG[d.svg] || '');
     if (m && !d.size && /^p[A-Z]/.test(d.svg)) ok(+m[1] <= 176 && +m[2] <= 30, t + ': ' + d.svg + ' stays on the ring of plastic (' + m[1] + ' x ' + m[2] + ')');
-    ok(/^(left|right|center)/.test(d.pos), t + ': ' + d.svg + ' is anchored to an edge or a corner');
+    ok(d.pos === 'chin' || /^(left|right|center)/.test(d.pos), t + ': ' + d.svg + ' is anchored to an edge or a corner, or is the chin\'s plate');
+    /* a label stands in the chin's own slot: pinned to a corner of the case it lay on the brand and the SCAN knob (kernel/chin_plate.js) */
+    if (/^p[A-Z]/.test(d.svg) || ['danger', 'readout', 'dims'].includes(d.svg)) {
+      ok(d.pos === 'chin', t + ': the label ' + d.svg + ' goes in the chin\'s slot, not a corner (' + d.pos + ')');
+      const z = sizeOf(DECO_SVG[d.svg]);
+      ok(z && z.h <= 26 && z.w <= 176, t + ': ' + d.svg + ' fits the chin (' + (z ? z.w + ' x ' + z.h : 'no size') + ')');
+    }
   });
 });
+
+/* the chin's slot: a plate is shown only where it has room, with a gap each side */
+ok(fits(104 + 2 * PLATE_GAP, 104) && !fits(104 + 2 * PLATE_GAP - 1, 104) && !fits(0, 1), 'a plate fits only with a gap on each side');
+ok(!!sizeOf('<svg viewBox="0 0 104 26"/>') && sizeOf('<svg viewBox="0 0 104 26"/>').h === 26 && sizeOf('<svg/>') === null, 'a plate\'s size is read from its viewBox');
 
 /* logos */
 const COLS = Object.values(V).map(c => c.toUpperCase());

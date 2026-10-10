@@ -234,7 +234,7 @@ export function drawThumb(cv, cat, it) {
     return;
   }
   if (cat === 'scheme') {
-    /* a scheme dresses NOTES and nothing else (kernel/theme_fx.js), so the card is a small Notes page in its inks, each held to readable exactly as the real page is. The words are pixel type, each in its
+    /* a scheme dresses Notes all the way down (and the rest of the machine on its outside only: kernel/theme_fx.js), so the card is a small Notes page in its inks, each held to readable exactly as the real page is. The words are pixel type, each in its
        own place, so nothing is cut or lies over another. */
     const t = notesInks(it.v), R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); }, left = (txt, x, y, c, f) => drawText(R, txt, x + Math.floor(widthOf(txt, f || F3) / 2), y, c, f || F3, {});
     R(0, 0, 116, 60, t.bg);

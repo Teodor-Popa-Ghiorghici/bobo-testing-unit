@@ -431,9 +431,9 @@ html, body {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 24px;
-  background: #AAAAAA;
-  color: #000000;
-  border-bottom: 1px solid #555555;
+  background: var(--th-bar, #AAAAAA);
+  color: var(--th-bar-ink, #000000);
+  border-bottom: 1px solid var(--th-bar-line, #555555);
   display: flex;
   align-items: center;
   z-index: 400;
@@ -441,7 +441,7 @@ html, body {
 }
 .menuitem { padding: 0 10px; height: 100%; display: flex; align-items: center; cursor: pointer; }
 .menuitem:hover { background: #000000; color: var(--phos-dim); }
-#menubar .brand { margin-left: auto; padding-right: 10px; color: #000000; }
+#menubar .brand { margin-left: auto; padding-right: 10px; color: var(--th-bar-ink, #000000); }
 
 #desktop {
   position: absolute;
@@ -507,13 +507,15 @@ html, body {
   text-shadow: 1px 0 0 #000000, -1px 0 0 #000000, 0 1px 0 #000000, 0 -1px 0 #000000;
 }
 .icon.sel .lbl { background: #FFFFFF; color: #000000; text-shadow: none; }
+/* on the bare desk (no picture behind it) a scheme gives the icons' names an ink that reads on its colour of desk; over a picture the names keep their plate and the machine's own ink */
+html:not(.deskpic) #icons .icon:not(.sel) .lbl { color: var(--th-lbl, var(--phos)); text-shadow: 1px 0 0 var(--th-lbl-edge, #000000), -1px 0 0 var(--th-lbl-edge, #000000), 0 1px 0 var(--th-lbl-edge, #000000), 0 -1px 0 var(--th-lbl-edge, #000000); }
 
 #taskbar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: 25px;
-  background: #AAAAAA;
-  border-top: 1px solid #FFFFFF;
+  background: var(--th-bar, #AAAAAA);
+  border-top: 1px solid var(--th-bar-hi, #FFFFFF);
   display: flex;
   align-items: center;
   padding: 0 4px;
@@ -522,9 +524,9 @@ html, body {
 }
 #tasks { display: flex; gap: 4px; overflow: hidden; }
 .tbtn {
-  border: 1px solid #555555;
-  background: #AAAAAA;
-  color: #000000;
+  border: 1px solid var(--th-bar-line, #555555);
+  background: var(--th-bar, #AAAAAA);
+  color: var(--th-bar-ink, #000000);
   padding: 0 6px;
   height: 20px;
   line-height: 18px;
@@ -545,7 +547,7 @@ html, body {
 #showdesk { flex: none; width: 12px; height: 20px; margin-left: 4px; border: 1px solid #555555; background: #000000; cursor: pointer; position: relative; }
 #showdesk::after { content: ''; position: absolute; left: 2px; right: 2px; bottom: 2px; height: 3px; background: #AAAAAA; }
 #showdesk:hover { border-color: #FFFF55; } #showdesk:hover::after { background: #FFFF55; }
-.tbtn:hover { background: #FFFFFF; }
+.tbtn:hover { background: var(--th-bar-hover, #FFFFFF); }
 .tbtn.active { background: #000000; color: #FFFF55; border-color: var(--phos); }
 #clock {
   margin-left: auto;
@@ -571,7 +573,7 @@ html, body {
   height: 22px;
   display: flex;
   align-items: center;
-  color: #000000;
+  color: var(--bar-ink, #000000);
   cursor: move;
   user-select: none;
   flex: 0 0 auto;
@@ -584,7 +586,7 @@ html, body {
 .titlebar .x {
   padding: 0 6px;
   cursor: pointer;
-  border-left: 2px solid #000000;
+  border-left: 2px solid var(--bar-ink, #000000);
 }
 .titlebar .th:hover,
 .titlebar .z:hover,
@@ -618,7 +620,7 @@ html, body {
       #FFFFFF 62%, #FFFFFF 73%,
       transparent 73%);
 }
-.tbtn.min { color: #333333; border-style: dashed; font-style: normal; }
+.tbtn.min { color: var(--th-bar-soft, #333333); border-style: dashed; font-style: normal; }
 
 /* folder window contents */
 .folderpane {
@@ -1077,6 +1079,10 @@ textarea.editor {
   background-size: 100% 100%;
   image-rendering: pixelated;
 }
+/* the frame's label, in the chin itself between the knobs and the panel of pots (kernel/chin_plate.js): a plate that does not fit is put away, never laid over a control */
+#chinplate[hidden] { display: none; }
+#chinplate { flex: none; margin-left: auto; background-repeat: no-repeat; background-size: 100% 100%; image-rendering: pixelated; pointer-events: none; }
+#chinplate:not([hidden]) + #panel { margin-left: 0; }
 /* the tint the frame lends the phosphor. Inside the glass, under the glass
    canvas, over the picture. */
 #frametint {
@@ -1267,9 +1273,15 @@ textarea.editor {
   padding: 0 8px; cursor: pointer; white-space: nowrap;
 }
 .shoptab.on { background: #FF55FF; color: #000000; }
+.shopview { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 3px 6px; background: #2a0a2a; border-bottom: 1px solid #AA00AA; }
+.shopview .svgroup { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.shopview .svl { color: #FF77FF; padding-right: 3px; }
+.shopview .svbtn { background: #000000; color: #FFFF55; border: 1px solid #AA00AA; padding: 0 6px; cursor: var(--cur-hand, pointer); white-space: nowrap; font-size: 16px; line-height: 17px; }
+.shopview .svbtn:hover { border-color: #FFFF55; }
+.shopview .svbtn.on { background: #FF55FF; color: #000000; border-color: #FF55FF; }
 .shopgrid {
   flex: 1 1 auto; overflow-y: auto;
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));        /* three across at the size it opens at, and more of them as the window is zoomed out */
   gap: 5px; padding: 5px;
   align-content: start;
   border-top: 2px solid #FF55FF;
@@ -1279,14 +1291,22 @@ textarea.editor {
   display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
 }
 .shopcard:hover { border-color: #FFFF55; }
-.shopcard.owned { border-color: #55FF55; }
-.shopcard.eq    { border-color: #55FFFF; background: #001a1a; }
+.shopcard.owned { border-color: #55FF55; background: #00280a; }
+.shopcard.eq    { border-color: #55FFFF; background: #00282a; }
+/* what is yours is read at a glance, zoomed right out: a tinted card, a heavy edge, a pill where the price was, and a badge on the picture (apps/shop/badge.js) */
+.shopcard.owned, .shopcard.eq, .shopcard.earned { border-width: 3px; padding: 2px; }
+.shopcard.owned canvas { outline: 2px solid #55FF55; outline-offset: -2px; }
+.shopcard.eq canvas { outline: 2px solid #55FFFF; outline-offset: -2px; }
+.shopcard.owned .pr, .shopcard.eq .pr { background: #00AA00; color: #000000; padding: 0 8px; }
+.shopcard.eq .pr { background: #00AAAA; }
+.shopcard.earned .pr { background: #AA5500; color: #FFFFFF; padding: 0 8px; }
+/* what is still for sale keeps the price in yellow, plain; one you cannot pay for yet is dimmer */
+.shopcard.broke canvas { opacity: 0.8; }
 .shopcard.broke { border-color: #AA0000; }
 .shopcard.locked { border-style: dashed; opacity: 0.85; }
 .shopcard canvas { width: 116px; height: 60px; flex: none; display: block; image-rendering: pixelated; background: #000000; }
 .shopcard .nm { color: var(--phos); font-size: 17px; text-align: center; line-height: 1.05; max-width: 100%; min-height: 17px; overflow-wrap: anywhere; }
 .shopcard .pr { color: #FFFF55; font-size: 17px; line-height: 1; }
-.shopcard.owned .pr { color: #55FF55; }
 .shopcard.reward { border-style: dashed; border-color: #AA55AA; }
 .shopcard.reward canvas { filter: brightness(0.55) saturate(0.6); }
 .shopcard.earned { border-color: #FFFF55; }
@@ -1347,7 +1367,7 @@ textarea.editor {
 
 /* ---- the garden --------------------------------------------------------- */
 .gardenpane { background: #1d1a12; padding: 2px; }
-.gardencv { width: 700px; height: auto; max-height: none; cursor: default; }
+.gardencv { max-height: none; cursor: default; }          /* its size is the window manager's (data-fit): never a fixed 700 px, which left the garden a postage stamp in a big window or in fullscreen */
 .gardencv.canning { cursor: cell; }
 .gbar { color: #55FF55; white-space: nowrap; overflow: hidden; }
 .gtip .gl2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -1542,13 +1562,20 @@ textarea.editor {
 .pinnum { color: #AAAAAA; font-size: 15px; }
 .pinfoot { color: #AAAAAA; font-size: 14px; margin-top: 4px; }
 
-/* ---- THE SCHEME DRESSES NOTES (kernel/theme_fx.js) -------------------------------------------------------------------------------------
-   --th-filter and the --n-* inks are set by Cos.wearNotes on a NOTES window and nowhere else: the filter is worn by that window's title bar and grip, the inks by the Notes
-   rules above (the page, the list, the links, the graph). The edge of the window is a border, coloured from the same ramp by Cos.dressFrame (kernel/cos.js). The menu bar, the
-   taskbar, the desktop, the icons, the pop-ups and every other window are never dressed: they are the machine's own, whatever scheme is worn. */
+/* ---- THE SCHEME (kernel/theme_fx.js) -------------------------------------------------------------------------------------------------
+   A scheme is worn at two depths. A NOTES window is dressed all the way down: --th-filter and the --n-* inks are set on it by Cos.wearNotes (the filter is worn by its title bar and
+   grip, the inks by the Notes rules above: the page, the list, the links, the graph). Everything else is dressed on the outside only, and never in its art: the room wears the
+   chrome (--th-bar* for the menu bar and the taskbar, --sch-desk and --th-lbl for the desk and the icons' names, --sch-* for the pop-ups), Cos.dressFrame colours every window's edge and
+   title bar (--bar-ink is its ink), and the two simple overlays below are laid round every window. */
 .win > .titlebar, .win > .grip { filter: var(--th-filter, none); }
-/* a window keeps the VGA inks whatever the room wears: the six inks the pop-ups read are not an app's business (see varsOf in theme_fx.js) */
+/* a window keeps the VGA inks whatever the room wears: the six inks the pop-ups read are not an app's business (see roomVars in theme_fx.js) */
 .win { --sch-bg: #000000; --sch-fg: #FFFFFF; --sch-ok: #55FF55; --sch-hi: #FFFF55; --sch-err: #FF5555; --sch-dim: #AAAAAA; --sch-acc: #55FFFF; }
+/* the overlays: a hairline just inside the edge and a soft glow just outside it, in the scheme's accent. Transparent (so nothing at all) under the default scheme; it never takes the pointer. */
+.win::after {
+  content: ''; position: absolute; inset: 0; z-index: 6; pointer-events: none;
+  border: 1px solid var(--th-line, transparent); box-shadow: 0 0 12px 2px var(--th-glow, transparent);
+}
+.win.hidden::after, .win.palette::after { display: none; }
 
 /* trophies left on the desktop (kernel/trophy_props.js): under the windows, over the icons */
 #trophyprops { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }

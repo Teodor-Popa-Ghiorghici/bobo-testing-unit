@@ -1,6 +1,7 @@
-import { varsOf, VAR_NAMES, frameHex, install as installThemes } from './theme_fx.js';
+import { varsOf, roomVars, barOf, VAR_NAMES, frameHex, install as installThemes } from './theme_fx.js';
 import { FRAMES, LOGOS, CURSORS, SCHEMES, POTS, SPECIES, WALLS, CRAYON, GARAGE, DRINKS, ELEPHANT, SOLITAIRE, DECO_SVG, CUR_HANDMASK, forSale } from './cos_data.js';
 import { Backdrops } from './backdrops.js';
+import { setChinPlate } from './chin_plate.js';
 import { handedOver } from './handed.js';
 
 /* `kind`: what owning one of these means. 'look' goes on the machine and is worn one at a time (frame, logo, pointer, scheme);
@@ -241,9 +242,11 @@ const Cos = {
       mon.appendChild(deco);
     }
     const imgs = [], poss = [], sizes = [];
+    let plate = null;
     (f.deco || []).forEach(d => {
       const svg = DECO_SVG[d.svg];
       if (!svg) return;
+      if (d.pos === 'chin') { plate = svg; return; }          /* a label goes in the chin's own slot, never over the badge or the knobs (kernel/chin_plate.js) */
       imgs.push('url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")');
       poss.push(d.pos);
       sizes.push(d.size || 'auto');          /* no size: the art's own, which is how the pixel pieces in cos_deco.js are shown, 1 to 1 */
@@ -251,6 +254,7 @@ const Cos = {
     deco.style.backgroundImage = imgs.join(',');
     deco.style.backgroundPosition = poss.join(',');
     deco.style.backgroundSize = sizes.join(',');
+    setChinPlate(plate);
 
     const badge = document.querySelector('#badge span');
     if (badge) badge.textContent = f.brand || 'HOLYTRON  DM-640';
@@ -295,23 +299,39 @@ const Cos = {
     room.style.setProperty('--cur-move',  arrow + ', move');
   },
 
-  /* A colour scheme dresses NOTES and nothing else (kernel/theme_fx.js says why). The room keeps the machine's own look, whatever is worn, and every Notes window wears the machine's
-     scheme unless it was given one of its own by its [T]. */
+  /* A colour scheme is worn at two depths (kernel/theme_fx.js says which). The ROOM wears the chrome: the six inks the pop-ups read, the desktop's colour, the menu bar, the taskbar,
+     the icons' names, and the hairline and glow round every window. Every window's own frame follows (dressFrame below). Nothing inside a window is ever recoloured but a Notes page,
+     which wears the machine's scheme unless it was given one of its own by its [T]. */
   applyScheme() {
     const room = document.getElementById('room');
     if (!room) return;
-    VAR_NAMES.forEach(k => room.style.removeProperty(k));              /* anything an older build set on the room */
+    VAR_NAMES.forEach(k => room.style.removeProperty(k));              /* what the last scheme set (and anything an older build set) */
+    const s = this.find('scheme', this.live('scheme')) || SCHEMES[0];
+    const o = roomVars(s);
+    for (const k in o) room.style.setProperty(k, o[k]);
     this.dressFrames();
   },
 
   isNotes: win => !!(win && win.dataset && win.dataset.app === 'notes'),
 
-  /* the edge of a window is a border, so it is coloured here, from the VGA colour wm.js gave it (data-edge); on a Notes window it takes the scheme's ramp (its title bar is filtered by the
-     stylesheet); on every other window it is the VGA colour it was given, always. */
+  /* the frame of a window: the edge is a border, so it is coloured here, from the VGA colour wm.js gave it (data-edge), and the bar from the one it gave that (data-bar). On a Notes window
+     both take the scheme the window wears (its own [T], else the machine's) and the bar is also filtered by the stylesheet, which is how its page is dressed; on every other window they
+     take the machine's scheme by arithmetic, the bar's ink pushed until it reads, and the body is left alone. A window in trouble (panic) stays red. */
   dressFrame(win) {
     const edge = win && win.dataset && win.dataset.edge;
     if (!edge || !this.st) return;
-    if (!this.isNotes(win)) { win.style.borderColor = edge; this.wearNotes(win, null); return; }
+    if (!this.isNotes(win)) {
+      const s = this.find('scheme', this.live('scheme')) || SCHEMES[0], bar = win.querySelector(':scope > .titlebar'), c = win.dataset.bar;
+      const on = s.id !== 'vga' && !win.classList.contains('panic');
+      win.style.borderColor = on ? frameHex(s.v, edge) : edge;
+      if (bar && c) {
+        const b = on ? barOf(s.v, c) : null;
+        bar.style.background = b ? b.bar : c;
+        if (b) win.style.setProperty('--bar-ink', b.ink); else win.style.removeProperty('--bar-ink');
+      }
+      this.wearNotes(win, null);
+      return;
+    }
     const s = this.find('scheme', win.dataset.scheme || this.live('scheme')) || SCHEMES[0];
     win.style.borderColor = s.id === 'vga' ? edge : frameHex(s.v, edge);
     this.wearNotes(win, s);

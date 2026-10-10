@@ -5,6 +5,9 @@ import { DAVE_GOOSE_LAND, DAVE_GOOSE_POKE, DAVE_GOOSE_HONK } from './lines_goose
 import { gifts } from '../gifts_scope.js';
 import { perches, sitter, stepSitter, arrival, sitFrame, ARRIVE, honkPlan } from '../goose_life.js';
 import { playHonk } from '../goose_voice.js';
+import { arrange, clean, DEFAULT_VIEW } from './sort.js';
+import { createViewBar } from './viewbar.js';
+import { drawBadge } from './badge.js';
 
 /* what a card's button says, and what pressing it does, by what kind of shelf it is on (kernel/cos.js COS_CATS) */
 const KIND = {
@@ -60,6 +63,11 @@ export default {
       tabs.appendChild(t);
     });
 
+    let view = { ...DEFAULT_VIEW };
+    const viewBar = createViewBar(view, v => { view = v; ctx.save('view', v); fill(); });
+    /* how it was left last time (ctx.save is the shop's own, so the choice is kept across sittings) */
+    Promise.resolve(ctx.load('view')).then(v => { if (v && gridEl) { view = clean(v); viewBar.set(view); fill(); } }).catch(() => {});
+
     gridEl = document.createElement('div');
     gridEl.className = 'shopgrid';
     footEl = document.createElement('div');
@@ -68,6 +76,7 @@ export default {
     root.className = 'shoproot';
     root.appendChild(top);
     root.appendChild(tabs);
+    root.appendChild(viewBar.el);
     root.appendChild(gridEl);
     root.appendChild(footEl);
 
@@ -112,8 +121,16 @@ export default {
       if (!gridEl) return;
       window.Cos.hover(null, null);
       gridEl.innerHTML = '';
-      const list = window.Cos.shelf(cat);
-      if (!list.length) {
+      const shelf = window.Cos.shelf(cat), bal = window.Economy.balance();
+      const list = arrange(shelf, view, { has: it => window.Cos.has(cat, it.id), price: it => it.price || 0, balance: bal, name: it => (it.secret && !window.Cos.has(cat, it.id)) ? '???' : it.name });
+      if (!list.length && shelf.length) {
+        const e = document.createElement('div'); e.className = 'shopempty';
+        const b = document.createElement('b'); b.textContent = view.show === 'owned' ? 'YOU OWN NOTHING ON THIS SHELF YET' : 'YOU OWN EVERYTHING ON THIS SHELF';
+        e.appendChild(b);
+        e.appendChild(document.createTextNode(view.show === 'owned' ? 'PRESS ALL, ABOVE, TO SEE WHAT IS FOR SALE. I WILL WAIT. I AM VERY GOOD AT WAITING.' : 'I HAVE NOTHING LEFT TO SELL YOU ON THIS ONE. PRESS ALL, ABOVE, IF YOU WANT TO LOOK AT IT AGAIN.'));
+        gridEl.appendChild(e);
+      }
+      if (!list.length && !shelf.length) {
         /* a shelf with nothing on it says why (the BACKDROPS are pictures a blackout has dealt you: kernel/cos.js) instead of being a blank grid */
         const e = document.createElement('div'); e.className = 'shopempty';
         const b = document.createElement('b'); b.textContent = 'NOTHING ON THIS SHELF YET';
@@ -132,6 +149,7 @@ export default {
         const cv = document.createElement('canvas');
         cv.width = 116; cv.height = 60;
         drawThumb(cv, cat, it);
+        if (owned && !(it.secret && !owned)) drawBadge(cv, eq ? 'eq' : (it.reward || it.earn) ? 'earned' : 'owned');
 
         const nm = document.createElement('div');
         nm.className = 'nm';
