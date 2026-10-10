@@ -15,6 +15,7 @@ import "./vault.js";
 import "./drunk.js";
 import { Gifts } from "./gifts.js";
 import "./buffs.js";
+import "./stack_hud.js";
 import { Cheese } from "./cheese.js";
 import { Music } from './music.js';
 import { SunUI } from './economy.js';

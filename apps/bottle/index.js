@@ -2,6 +2,7 @@ import { Snd } from '../../kernel/snd.js';
 import { makeSfx } from './sfx.js';
 import { makeArt, BW, BH, C, GLS, BOT } from './art.js';
 import { makeContainer } from './raster.js';
+import { makeRoom } from './room.js';
 import { clamp, makeSlosh, stepSlosh, JAG_FULL, JAG_SHOT, POURED_FILL, BOT_FULL, sway } from './physics.js';
 import { startPour, pourStep } from './pour.js';
 import { startDrink, drinkStep, restPose } from './drink.js';
@@ -63,6 +64,8 @@ export default {
     const gift = buffs();
     let botC = makeContainer(A.bottleSpec);
     const glass = makeGlass3D();
+    const room = makeRoom();
+    let roomKey = '', shelfDrinks = [];                                    /* the other bottles you own, standing on the shelf behind the table (room.js) */
     const owned = () => DRINKS.filter(d => window.Cos.has('drink', d.id));
 
     const S = {
@@ -123,7 +126,7 @@ export default {
 
     function draw(ts) {
       const B = S.bot, G = S.gls;
-      A.table();
+      room.paint(g, roomKey, shelfDrinks);
       if (gift.has('jager_coaster')) A.coaster();                       /* HOLYC.EXE's quiet gift: a coaster under the glass */
       A.shadow(GLS.rest[0], 293, 84);
       if (S.phase === 'idle' || (S.phase === 'pour' && S.sub === 'return' && B.c[1] > REST_C[1] - 6)) A.shadow(70, 246, 86);
@@ -205,7 +208,8 @@ export default {
       refreshBar(); save(); sfx.cork();
       say(quip(d));
     }
-    function refreshBar() { bDrink.textContent = 'DRINK: ' + drink.name; bDrink.title = owned().length > 1 ? 'CHANGE WHAT YOU ARE POURING' : 'DAVE SELLS OTHER BOTTLES'; }
+    function refreshRoom() { shelfDrinks = owned().filter(d => d.id !== drink.id); roomKey = drink.id + '|' + shelfDrinks.map(d => d.id).join(','); }
+    function refreshBar() { refreshRoom(); bDrink.textContent = 'DRINK: ' + drink.name; bDrink.title = owned().length > 1 ? 'CHANGE WHAT YOU ARE POURING' : 'DAVE SELLS OTHER BOTTLES'; }
     bDrink.addEventListener('click', () => {
       if (S.phase !== 'idle') return;
       if (full()) { say('FINISH THE GLASS FIRST.'); sfx.deny(); cv.focus(); return; }

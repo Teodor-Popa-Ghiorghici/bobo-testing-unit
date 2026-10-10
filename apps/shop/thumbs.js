@@ -5,6 +5,8 @@ import { drawPlant } from '../garden/art.js';
 import { thumbMini } from '../../kernel/pet_art.js';
 import { sampleStroke } from '../crayon/brushes.js';
 import { POTS, LOGOS } from '../../kernel/cos_data.js';
+import { drawText, F3, F5, widthOf } from '../pixtext.js';
+import { miniBottle } from '../bottle/mini.js';
 import { drawGoose, PAL16 } from '../goose_art.js';
 
 function dimCol(hex, k) {
@@ -121,24 +123,27 @@ function drawShelf(g, cv, cat, it) {
     return true;
   }
   if (cat === 'garage') {
+    /* the pack's list in two columns of pixel type (every name fits its column: they are never cut or run into each other), over a few keys of a piano */
     g.fillStyle = '#0a1018'; g.fillRect(0, 0, 116, 60);
-    g.font = '10px monospace'; g.fillStyle = '#55FFFF';
-    g.fillText(it.inst.length + ' INSTRUMENTS', 6, 11);
-    g.fillStyle = '#FFFFFF';
-    it.inst.forEach((id, i) => g.fillText(id.toUpperCase().slice(0, 11), 6 + (i % 2) * 58, 24 + Math.floor(i / 2) * 11));
+    const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    drawText(R, it.inst.length + (it.inst.length === 1 ? ' INSTRUMENT' : ' INSTRUMENTS'), 58, 4, '#55FFFF', F5, {});
+    it.inst.forEach((id, i) => {
+      const name = id.toUpperCase(), col = i % 2, row = Math.floor(i / 2), x = 6 + col * 56;
+      R(x, 17 + row * 8 + 1, 2, 3, '#FF55FF');
+      drawText(R, name, x + 4 + Math.floor(widthOf(name, F3) / 2), 17 + row * 8, '#FFFFFF', F3, {});
+    });
+    for (let k = 0; k < 14; k++) R(6 + k * 7, 50, 6, 10, '#d8d8d0');
+    [0, 1, 3, 4, 5, 7, 8, 10, 11, 12].forEach(k => R(6 + k * 7 + 5, 50, 4, 6, '#101018'));
     return true;
   }
   if (cat === 'drink') {
+    /* the bottle as the game builds it (apps/bottle/mini.js), on the bar, with its strength beside it */
     g.fillStyle = '#2a1a0c'; g.fillRect(0, 0, 116, 60);
-    g.fillStyle = '#3a2415'; g.fillRect(0, 52, 116, 8);
-    const x = 47, y = 6;
-    g.fillStyle = '#000000'; g.fillRect(x - 1, y + 14, 26, 38); g.fillRect(x + 6, y, 12, 16);
-    g.fillStyle = it.glass; g.fillRect(x, y + 15, 24, 36); g.fillRect(x + 7, y + 1, 10, 15);
-    g.fillStyle = it.liquor; g.fillRect(x + 2, y + 18, 20, 31); g.fillRect(x + 9, y + 3, 6, 12);
-    g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x + 3, y + 17, 3, 32);
-    g.fillStyle = it.label; g.fillRect(x + 3, y + 26, 18, 14);
-    g.fillStyle = '#000000'; g.fillRect(x + 6, y + 29, 12, 2); g.fillRect(x + 8, y + 34, 8, 2);
-    g.fillStyle = '#FFFF55'; g.font = '9px monospace'; g.fillText(it.abv + '%', 90, 52);
+    g.fillStyle = '#3a2415'; g.fillRect(0, 52, 116, 8); g.fillStyle = '#5a3a24'; g.fillRect(0, 52, 116, 1);
+    const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
+    miniBottle(R, it, 58, 55, 0.235);
+    const txt = it.potion ? '?%' : it.abv + '%';
+    drawText(R, txt, 100, 46, '#FFFF55', F5, {});
     return true;
   }
   if (cat === 'elephant') {
@@ -213,9 +218,7 @@ export function drawThumb(cv, cat, it) {
   }
   if (cat === 'cursor') {
     if (it.system || !it.mask) {
-      g.fillStyle = '#AAAAAA';
-      g.font = '15px monospace';
-      g.fillText('SYSTEM', 34, 34);
+      drawText((x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); }, 'SYSTEM', 58, 26, '#AAAAAA', F5, { heavy: true });
       return;
     }
     const S = 4, w = it.mask[0].length, h = it.mask.length;
@@ -231,19 +234,18 @@ export function drawThumb(cv, cat, it) {
     return;
   }
   if (cat === 'scheme') {
-    /* a scheme dresses NOTES and nothing else (kernel/theme_fx.js), so the card is a small Notes page in its inks, each held to readable exactly as the real page is */
-    const t = notesInks(it.v);
-    g.fillStyle = t.bg; g.fillRect(0, 0, 116, 60);
-    g.fillStyle = t.sel; g.fillRect(0, 0, 116, 9);
-    g.font = '8px monospace'; g.fillStyle = t.selInk; g.fillText('NOTES', 3, 7);
-    g.fillStyle = t.line; g.fillRect(36, 9, 1, 51);
-    const list = [[t.fg, 'Index'], [t.dim, 'Plans'], [t.fg, 'Bekkedal']];
-    list.forEach((r, i) => { if (i === 0) { g.fillStyle = t.sel; g.fillRect(0, 11 + i * 10, 36, 10); g.fillStyle = t.selInk; } else g.fillStyle = r[0]; g.font = '9px monospace'; g.fillText(r[1], 3, 19 + i * 10); });
-    g.font = '10px monospace';
-    g.fillStyle = t.hi; g.fillText('THE INDEX', 41, 21);
-    g.fillStyle = t.fg; g.fillText('a page, and', 41, 31);
-    g.fillStyle = t.acc; g.fillText('[[a link]]', 41, 41); g.fillStyle = t.err; g.fillText('[[none]]', 41, 51);
-    g.fillStyle = t.ok; g.fillText('x', 102, 31); g.fillStyle = t.dim; g.fillText('3', 106, 41);
+    /* a scheme dresses NOTES and nothing else (kernel/theme_fx.js), so the card is a small Notes page in its inks, each held to readable exactly as the real page is. The words are pixel type, each in its
+       own place, so nothing is cut or lies over another. */
+    const t = notesInks(it.v), R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); }, left = (txt, x, y, c, f) => drawText(R, txt, x + Math.floor(widthOf(txt, f || F3) / 2), y, c, f || F3, {});
+    R(0, 0, 116, 60, t.bg);
+    R(0, 0, 116, 9, t.sel); left('NOTES', 3, 2, t.selInk);
+    R(38, 9, 1, 51, t.line);
+    [['INDEX', t.selInk, true], ['PLANS', t.dim], ['BEKKEDAL', t.fg]].forEach(([txt, c, on], i) => { if (on) R(0, 11 + i * 10, 38, 9, t.sel); left(txt, 3, 13 + i * 10, c); });
+    left('THE INDEX', 43, 12, t.hi, F5);
+    left('A PAGE, AND', 43, 24, t.fg);
+    left('[A LINK]', 43, 32, t.acc);
+    left('[NONE]', 43, 40, t.err);
+    left('OK', 43, 48, t.ok); left('3', 62, 48, t.dim);
     return;
   }
   if (cat === 'pot') {

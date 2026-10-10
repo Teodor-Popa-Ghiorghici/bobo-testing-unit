@@ -171,6 +171,7 @@ export function createWindow(opts) {
     btn.classList.add('min');
     btn.classList.remove('active');
     Snd.min();
+    announceWins();                                  /* the Stack's control on the desktop (stack_hud.js) shows while it is put away */
   }
 
   function unminimize() {
@@ -179,6 +180,7 @@ export function createWindow(opts) {
     btn.classList.remove('min');
     raise(win);
     Snd.open();
+    announceWins();
   }
 
   /* ---- fullscreen -------------------------------------------------------
@@ -276,7 +278,8 @@ export function createWindow(opts) {
 
   rec = { win: win, btn: btn, title: opts.title, kind: opts.kind || 'text', palette: palette,
           appId: opts.appId || null, id: nextTaskId(), born: Date.now(), close: null,
-          setFull: setFull, toggleFull: toggleFull, rightClick: !!opts.rightClick };
+          setFull: setFull, toggleFull: toggleFull, rightClick: !!opts.rightClick,
+          restore: () => { if (win.classList.contains('hidden')) unminimize(); else raise(win); } };      /* what the taskbar button does to a window that is put away, for whoever else wants it back */
   openWins.push(rec);
   announceWins();
 

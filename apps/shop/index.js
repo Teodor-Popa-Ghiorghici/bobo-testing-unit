@@ -113,6 +113,14 @@ export default {
       window.Cos.hover(null, null);
       gridEl.innerHTML = '';
       const list = window.Cos.shelf(cat);
+      if (!list.length) {
+        /* a shelf with nothing on it says why (the BACKDROPS are pictures a blackout has dealt you: kernel/cos.js) instead of being a blank grid */
+        const e = document.createElement('div'); e.className = 'shopempty';
+        const b = document.createElement('b'); b.textContent = 'NOTHING ON THIS SHELF YET';
+        e.appendChild(b);
+        e.appendChild(document.createTextNode(cat === 'wall' ? 'THE BACKDROPS ARE PICTURES THE BOTTLE SHOWS YOU WHEN YOU PASS OUT. EACH ONE YOU HAVE SEEN COMES ONTO THIS SHELF. I CANNOT SELL WHAT YOU HAVE NOT SEEN.' : 'I HAD SOMETHING HERE. I SOLD IT. COME BACK.'));
+        gridEl.appendChild(e);
+      }
       list.forEach(it => {
         const owned = window.Cos.has(cat, it.id);
         const eq = isEq(cat, it.id);

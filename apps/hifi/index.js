@@ -16,6 +16,7 @@ import { Studio } from '../../kernel/studio.js';
 import { loadTrack } from '../../kernel/style_track.js';
 import { createCalls } from './trophy_calls.js';
 import { plan, evictions, XFADE, PRELOAD } from './keep.js';
+import { attachRemote } from './remote.js';
 
 export default {
   id: 'hifi',
@@ -1153,6 +1154,7 @@ export default {
         S.voices.slice().forEach(v => killVoice(v, 0.05));
         if (texSrc) { try { texSrc.stop(); } catch (e) {} texSrc = null; }
         try { N.master.disconnect(); } catch (e) {}
+        try { detachRemote(); } catch (e) { /* closing */ }
         try { io.saveSettings(); if (lib) lib.destroy(); } catch (e) { /* closing */ }
       }
 
@@ -1425,6 +1427,8 @@ export default {
         setTab: id => setTab(id), setVol: v => { S.vol = Math.max(0, Math.min(1, v)); io.saveSettings(); },
         remap: map => { if (map.has(S.ix)) S.ix = map.get(S.ix); }, afterLabel: showMode
       });
+      /* what the control on the desktop (kernel/stack_hud.js) can reach while this window is minimised */
+      const detachRemote = attachRemote({ S, io, press, seek, thumb: (t, cb) => thumbUrl(t, cb) });
       function setTab(id) {
         S.tab = id;
         tPlayer.classList.toggle('on', id === 'player'); tLib.classList.toggle('on', id === 'library');
